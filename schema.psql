@@ -1,0 +1,27 @@
+-- vim:ft=pgsql
+
+BEGIN TRANSACTION;
+
+CREATE TABLE users (
+    user_id       SERIAL      NOT NULL UNIQUE,
+    username      VARCHAR(32) NOT NULL,
+    password_hash BYTEA       NOT NULL -- md5($username . ':Sahara:' . $password)
+);
+
+-- how to store directories?
+-- do you really need to?
+CREATE TABLE blobs (
+    blob_name     TEXT      NOT NULL, -- more efficient?
+    owner         INTEGER   NOT NULL REFERENCES users(user_id),
+    modified_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_deleted    BOOLEAN   NOT NULL DEFAULT FALSE,
+
+    UNIQUE(blob_name, owner)
+);
+
+CREATE UNIQUE INDEX username_idx ON users (username);
+CREATE INDEX blob_mtime_idx ON blobs (modified_time);
+
+INSERT INTO users (username, password_hash) VALUES ('test', E'\\033\\134\\047\\226\\352\\111\\077\\137\\356\\077\\047\\100\\351\\056\\061\\343'); -- password is abc123
+
+COMMIT;

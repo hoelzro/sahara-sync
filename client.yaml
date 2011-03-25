@@ -1,0 +1,13 @@
+upstream: 'http://localhost:5000'
+sync_dir: '~/Sandbox'
+user: 'test'
+password: 'abc123'
+
+logging:
+    to: 'console'
+
+plugins:
+    -
+      name: 'Encrypt::OpenPGP'
+      key: 'A48611AA'
+      prompt_for_password: true

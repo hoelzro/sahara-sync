@@ -1,0 +1,10 @@
+storage:
+    plugin: 'DBIWithFS'
+    dsn: 'dbi:Pg:dbname=sahara'
+    fs_root: '/tmp/sahara'
+
+authentication:
+    plugin: 'Storage'
+
+logging:
+    to: 'console'

@@ -1,0 +1,38 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Module::Build;
+
+my $build = Module::Build->new(
+    build_requires    => {
+        'Pod::Readme' => 0,
+    },
+    create_readme     => 1,
+    dist_abstract     => 'Sync freely.',
+    dist_author       => 'Rob Hoelz <rob@hoelz.ro>',
+    dist_name         => 'SaharaSync',
+    dist_version      => '0.01',
+    license           => 'unknown', # AGPL 3
+    module_name       => 'SaharaSync',
+    recommends        => {
+        'DBD::Pg' => 0,
+        'DBI'     => 0,
+        'Twiggy'  => 0,
+    },
+    requires          => {
+        'AnyEvent::Filesys::Notify'       => 0,
+        'AnyEvent::HTTP'                  => 0,
+        'File::Path'                      => 0,
+        'File::Slurp'                     => 0,
+        'File::Spec'                      => 0,
+        'Moose'                           => 0,
+        'Plack'                           => 0,
+        'Plack::Middleware::Auth::Digest' => 0,
+        'perl'                            => '5.10.0',
+    },
+    script_files      => [
+    ],
+);
+$build->create_build_script;

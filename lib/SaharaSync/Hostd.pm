@@ -23,17 +23,20 @@ my $store = SaharaSync::Hostd::Plugin::Store->get;
 
 my %connections;
 
-sub capabilities {
+sub top_level {
     my ( $env ) = @_;
 
     my $req = Plack::Request->new($env);
-    my $res = $req->new_response(200);
-    $res->content_type('text/plain');
-    if($env->{'psgi.nonblocking'}) {
-        $res->body('streaming');
+    my $res = $req->new_response;
+
+    unless($req->path eq '/') {
+        $res->status(404);
+        $res->content_type('text/plain');
+        $res->body('not found');
     } else {
-        $res->body('');
-    }
+        $res->status(200);
+        $res->header('X-Sahara-Capabilities' => $env->{'psgi.nonblocking'} ? 'streaming' : '');
+    };
     $res->finalize;
 }
 
@@ -155,20 +158,21 @@ sub blobs {
 
 sub to_app {
     builder {
-        mount '/capabilities' => \&capabilities;
-
         mount '/changes' => builder {
+            enable 'Options', allow => [qw/GET/];
             enable 'Sahara::Auth', store => $store;
             \&changes;
         };
 
         mount '/blobs' => builder {
+            enable 'Options', allow => [qw/GET PUT DELETE/];
             enable 'Sahara::Auth', store => $store;
             \&blobs;
         };
 
-        mount '/' => sub {
-            [ 404, ['Content-Type' => 'text/plain'], ['not found'] ];
+        mount '/' => builder {
+            enable 'Options', allow => [qw/HEAD/];
+            \&top_level;
         };
     }->to_app;
 }

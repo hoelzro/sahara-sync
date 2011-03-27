@@ -146,12 +146,7 @@ sub blobs {
                     }
                 }
             }
-        }
-        default {
-            $res->status(405);
-            $res->content_type('text/plain');
-            $res->body('invalid HTTP method');
-        }
+       }
     }
     $res->finalize;
 }
@@ -159,19 +154,19 @@ sub blobs {
 sub to_app {
     builder {
         mount '/changes' => builder {
-            enable 'Options', allow => [qw/GET/];
+            enable 'Options', allowed => [qw/GET/];
             enable 'Sahara::Auth', store => $store;
             \&changes;
         };
 
         mount '/blobs' => builder {
-            enable 'Options', allow => [qw/GET PUT DELETE/];
+            enable 'Options', allowed => [qw/GET PUT DELETE/];
             enable 'Sahara::Auth', store => $store;
             \&blobs;
         };
 
         mount '/' => builder {
-            enable 'Options', allow => [qw/HEAD/];
+            enable 'Options', allowed => [qw/HEAD/];
             \&top_level;
         };
     }->to_app;

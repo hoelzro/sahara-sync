@@ -39,7 +39,32 @@ SaharaSync::Hostd::Plugin::Store
 
 =head1 DESCRIPTION
 
-=head1 FUNCTIONS
+=head1 REQUIRED METHODS
+
+=head2 $store->load_user_info($username)
+
+Returns a hash reference containing the password
+hash for C<$username> under the key 'password_hash'.
+
+=head2 $store->fetch_blob($user, $blob)
+
+Returns an L<IO::Handle> that contains the contents of
+a blob named C<$blob> for user C<$user>.  If no such
+blob exists, undef is returned.
+
+=head2 $store->store_blob($user, $blob, $handle)
+=head2 $store->store_blob($user, $blob)
+
+Stores the contents of C<$handle> in a blob called C<$blob>
+for user C<$user>.  C<$handle> is NOT necessarily an L<IO::Handle>;
+the only interface it must implement is the read method
+(see L<PSGI/"The Input Stream"> for details).  If C<$handle> is
+undef or omitted, that blob is deleted.
+
+=head2 $store->fetch_changed_blobs($user, $timestamp)
+
+Returns an array of blob names that have changed since C<$timestamp>.
+Duplicate entries may or may not be included.
 
 =head1 AUTHOR
 

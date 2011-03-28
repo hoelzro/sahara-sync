@@ -96,7 +96,7 @@ sub blobs {
         when('GET') {
             my $contents = $store->fetch_blob($user, $blob);
 
-            if($contents) {
+            if(defined $contents) {
                 $res->status(200);
                 $res->content_type('application/octet-stream');
                 $res->body($contents);

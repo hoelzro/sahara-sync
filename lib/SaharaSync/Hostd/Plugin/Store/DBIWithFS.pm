@@ -72,18 +72,23 @@ sub fetch_blob {
     my $dbh = $self->dbh;
 ## HELLO non-portable SQL!
     my $sth = $dbh->prepare(<<SQL);
-SELECT COUNT(1) FROM blobs AS b
-INNER JOIN users AS u ON b.owner = u.user_id
-WHERE u.username   = ?
-AND   b.blob_name  = ?
-AND   b.is_deleted = FALSE
+SELECT u.username IS NOT NULL, b.blob_name IS NOT NULL FROM users AS u
+LEFT JOIN blobs AS b
+ON  b.owner = u.user_id
+AND b.blob_name = ?
+AND b.is_deleted = FALSE
+WHERE u.username = ?
 SQL
 
-    $sth->execute($user, $blob);
+    $sth->execute($blob, $user);
 
-    my ( $exists ) = $sth->fetchrow_array;
+    my ( $user_exists, $file_exists ) = $sth->fetchrow_array;
 
-    if($exists) {
+    unless($user_exists) {
+        croak "No user '$user' found!";
+    }
+
+    if($file_exists) {
         my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
         my $handle = IO::File->new($path, 'r');
         unless($handle) {

@@ -30,6 +30,7 @@ my $build = Module::Build->new(
         'Moose'                           => 0,
         'Plack'                           => 0,
         'Plack::Middleware::Auth::Digest' => 0,
+        'Plack::Middleware::Options'      => 0,
         'perl'                            => '5.10.0',
     },
     script_files      => [

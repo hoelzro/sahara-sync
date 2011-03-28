@@ -94,12 +94,12 @@ sub blobs {
 
     given($method) {
         when('GET') {
-            my $contents = $store->fetch_blob($user, $blob);
+            my $handle = $store->fetch_blob($user, $blob);
 
-            if(defined $contents) {
+            if(defined $handle) {
                 $res->status(200);
                 $res->content_type('application/octet-stream');
-                $res->body($contents);
+                $res->body($handle);
             } else {
                 $res->status(404);
                 $res->content_type('text/plain');

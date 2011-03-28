@@ -1,9 +1,11 @@
 package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
+use Carp qw(croak);
 use DBI;
 use File::Path qw(make_path);
 use File::Slurp qw(read_file write_file);
 use File::Spec;
+use IO::File;
 
 use namespace::clean;
 
@@ -64,9 +66,12 @@ SQL
     my ( $exists ) = $sth->fetchrow_array;
 
     if($exists) {
-        ## returning the full blob in memory seems foolhardy...
         my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-        return read_file $path; ## freak out if this is undef
+        my $handle = IO::File->new($path, 'r');
+        unless($handle) {
+            croak "Unable to open '$path': $!";
+        }
+        return $handle;
     } else {
         return;
     }

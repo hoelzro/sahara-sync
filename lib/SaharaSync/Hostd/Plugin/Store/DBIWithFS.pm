@@ -3,7 +3,6 @@ package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 use Carp qw(croak);
 use DBI;
 use File::Path qw(make_path);
-use File::Slurp qw(read_file write_file);
 use File::Spec;
 use IO::File;
 
@@ -30,6 +29,25 @@ has fs_storage_path => (
     isa     => 'Str',
     default => '/tmp/sahara/',
 );
+
+## rollback transaction/delete file if this fails
+sub dump_to_file {
+    my ( $self, $dest, $src ) = @_;
+
+    my $buf = '';
+    my $n;
+
+    my $f = IO::File->new($dest, 'w');
+    croak "Unable to open '$dest': $!" unless $f;
+
+    do {
+        $n = $src->read($buf, 1024);
+        croak "read failed: $!" unless defined $n;
+        $f->syswrite($buf, $n) || croak "write failed: $!" if $n;
+    } while $n;
+
+    $f->close;
+}
 
 sub load_user_info {
     my ( $self, $username ) = @_;
@@ -77,9 +95,8 @@ SQL
     }
 }
 
-## passing the full blob in memory seems foolhardy...
 sub store_blob {
-    my ( $self, $user, $blob, $content ) = @_;
+    my ( $self, $user, $blob, $handle ) = @_;
 
     my $dbh = $self->dbh;
     my $sth = $dbh->prepare(<<SQL);
@@ -94,7 +111,7 @@ SQL
 
     my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
 
-    if(defined $content) {
+    if(defined $handle) {
 ## HELLO non-portable SQL!
         $sth = $dbh->prepare(<<SQL);
 UPDATE blobs
@@ -115,7 +132,7 @@ SQL
 
         my ( undef, $dir ) = File::Spec->splitpath($path);
         make_path $dir;
-        write_file $path, $content;
+        $self->dump_to_file($path, $handle);
         return ! $exists;
     } else {
 ## HELLO non-portable SQL!

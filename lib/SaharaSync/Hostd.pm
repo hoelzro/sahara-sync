@@ -107,12 +107,7 @@ sub blobs {
             }
         }
         when('PUT') {
-            my $body = $req->body;
-            $body    = do {
-                local $/;
-                <$body>;
-            };
-            my $is_new = $store->store_blob($user, $blob, $body);
+            my $is_new = $store->store_blob($user, $blob, $req->body);
 
             if($is_new) {
                 $res->status(201);

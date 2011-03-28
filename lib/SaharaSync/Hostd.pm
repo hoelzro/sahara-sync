@@ -107,12 +107,12 @@ sub blobs {
             }
         }
         when('PUT') {
-            my $is_new = $store->store_blob($user, $blob, $req->body);
+            my $existed = $store->store_blob($user, $blob, $req->body);
 
-            if($is_new) {
-                $res->status(201);
-            } else {
+            if($existed) {
                 $res->status(200);
+            } else {
+                $res->status(201);
             }
             $res->content_type('text/plain');
             $res->body('ok');

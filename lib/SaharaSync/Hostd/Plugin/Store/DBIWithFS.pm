@@ -138,7 +138,7 @@ SQL
         my ( undef, $dir ) = File::Spec->splitpath($path);
         make_path $dir;
         $self->dump_to_file($path, $handle);
-        return ! $exists;
+        return $exists;
     } else {
 ## HELLO non-portable SQL!
         $sth = $dbh->prepare(<<SQL);

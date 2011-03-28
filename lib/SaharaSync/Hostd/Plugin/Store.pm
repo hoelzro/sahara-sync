@@ -53,6 +53,7 @@ a blob named C<$blob> for user C<$user>.  If no such
 blob exists, undef is returned.
 
 =head2 $store->store_blob($user, $blob, $handle)
+
 =head2 $store->store_blob($user, $blob)
 
 Stores the contents of C<$handle> in a blob called C<$blob>

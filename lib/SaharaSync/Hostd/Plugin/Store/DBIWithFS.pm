@@ -106,7 +106,7 @@ SQL
     $sth->execute($user);
     my ( $user_id ) = $sth->fetchrow_array;
     unless(defined $user_id) {
-        ## freak out
+        croak "No user '$user' found!";
     }
 
     my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);

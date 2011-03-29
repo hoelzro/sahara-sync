@@ -48,6 +48,89 @@ sub dump_to_file {
     $f->close;
 }
 
+sub get_user_id {
+    my ( $self, $user ) = @_;
+
+    my $dbh = $self->dbh;
+    my $sth = $dbh->prepare(<<SQL);
+SELECT user_id FROM users WHERE username = ?
+SQL
+
+    $sth->execute($user);
+    my ( $user_id ) = $sth->fetchrow_array;
+    unless(defined $user_id) {
+        croak "No user '$user' found!";
+    }
+
+    return $user_id;
+}
+
+sub put_blob {
+    my ( $self, $user, $blob, $handle ) = @_;
+
+    my $path    = File::Spec->catfile($self->fs_storage_path, $user, $blob);
+    my $user_id = $self->get_user_id($user);
+    my $dbh     = $self->dbh;
+
+    $dbh->begin_work;
+## HELLO non-portable SQL!
+    my $sth = $dbh->prepare(<<SQL);
+UPDATE blobs
+SET modified_time = CURRENT_TIMESTAMP,
+    is_deleted    = FALSE
+WHERE owner     = ?
+AND   blob_name = ?
+SQL
+    ## we should return false when a row existed but is_deleted was TRUE
+    my $exists = $sth->execute($user_id, $blob) != 0;
+
+    unless($exists) {
+        $sth = $dbh->prepare(<<SQL);
+INSERT INTO blobs (owner, blob_name) VALUES (?, ?)
+SQL
+        $sth->execute($user_id, $blob);
+    }
+
+    my ( undef, $dir ) = File::Spec->splitpath($path);
+    eval {
+        make_path $dir;
+        $self->dump_to_file($path, $handle);
+    };
+    if($@) {
+        $dbh->rollback;
+        die;
+    }
+    $dbh->commit;
+    return $exists;
+}
+
+sub delete_blob {
+    my ( $self, $user, $blob ) = @_;
+
+    my $path    = File::Spec->catfile($self->fs_storage_path, $user, $blob);
+    my $user_id = $self->get_user_id($user);
+    my $dbh     = $self->dbh;
+
+    $dbh->begin_work;
+## HELLO non-portable SQL!
+    my $sth = $dbh->prepare(<<SQL);
+UPDATE blobs
+SET modified_time = CURRENT_TIMESTAMP, 
+    is_deleted    = TRUE
+WHERE owner     = ?
+AND   blob_name = ?
+SQL
+    my $exists = $sth->execute($user_id, $blob);
+    if($exists) {
+        unless(unlink $path) {
+            $dbh->rollback;
+            croak "Unable to delete '$path': $!";
+        }
+    }
+    $dbh->commit;
+    return $exists != 0;
+}
+
 sub load_user_info {
     my ( $self, $username ) = @_;
 
@@ -102,69 +185,10 @@ SQL
 sub store_blob {
     my ( $self, $user, $blob, $handle ) = @_;
 
-    my $dbh = $self->dbh;
-    my $sth = $dbh->prepare(<<SQL);
-SELECT user_id FROM users WHERE username = ?
-SQL
-
-    $sth->execute($user);
-    my ( $user_id ) = $sth->fetchrow_array;
-    unless(defined $user_id) {
-        croak "No user '$user' found!";
-    }
-
-    my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-
     if(defined $handle) {
-        $dbh->begin_work;
-## HELLO non-portable SQL!
-        $sth = $dbh->prepare(<<SQL);
-UPDATE blobs
-SET modified_time = CURRENT_TIMESTAMP,
-    is_deleted    = FALSE
-WHERE owner     = ?
-AND   blob_name = ?
-SQL
-        ## we should return false when a row existed but is_deleted was TRUE
-        my $exists = $sth->execute($user_id, $blob) != 0;
-
-        unless($exists) {
-            $sth = $dbh->prepare(<<SQL);
-INSERT INTO blobs (owner, blob_name) VALUES (?, ?)
-SQL
-            $sth->execute($user_id, $blob);
-        }
-
-        my ( undef, $dir ) = File::Spec->splitpath($path);
-        eval {
-            make_path $dir;
-            $self->dump_to_file($path, $handle);
-        };
-        if($@) {
-            $dbh->rollback;
-            die;
-        }
-        $dbh->commit;
-        return $exists;
+        return $self->put_blob($user, $blob, $handle);
     } else {
-        $dbh->begin_work;
-## HELLO non-portable SQL!
-        $sth = $dbh->prepare(<<SQL);
-UPDATE blobs
-SET modified_time = CURRENT_TIMESTAMP, 
-    is_deleted    = TRUE
-WHERE owner     = ?
-AND   blob_name = ?
-SQL
-        my $exists = $sth->execute($user_id, $blob);
-        if($exists) {
-            unless(unlink $path) {
-                $dbh->rollback;
-                croak "Unable to delete '$path': $!";
-            }
-        }
-        $dbh->commit;
-        return $exists != 0;
+        return $self->delete_blob($user, $blob);
     }
 }
 

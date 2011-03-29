@@ -123,8 +123,9 @@ SQL
     my $exists = $sth->execute($user_id, $blob);
     if($exists) {
         unless(unlink $path) {
+            my $error = $!;
             $dbh->rollback;
-            croak "Unable to delete '$path': $!";
+            croak "Unable to delete '$path': $error";
         }
     }
     $dbh->commit;

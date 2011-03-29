@@ -30,7 +30,7 @@ has fs_storage_path => (
     default => '/tmp/sahara/',
 );
 
-sub dump_to_file {
+sub _dump_to_file {
     my ( $self, $dest, $src ) = @_;
 
     my $buf = '';
@@ -48,7 +48,7 @@ sub dump_to_file {
     $f->close;
 }
 
-sub get_user_id {
+sub _get_user_id {
     my ( $self, $user ) = @_;
 
     my $dbh = $self->dbh;
@@ -65,11 +65,11 @@ SQL
     return $user_id;
 }
 
-sub put_blob {
+sub _put_blob {
     my ( $self, $user, $blob, $handle ) = @_;
 
     my $path    = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-    my $user_id = $self->get_user_id($user);
+    my $user_id = $self->_get_user_id($user);
     my $dbh     = $self->dbh;
 
     $dbh->begin_work;
@@ -94,7 +94,7 @@ SQL
     my ( undef, $dir ) = File::Spec->splitpath($path);
     eval {
         make_path $dir;
-        $self->dump_to_file($path, $handle);
+        $self->_dump_to_file($path, $handle);
     };
     if($@) {
         $dbh->rollback;
@@ -104,11 +104,11 @@ SQL
     return $exists;
 }
 
-sub delete_blob {
+sub _delete_blob {
     my ( $self, $user, $blob ) = @_;
 
     my $path    = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-    my $user_id = $self->get_user_id($user);
+    my $user_id = $self->_get_user_id($user);
     my $dbh     = $self->dbh;
 
     $dbh->begin_work;
@@ -186,9 +186,9 @@ sub store_blob {
     my ( $self, $user, $blob, $handle ) = @_;
 
     if(defined $handle) {
-        return $self->put_blob($user, $blob, $handle);
+        return $self->_put_blob($user, $blob, $handle);
     } else {
-        return $self->delete_blob($user, $blob);
+        return $self->_delete_blob($user, $blob);
     }
 }
 

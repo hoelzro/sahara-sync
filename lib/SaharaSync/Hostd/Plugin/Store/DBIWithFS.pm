@@ -30,7 +30,6 @@ has fs_storage_path => (
     default => '/tmp/sahara/',
 );
 
-## rollback transaction/delete file if this fails
 sub dump_to_file {
     my ( $self, $dest, $src ) = @_;
 
@@ -117,6 +116,7 @@ SQL
     my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
 
     if(defined $handle) {
+        $dbh->begin_work;
 ## HELLO non-portable SQL!
         $sth = $dbh->prepare(<<SQL);
 UPDATE blobs
@@ -136,10 +136,18 @@ SQL
         }
 
         my ( undef, $dir ) = File::Spec->splitpath($path);
-        make_path $dir;
-        $self->dump_to_file($path, $handle);
+        eval {
+            make_path $dir;
+            $self->dump_to_file($path, $handle);
+        };
+        if($@) {
+            $dbh->rollback;
+            die;
+        }
+        $dbh->commit;
         return $exists;
     } else {
+        $dbh->begin_work;
 ## HELLO non-portable SQL!
         $sth = $dbh->prepare(<<SQL);
 UPDATE blobs
@@ -150,8 +158,12 @@ AND   blob_name = ?
 SQL
         my $exists = $sth->execute($user_id, $blob);
         if($exists) {
-            unlink $path;
+            unless(unlink $path) {
+                $dbh->rollback;
+                croak "Unable to delete '$path': $!";
+            }
         }
+        $dbh->commit;
         return $exists != 0;
     }
 }

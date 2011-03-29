@@ -129,17 +129,23 @@ sub blobs {
         when('DELETE') {
             my $exists = $store->store_blob($user, $blob, undef);
 
-            $res->status(200);
-            $res->content_type('text/plain');
-            $res->body('ok');
+            if($exists) {
+                $res->status(200);
+                $res->content_type('text/plain');
+                $res->body('ok');
 
-            if($env->{'psgi.nonblocking'}) {
-                my $conns = $connections{$user};
-                if($conns) {
-                    foreach my $writer (@$conns) {
-                        $writer->write("$blob\n");
+                if($env->{'psgi.nonblocking'}) {
+                    my $conns = $connections{$user};
+                    if($conns) {
+                        foreach my $writer (@$conns) {
+                            $writer->write("$blob\n");
+                        }
                     }
                 }
+            } else {
+                $res->status(404);
+                $res->content_type('text/plain');
+                $res->body('not found');
             }
        }
     }

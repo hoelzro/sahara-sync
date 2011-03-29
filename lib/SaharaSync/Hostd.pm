@@ -130,8 +130,8 @@ sub blobs {
             my $exists = $store->store_blob($user, $blob, undef);
 
             $res->status(200);
-            $req->content_type('text/plain');
-            $req->body('ok');
+            $res->content_type('text/plain');
+            $res->body('ok');
 
             if($env->{'psgi.nonblocking'}) {
                 my $conns = $connections{$user};

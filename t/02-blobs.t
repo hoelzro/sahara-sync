@@ -19,7 +19,7 @@ test_host sub {
     $res = $cb->(DELETE_AUTHD '/blobs/test.txt');
     is $res->code, 404;
 
-    $res = $cb->(PUT_AUTHD '/blobs/test.txt', Content => 'Hello, World!');
+    $res = $cb->(PUT_AUTHD 'http://localhost:5000/blobs/test.txt', Content => 'Hello, World!');
     is $res->code, 201;
     is $res->header('Location'), 'http://localhost:5000/blobs/test.txt';
 
@@ -36,7 +36,7 @@ test_host sub {
     $res = $cb->(DELETE_AUTHD '/blobs/test.txt');
     is $res->code, 404;
 
-    $res = $cb->(PUT_AUTHD '/blobs/test.txt', Content => 'Hello, World!');
+    $res = $cb->(PUT_AUTHD 'http://localhost:5000/blobs/test.txt', Content => 'Hello, World!');
     is $res->code, 201;
     is $res->header('Location'), 'http://localhost:5000/blobs/test.txt';
 

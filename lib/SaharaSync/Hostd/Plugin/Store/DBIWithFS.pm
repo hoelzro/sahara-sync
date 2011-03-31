@@ -138,13 +138,13 @@ sub load_user_info {
 
     my $dbh = $self->dbh;
     my $sth = $dbh->prepare(<<SQL);
-SELECT password_hash FROM users WHERE username = ?
+SELECT password FROM users WHERE username = ?
 SQL
     $sth->execute($username);
-    if(my ( $password_hash ) = $sth->fetchrow_array) {
+    if(my ( $password ) = $sth->fetchrow_array) {
         return {
-            username      => $username,
-            password_hash => $password_hash,
+            username => $username,
+            password => $password,
         };
     }
     return;

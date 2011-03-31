@@ -5,7 +5,7 @@ BEGIN TRANSACTION;
 CREATE TABLE users (
     user_id       SERIAL      NOT NULL UNIQUE,
     username      VARCHAR(32) NOT NULL,
-    password_hash BYTEA       NOT NULL -- md5($username . ':Sahara:' . $password)
+    password      VARCHAR(32) NOT NULL -- we will eventually move away from plaintext passwords!
 );
 
 -- how to store directories?
@@ -22,6 +22,6 @@ CREATE TABLE blobs (
 CREATE UNIQUE INDEX username_idx ON users (username);
 CREATE INDEX blob_mtime_idx ON blobs (modified_time);
 
-INSERT INTO users (username, password_hash) VALUES ('test', E'\\033\\134\\047\\226\\352\\111\\077\\137\\356\\077\\047\\100\\351\\056\\061\\343'); -- password is abc123
+INSERT INTO users (username, password) VALUES ('test', 'abc123');
 
 COMMIT;

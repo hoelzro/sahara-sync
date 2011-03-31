@@ -7,17 +7,12 @@ our $VERSION = '0.01';
 
 use AnyEvent::HTTP;
 use Carp qw(croak);
-use Digest::MD5 qw(md5_hex);
+use MIME::Base64 qw(encode_base64);
 use URI;
 
 use namespace::clean;
 
 my $DEFAULT_SCHEME = 'http';
-my $HTTP_TOKEN     = qr/[^[:cntrl:] \t()<>@,;:\\"\/\[\]?={}]+/;
-
-## handle multiple challenges
-## handle Authentication-Info header
-## ...which might appear in a trailer!
 
 sub new {
     my ( $class, %options ) = @_;
@@ -51,75 +46,18 @@ sub new {
     }, $class;
 }
 
-## handle case when values have \"
 sub add_auth {
     my ( $self, $method, $url, $meta ) = @_;
 
-    my $auth = $self->{'auth'};
-    return unless $auth;
-
-    my $uri          = $url->path_query;
-    my $user         = $self->{'user'};
-    my $password     = $self->{'password'};
-    my $realm        = $auth->{'realm'};
-    my $qop          = $auth->{'qop'} || '';
-    my $nonce        = $auth->{'nonce'};
-    my $nonce_count  = sprintf('%08x', $self->{'count'}++);
-    my $client_nonce = '12345678'; ## hey
-
-    my $ha1 = md5_hex(join(':', $user, $realm, $password));
-    my $ha2;
-    my $response;
-
-    ## this can be a list of alternatives!
-    if($qop eq 'auth-int') {
-        ## hey
-        croak "auth-int currently unsupported";
-    } else {
-        $ha2 = md5_hex(join(':', $method, $uri));
-    }
-
-    if($qop eq 'auth' || $qop eq 'auth-int') {
-        $response = md5_hex(join(':', $ha1, $nonce, $nonce_count, $client_nonce, $qop, $ha2));
-    } else {
-        $response = md5_hex(join(':', $ha1, $nonce, $ha2));
-    }
-    ## don't add qop cnonce or nc in old-timey digest
-    my $header = "Digest username=\"$user\", realm=\"$realm\", nonce=\"$nonce\", uri=\"$uri\", cnonce=\"$client_nonce\", nc=$nonce_count, qop=\"$qop\", response=\"$response\", algorithm=MD5";
-    my $headers = $meta->{'headers'};
+    my $user     = $self->{'user'};
+    my $password = $self->{'password'};
+    my $header   = 'Basic ' . encode_base64($user . ':' . $password);
+    my $headers  = $meta->{'headers'};
     unless($headers) {
         $headers = $meta->{'headers'} = {};
     }
+
     $headers->{'Authorization'} = $header;
-}
-
-sub has_auth {
-    my ( $self ) = @_;
-
-    return exists $self->{'auth'};
-}
-
-## rename
-sub calculate_auth {
-    my ( $self, $method, $url, $www_authenticate ) = @_;
-
-    unless($www_authenticate =~ s/^Digest\s+//) {
-        croak __PACKAGE__ . " operates on Digest authentication only";
-    }
-    my %attrs;
-    while($www_authenticate =~ /(?<key>$HTTP_TOKEN)=(?:(?<value>$HTTP_TOKEN)|(?:"(?<value>[^"]+)"))/g) {
-        $attrs{$+{'key'}} = $+{'value'};
-    }
-    unless($attrs{'algorithm'} eq 'MD5') {
-        ## hey
-        croak "Unsupported auth algorithm $attrs{'algorithm'}";
-    }
-    $self->{'auth'} = {
-        count => 1,
-        realm => $attrs{'realm'},
-        qop   => $attrs{'qop'},
-        nonce => $attrs{'nonce'},
-    };
 }
 
 # calling syntax: $self->do_request($method => @path, $opt_meta, $prepare, $cb)
@@ -141,21 +79,7 @@ sub do_request {
     $handler = sub {
         my ( $data, $headers ) = @_;
 
-        my $status = $headers->{'Status'};
-
-        ## check data and headers and shit
-        if($status == 401) {
-            ## check staleness of nonce
-            if($self->has_auth) {
-                ## failure
-            } else {
-                $self->calculate_auth($method => $url, $headers->{'www-authenticate'});
-                $self->add_auth($method, $url, $meta);
-                http_request $method => $url, %$meta, $handler;
-            }
-        } else {
-            $cb->($prepare->($data, $headers));
-        }
+        $cb->($prepare->($data, $headers));
     };
 
     http_request $method => $url, %$meta, $handler;

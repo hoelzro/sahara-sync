@@ -2,7 +2,7 @@ package Plack::Middleware::Sahara::Auth;
 
 use strict;
 use warnings;
-use parent 'Plack::Middleware::Auth::Digest';
+use parent 'Plack::Middleware::Auth::Basic';
 
 our $VERSION = '0.01';
 
@@ -21,19 +21,17 @@ sub new {
 
     my %params = (
         realm           => 'Sahara',
-        secret          => 'my$3kr3t',
-        password_hashed => 1,
         authenticator   => sub {
             my ( $username, $env ) = @_;
 
             my $info = $store->load_user_info($username);
             return unless $info;
-            return unpack('H*', $info->{'password_hash'});
+            return $info->{'password'};
         },
         %options,
     );
 
-    return bless Plack::Middleware::Auth::Digest->new(%params), $class;
+    return bless Plack::Middleware::Auth::Basic->new(%params), $class;
 }
 
 1;

@@ -27,6 +27,7 @@ my $build = Module::Build->new(
         'File::Path'                      => 0,
         'File::Slurp'                     => 0,
         'File::Spec'                      => 0,
+        'MIME::Base64'                    => 0,
         'Moose'                           => 0,
         'Plack'                           => 0,
         'Plack::Middleware::Auth::Digest' => 0,

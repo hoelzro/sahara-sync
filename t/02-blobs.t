@@ -6,7 +6,7 @@ use lib "$FindBin::Bin/../lib";
 use HTTP::Request;
 use MIME::Base64 qw(encode_base64);
 use Plack::Test;
-use Test::More tests => 14;
+use Test::More tests => 16;
 
 use SaharaSync::Hostd;
 
@@ -57,6 +57,7 @@ test_psgi app => $app, client => sub {
 
     $res = $cb->(PUT '/blobs/test.txt', Content => 'Hello, World!');
     is $res->code, 201;
+    is $res->header('Location'), 'http://localhost:5000/blobs/test.txt';
 
     $res = $cb->(GET '/blobs/test.txt');
     is $res->code, 200;
@@ -73,6 +74,7 @@ test_psgi app => $app, client => sub {
 
     $res = $cb->(PUT '/blobs/test.txt', Content => 'Hello, World!');
     is $res->code, 201;
+    is $res->header('Location'), 'http://localhost:5000/blobs/test.txt';
 
     $res = $cb->(PUT '/blobs/test.txt', Content => 'Hello, World (again)');
     is $res->code, 200;

@@ -66,7 +66,7 @@ sub do_request {
     my $method   = shift;
     my $cb       = pop;
     my $prepare  = pop;
-    my $meta     = ref($_[$#_]) eq 'HASH' ? $_[$#_] : {};
+    my $meta     = ref($_[$#_]) eq 'HASH' ? pop : {};
     my @segments = @_;
 
     my $url = $self->{'url'}->clone;

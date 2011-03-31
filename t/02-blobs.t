@@ -1,14 +1,11 @@
 use strict;
 use warnings;
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/lib";
 
 use HTTP::Request;
 use MIME::Base64 qw(encode_base64);
-use Plack::Test;
-use Test::More tests => 16;
-
-use SaharaSync::Hostd;
+use Test::Sahara tests => 16;
 
 sub REQUEST {
     my ( $method, $path, %headers ) = @_;
@@ -39,9 +36,7 @@ sub DELETE {
     return REQUEST(DELETE => @_);
 }
 
-my $app = SaharaSync::Hostd->to_app;
-
-test_psgi app => $app, client => sub {
+test_host sub {
     my ( $cb ) = @_;
 
     my $res;

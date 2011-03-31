@@ -1,13 +1,11 @@
 use strict;
 use warnings;
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/lib";
 
 use HTTP::Request;
 use Test::Deep;
-use Test::More;
-use SaharaSync::Hostd;
-use Plack::Test;
+use Test::Sahara;
 
 sub OPTIONS {
     my ( $path ) = @_;
@@ -24,9 +22,7 @@ my @tests = (
 );
 plan tests => @tests * (@http_methods + 1);
 
-my $app = SaharaSync::Hostd->to_app;
-
-test_psgi app => $app, client => sub {
+test_host sub {
     my ( $cb ) = @_;
 
     foreach my $test (@tests) {

@@ -5,7 +5,7 @@ use lib "$FindBin::Bin/lib";
 
 use HTTP::Request;
 use MIME::Base64 qw(encode_base64);
-use Test::Sahara tests => 16;
+use Test::Sahara tests => 15;
 
 sub REQUEST {
     my ( $method, $path, %headers ) = @_;
@@ -80,5 +80,3 @@ test_host sub {
 
     $cb->(DELETE '/blobs/test.txt'); # clean up (we should avoid this kind of stuff in the future)
 };
-
-pass;

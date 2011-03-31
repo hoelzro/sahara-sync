@@ -167,7 +167,7 @@ sub to_app {
         };
 
         mount '/' => builder {
-            enable 'Options', allowed => [qw/HEAD/];
+            enable_if { $_[0]->{'REQUEST_URI'} eq '/' } 'Options', allowed => [qw/HEAD/];
             \&top_level;
         };
     }->to_app;

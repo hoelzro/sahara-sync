@@ -4,8 +4,7 @@ use FindBin;
 
 use lib "$FindBin::Bin/lib";
 
-use HTTP::Request::Common;
-use Test::Sahara tests => 3;
+use Test::Sahara ':methods', tests => 3;
 
 test_host sub {
     my ( $cb ) = @_;

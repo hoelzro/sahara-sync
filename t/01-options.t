@@ -3,15 +3,8 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-use HTTP::Request;
 use Test::Deep;
-use Test::Sahara;
-
-sub OPTIONS {
-    my ( $path ) = @_;
-
-    return HTTP::Request->new(OPTIONS => $path);
-}
+use Test::Sahara ':methods';
 
 my @http_methods = qw(HEAD GET PUT POST DELETE);
 

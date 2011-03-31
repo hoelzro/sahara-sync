@@ -114,6 +114,7 @@ sub blobs {
                 $res->status(200);
             } else {
                 $res->status(201);
+                $res->header(Location => $req->uri);
             }
             $res->content_type('text/plain');
             $res->body('ok');

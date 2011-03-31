@@ -34,8 +34,9 @@ sub top_level {
         $res->content_type('text/plain');
         $res->body('not found');
     } else {
-        $res->status(204);
+        $res->status(200);
         $res->header('X-Sahara-Capabilities' => $env->{'psgi.nonblocking'} ? 'streaming' : '');
+        $res->header('X-Sahara-Version' => $VERSION);
     };
     $res->finalize;
 }

@@ -6,6 +6,8 @@ use FindBin;
 
 use lib "$FindBin::Bin/../lib";
 
+use HTTP::Request ();
+use MIME::Base64 ();
 use Plack::Test ();
 use SaharaSync::Hostd ();
 use Test::More ();
@@ -20,8 +22,49 @@ sub test_host {
     return Plack::Test::test_psgi $app, $cb;
 }
 
+sub REQUEST {
+    my ( $method, $path, %headers ) = @_;
+
+    my $content = delete $headers{'Content'};
+
+    my $req = HTTP::Request->new($method, $path);
+    foreach my $k (keys %headers) {
+        $req->header($k => $headers{$k});
+    }
+    if(defined $content) {
+        $req->content($content);
+    }
+
+    return $req;
+}
+
+sub REQUEST_AUTHD {
+    my ( $method, $path, %headers ) = @_;
+
+    $headers{'Authorization'} = 'Basic ' . MIME::Base64::encode_base64('test:abc123');
+
+    return REQUEST($method, $path, %headers);
+}
+
+my @methods = qw(GET POST PUT DELETE HEAD OPTIONS);
+
+foreach my $method (@methods) {
+    no strict 'refs';
+
+    *{$method} = sub {
+        return REQUEST($method, @_);
+    };
+
+    *{$method . '_AUTHD'} = sub {
+        return REQUEST_AUTHD($method, @_);
+    };
+}
+
 sub import {
     my ( $class, @args ) = @_;
+
+    my %options = map { $_ => 1 } grep { /^:/ } @args;
+    @args       = grep { ! /^:/ } @args;
 
     my $dest = caller;
 
@@ -30,6 +73,13 @@ sub import {
     *{$dest . '::test_host'} = \&test_host;
     foreach my $sym (@Test::More::EXPORT) {
         *{$dest . '::' . $sym} = \&{'Test::More::' . $sym};
+    }
+
+    if($options{':methods'}) {
+        foreach my $method (@methods) {
+            *{$dest . '::' . $method}            = \&{$method};
+            *{$dest . '::' . $method . '_AUTHD'} = \&{$method . '_AUTHD'};
+        }
     }
 
     Test::More::plan @args if @args;

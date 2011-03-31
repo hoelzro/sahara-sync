@@ -119,8 +119,9 @@ SET modified_time = CURRENT_TIMESTAMP,
     is_deleted    = TRUE
 WHERE owner     = ?
 AND   blob_name = ?
+AND   is_deleted = FALSE
 SQL
-    my $exists = $sth->execute($user_id, $blob);
+    my $exists = $sth->execute($user_id, $blob) != 0;
     if($exists) {
         unless(unlink $path) {
             my $error = $!;

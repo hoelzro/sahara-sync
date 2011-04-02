@@ -73,22 +73,27 @@ sub _put_blob {
     my $dbh     = $self->dbh;
 
     $dbh->begin_work;
-## HELLO non-portable SQL!
-    my $sth = $dbh->prepare(<<SQL);
-UPDATE blobs
-SET modified_time = CURRENT_TIMESTAMP,
-    is_deleted    = FALSE
+
+    my ( $row_exists, $is_deleted ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
+SELECT 1, is_deleted FROM blobs
 WHERE owner     = ?
 AND   blob_name = ?
 SQL
-    ## we should return false when a row existed but is_deleted was TRUE
-    my $exists = $sth->execute($user_id, $blob) != 0;
 
-    unless($exists) {
-        $sth = $dbh->prepare(<<SQL);
+    my $exists = $row_exists && !$is_deleted;
+
+    if($row_exists) {
+        $dbh->do(<<SQL, undef, $user_id, $blob);
+UPDATE blobs
+SET modified_time = CURRENT_TIMESTAMP,
+    is_deleted    = FALSE
+WHERE owner      = ?
+AND   blob_name  = ?
+SQL
+    } else {
+        $dbh->do(<<SQL, undef, $user_id, $blob);
 INSERT INTO blobs (owner, blob_name) VALUES (?, ?)
 SQL
-        $sth->execute($user_id, $blob);
     }
 
     my ( undef, $dir ) = File::Spec->splitpath($path);

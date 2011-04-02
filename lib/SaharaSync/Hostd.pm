@@ -35,7 +35,7 @@ sub top_level {
         $res->body('not found');
     } else {
         $res->status(200);
-        $res->header('X-Sahara-Capabilities' => $env->{'psgi.nonblocking'} ? 'streaming' : '');
+        $res->header('X-Sahara-Capabilities' => $env->{'sahara.streaming'} ? 'streaming' : '');
         $res->header('X-Sahara-Version' => $VERSION);
     };
     $res->finalize;
@@ -49,7 +49,7 @@ sub changes {
     my $user      = $req->user;
     my @blobs     = $store->fetch_changed_blobs($user, $last_sync);
 
-    if($env->{'psgi.nonblocking'}) {
+    if($env->{'sahara.streaming'}) {
         my $conns = $connections{$user};
         unless($conns) {
             $conns = $connections{$user} = [];
@@ -119,7 +119,7 @@ sub blobs {
             $res->content_type('text/plain');
             $res->body('ok');
 
-            if($env->{'psgi.nonblocking'}) {
+            if($env->{'sahara.streaming'}) {
                 my $conns = $connections{$user};
                 if($conns) {
                     foreach my $writer (@$conns) {
@@ -136,7 +136,7 @@ sub blobs {
                 $res->content_type('text/plain');
                 $res->body('ok');
 
-                if($env->{'psgi.nonblocking'}) {
+                if($env->{'sahara.streaming'}) {
                     my $conns = $connections{$user};
                     if($conns) {
                         foreach my $writer (@$conns) {
@@ -156,6 +156,7 @@ sub blobs {
 
 sub to_app {
     builder {
+	enable 'Sahara::Streaming';
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
             enable 'Sahara::Auth', store => $store;

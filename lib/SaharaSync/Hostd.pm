@@ -173,7 +173,7 @@ sub to_app {
             enable_if { $_[0]->{'REQUEST_URI'} eq '/' } 'Options', allowed => [qw/HEAD/];
             \&top_level;
         };
-    }->to_app;
+    };
 }
 
 1;

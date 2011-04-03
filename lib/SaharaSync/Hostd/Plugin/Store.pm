@@ -18,6 +18,8 @@ sub get {
     return SaharaSync::Hostd::Plugin::Store::DBIWithFS->new;
 }
 
+requires 'create_user';
+requires 'remove_user';
 requires 'load_user_info';
 requires 'fetch_blob';
 requires 'store_blob';
@@ -40,6 +42,16 @@ SaharaSync::Hostd::Plugin::Store
 =head1 DESCRIPTION
 
 =head1 REQUIRED METHODS
+
+=head2 $store->create_user($username, $password)
+
+Creates a new user with username C<$username> and
+password C<$password>.  Returns 1 if the user was
+successfully created, or 0 otherwise.
+
+=head2 $store->remove_user($username)
+
+Deletes a user and all of his/her files.
 
 =head2 $store->load_user_info($username)
 

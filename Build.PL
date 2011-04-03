@@ -7,7 +7,10 @@ use Module::Build;
 
 my $build = Module::Build->new(
     build_requires    => {
-        'Pod::Readme' => 0,
+        'Pod::Readme'     => 0,
+        'Test::Deep'      => 0,
+        'Test::More'      => 0,
+        'Test::Exception' => 0,
     },
     create_readme     => 1,
     dist_abstract     => 'Sync freely.',

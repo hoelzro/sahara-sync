@@ -19,14 +19,11 @@ my $build = Module::Build->new(
     dist_version      => '0.01',
     license           => 'unknown', # AGPL 3
     module_name       => 'SaharaSync',
-    recommends        => {
-        'DBD::Pg' => 0,
-        'DBI'     => 0,
-        'Twiggy'  => 0,
-    },
     requires          => {
         'AnyEvent::Filesys::Notify'       => 0,
         'AnyEvent::HTTP'                  => 0,
+        'DBD::Pg'                         => 0,
+        'DBI'                             => 0,
         'File::Path'                      => 0,
         'File::Slurp'                     => 0,
         'File::Spec'                      => 0,
@@ -36,6 +33,7 @@ my $build = Module::Build->new(
         'Plack::Middleware::Auth::Digest' => 0,
         'Plack::Middleware::Options'      => 0,
         'perl'                            => '5.10.0',
+        'Twiggy'                           => 0,
     },
     script_files      => [
     ],

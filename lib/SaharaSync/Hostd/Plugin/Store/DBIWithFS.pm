@@ -147,6 +147,14 @@ SQL
     return $exists != 0;
 }
 
+sub create_user {
+    my ( $self, $username, $password ) = @_;
+}
+
+sub remove_user {
+    my ( $self, $username ) = @_;
+}
+
 sub load_user_info {
     my ( $self, $username ) = @_;
 

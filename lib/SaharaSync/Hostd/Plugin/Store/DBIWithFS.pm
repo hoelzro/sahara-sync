@@ -2,7 +2,7 @@ package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
 use Carp qw(croak);
 use DBI;
-use File::Path qw(make_path);
+use File::Path qw(make_path remove_tree);
 use File::Spec;
 use IO::File;
 
@@ -149,10 +149,33 @@ SQL
 
 sub create_user {
     my ( $self, $username, $password ) = @_;
+
+    my $dbh = $self->dbh;
+    my ( $exists ) = $dbh->selectrow_array(<<SQL, undef, $username);
+SELECT COUNT(1) FROM users
+WHERE username = ?
+SQL
+    if($exists) {
+        return 0;
+    } else {
+        $dbh->do(<<SQL, undef, $username, $password);
+INSERT INTO users (username, password) VALUES (?, ?)
+SQL
+    }
 }
 
 sub remove_user {
     my ( $self, $username ) = @_;
+
+    my $dbh = $self->dbh;
+    my $path = File::Spec->catdir($self->fs_storage_path, $username);
+
+    remove_tree $path;
+
+    my $exists = $dbh->do(<<SQL, undef, $username);
+DELETE FROM users WHERE username = ?
+SQL
+    return $exists != 0;
 }
 
 sub load_user_info {

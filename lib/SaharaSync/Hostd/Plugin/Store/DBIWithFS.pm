@@ -15,13 +15,8 @@ with 'SaharaSync::Hostd::Plugin::Store';
 our $VERSION = '0.01';
 
 has dbh => (
-    is      => 'ro',
-    default => sub {
-        return DBI->connect('dbi:Pg:dbname=sahara', '', '', {
-            RaiseError => 1,
-            PrintError => 0,
-        });
-    },
+    is       => 'ro',
+    required => 1,
 );
 
 has fs_storage_path => (
@@ -29,6 +24,20 @@ has fs_storage_path => (
     isa     => 'Str',
     default => '/tmp/sahara/',
 );
+
+sub BUILDARGS {
+    my ( $class, %args ) = @_;
+
+    my $dsn      = delete $args{'dsn'};
+    my $username = delete $args{'username'} || '';
+    my $password = delete $args{'password'} || '';
+
+    if(defined $dsn) {
+        $args{'dbh'} = DBI->connect($dsn, $username, $password);
+    }
+
+    return \%args;
+}
 
 sub _dump_to_file {
     my ( $self, $dest, $src ) = @_;
@@ -215,6 +224,12 @@ SQL
     ## we need to include deleted data eventually
     while(my ( undef, $blob ) = $sth->fetchrow_array) {
         push @blobs, $blob;
+    }
+    unless(@blobs) {
+        my ( $exists ) = $dbh->selectrow_array(<<SQL, undef, $user);
+SELECT COUNT(1) FROM users WHERE username = ?
+SQL
+        croak "No such user '$user'" unless $exists;
     }
 
     return @blobs;

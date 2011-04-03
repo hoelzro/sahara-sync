@@ -25,7 +25,7 @@ sub run_store_tests {
     my ( $store ) = @_;
 
     subtest 'Testing storage layer' => sub {
-        plan tests => 47;
+        plan tests => 53;
 
         my $info;
         my $blob;
@@ -164,6 +164,25 @@ sub run_store_tests {
         isa_ok $blob, 'IO::Handle';
         $blob = do { local $/; <$blob> };
         is $blob, 'hey';
+
+        my $ok = $store->create_user('test', 'abc123');
+        ok !$ok;
+        $ok = $store->create_user('test3', 'abc123');
+        ok $ok;
+
+        $ok = $store->remove_user('test4');
+        ok !$ok;
+        $ok = $store->remove_user('test3');
+        ok $ok;
+        $ok = $store->remove_user('test3');
+        ok !$ok;
+
+        $store->create_user('test3', 'abc123');
+        $store->store_blob('test3', 'file.txt', IO::String->new('my text'));
+        $store->remove_user('test3');
+        $store->create_user('test3', 'abc123');
+        $blob = $store->fetch_blob('test3', 'file.txt');
+        ok !$blob;
     };
 }
 

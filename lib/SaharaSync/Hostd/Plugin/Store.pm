@@ -15,7 +15,9 @@ sub get {
     }
 
     require SaharaSync::Hostd::Plugin::Store::DBIWithFS;
-    return SaharaSync::Hostd::Plugin::Store::DBIWithFS->new;
+    return SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
+        dsn => 'dbi:Pg:dbname=sahara',
+    );
 }
 
 requires 'create_user';

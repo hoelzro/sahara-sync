@@ -31,8 +31,6 @@ if(my $port = $ENV{'TEST_PGPORT'}) {
 }
 
 sub reset_db {
-    my $dsn = "dbi:Pg:dbname=$catalog";
-
     my $dbh = DBI->connect($dsn, $username, $password, {
         RaiseError => 1,
         PrintError => 0,

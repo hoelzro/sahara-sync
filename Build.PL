@@ -8,6 +8,7 @@ use Module::Build;
 my $build = Module::Build->new(
     build_requires    => {
         'Pod::Readme'     => 0,
+        'TAP::Harness'    => 0,
         'Test::Deep'      => 0,
         'Test::More'      => 0,
         'Test::Exception' => 0,
@@ -38,5 +39,6 @@ my $build = Module::Build->new(
     },
     script_files      => [
     ],
+    use_tap_harness   => 1,
 );
 $build->create_build_script;

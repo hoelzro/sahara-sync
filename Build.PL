@@ -39,6 +39,9 @@ my $build = Module::Build->new(
     },
     script_files      => [
     ],
+    tap_harness_args  => {
+        lib => ['lib', 't/lib'],
+    },
     use_tap_harness   => 1,
 );
 $build->create_build_script;

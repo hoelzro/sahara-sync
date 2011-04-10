@@ -1,7 +1,5 @@
 use strict;
 use warnings;
-use FindBin;
-use lib "$FindBin::Bin/../../../lib";
 
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 use Test::Sahara::Storage;

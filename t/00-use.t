@@ -8,8 +8,6 @@ use File::Spec;
 use FindBin;
 use Test::More;
 
-use lib "$FindBin::Bin/../lib";
-
 my @modules;
 
 find(sub {

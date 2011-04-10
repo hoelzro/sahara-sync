@@ -3,8 +3,6 @@ package Test::Sahara::Storage;
 use strict;
 use warnings;
 use parent 'Exporter';
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 
 use IO::String;
 use List::MoreUtils qw(uniq);

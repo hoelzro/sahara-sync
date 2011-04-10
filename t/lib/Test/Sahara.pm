@@ -2,9 +2,6 @@ package Test::Sahara;
 
 use strict;
 use warnings;
-use FindBin;
-
-use lib "$FindBin::Bin/../lib";
 
 use HTTP::Request ();
 use MIME::Base64 ();

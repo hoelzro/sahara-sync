@@ -19,6 +19,7 @@ my $build = Module::Build->new(
     dist_version      => '0.01',
     license           => 'unknown', # AGPL 3
     module_name       => 'SaharaSync',
+    recursive_test_files => 1,
     requires          => {
         'AnyEvent::Filesys::Notify'       => 0,
         'AnyEvent::HTTP'                  => 0,

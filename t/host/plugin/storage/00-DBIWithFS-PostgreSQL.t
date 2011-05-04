@@ -62,7 +62,7 @@ my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
     password => $password,
 );
 
-run_store_tests $store;
+run_store_tests $store, "DBIWithFS: PostgreSQL - new dbh";
 
 reset_db;
 
@@ -70,4 +70,4 @@ $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
     dbh => DBI->connect($dsn, $username, $password),
 );
 
-run_store_tests $store;
+run_store_tests $store, "DBIWithFS: PostgreSQL - existing dbh";

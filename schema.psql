@@ -5,7 +5,9 @@ BEGIN TRANSACTION;
 CREATE TABLE users (
     user_id       SERIAL      NOT NULL UNIQUE,
     username      VARCHAR(32) NOT NULL,
-    password      VARCHAR(32) NOT NULL -- we will eventually move away from plaintext passwords!
+    password      VARCHAR(32) NOT NULL, -- we will eventually move away from plaintext passwords!
+
+    UNIQUE(username)
 );
 
 -- how to store directories?
@@ -13,14 +15,23 @@ CREATE TABLE users (
 CREATE TABLE blobs (
     blob_name     TEXT      NOT NULL, -- more efficient?
     owner         INTEGER   NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    modified_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revision      CHAR(64)  NOT NULL, -- SHA-256
     is_deleted    BOOLEAN   NOT NULL DEFAULT FALSE,
 
     UNIQUE(blob_name, owner)
 );
 
-CREATE UNIQUE INDEX username_idx ON users (username);
-CREATE INDEX blob_mtime_idx ON blobs (modified_time);
+--# inconsistent naming of columns
+CREATE TABLE revision_log (
+    revision_id   SERIAL   NOT NULL UNIQUE,
+    user_id       INTEGER  NOT NULL,
+    blob_name     TEXT     NOT NULL,
+    blob_revision CHAR(64) NOT NULL,
+
+    FOREIGN KEY(blob_name, user_id) REFERENCES blobs(blob_name, owner) ON DELETE CASCADE
+);
+
+CREATE INDEX blob_revision_idx ON revision_log(blob_revision);
 
 INSERT INTO users (username, password) VALUES ('test', 'abc123');
 

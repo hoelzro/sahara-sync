@@ -1,6 +1,8 @@
 package SaharaSync::Hostd::Plugin::Store;
 
 use Carp qw(croak);;
+use SaharaSync::X::BadContext;
+use SaharaSync::X::InvalidArgs;
 use namespace::clean;
 
 use Moose::Role;
@@ -25,7 +27,41 @@ requires 'remove_user';
 requires 'load_user_info';
 requires 'fetch_blob';
 requires 'store_blob';
+requires 'delete_blob';
 requires 'fetch_changed_blobs';
+
+around fetch_blob => sub {
+    my $orig = shift;
+    my $self = shift;
+
+    unless(wantarray) {
+        SaharaSync::X::BadContext->throw({
+            context => (defined(wantarray) ? 'scalar' : 'void'),
+        });
+    }
+
+    return $self->$orig(@_);
+};
+
+before store_blob => sub {
+    my ( $self, $user, $name, $contents ) = @_;
+
+    unless(UNIVERSAL::can($contents, 'read')) {
+        SaharaSync::X::InvalidArgs->throw({
+            message => "store_blob contents must support the getline operation",
+        });
+    }
+};
+
+before delete_blob => sub {
+    my ( $self, $user, $name, $revision ) = @_;
+
+    unless(defined $revision) {
+        SaharaSync::X::InvalidArgs->throw({
+            message => "Revision must be defined",
+        });
+    }
+};
 
 1;
 

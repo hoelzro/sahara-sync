@@ -8,6 +8,7 @@ our $VERSION = '0.01';
 
 use Plack::Builder;
 use Plack::Request;
+use UNIVERSAL;
 
 ## NOTE: I should probably just refactor the common functionality of
 ## the standalone daemon out, and write a separate script that handles
@@ -18,6 +19,8 @@ use Plack::Request;
 
 ## probably replace this with a plugin loader module some day
 use SaharaSync::Hostd::Plugin::Store;
+use SaharaSync::X::InvalidArgs;
+use SaharaSync::X::NoSuchBlob;
 
 my $store = SaharaSync::Hostd::Plugin::Store->get;
 
@@ -95,59 +98,123 @@ sub blobs {
 
     given($method) {
         when('GET') {
-            my $handle = $store->fetch_blob($user, $blob);
+            my ( $handle, $revision ) = $store->fetch_blob($user, $blob);
 
             if(defined $handle) {
-                $res->status(200);
-                $res->content_type('application/octet-stream');
-                $res->body($handle);
+                no warnings 'uninitialized';
+                if($req->header('If-None-Match') eq $revision) {
+                    $res->status(304);
+                } else {
+                    $res->status(200);
+                    $res->header(ETag => $revision);
+                    $res->content_type('application/octet-stream');
+                    $res->body($handle);
+                }
             } else {
                 $res->status(404);
                 $res->content_type('text/plain');
                 $res->body('not found');
             }
         }
-        when('PUT') {
-            my $existed = $store->store_blob($user, $blob, $req->body);
+        when('HEAD') {
+            my ( undef, $revision ) = $store->fetch_blob($user, $blob);
 
-            if($existed) {
-                $res->status(200);
+            if(defined $revision) {
+                no warnings 'uninitialized';
+                if($req->header('If-None-Match') eq $revision) {
+                    $res->status(304);
+                } else {
+                    $res->status(200);
+                    $res->header(ETag => $revision);
+                }
             } else {
-                $res->status(201);
-                $res->header(Location => $req->uri);
+                $res->status(404);
             }
-            $res->content_type('text/plain');
-            $res->body('ok');
+        }
+        when('PUT') {
+            my $current_revision = $req->header('If-Match');
+            my $revision         = eval {
+                $store->store_blob($user, $blob, $req->body, $current_revision);
+            };
+            if($@) {
+                if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
+                    $res->status(400);
+                    $res->content_type('text/plain');
 
-            if($env->{'sahara.streaming'}) {
-                my $conns = $connections{$user};
-                if($conns) {
-                    foreach my $writer (@$conns) {
-                        $writer->write("$blob\n");
+                    if(defined $current_revision) {
+                        $res->body('cannot accept revision when creating a blob');
+                    } else {
+                        $res->body('revision required for updating a blob');
                     }
+                } else {
+                    die;
+                }
+            } else {
+                if(defined $revision) {
+                    if(defined $current_revision) {
+                        $res->status(200);
+                    } else {
+                        $res->status(201);
+                        $res->header(Location => $req->uri);
+                    }
+                    $res->header(ETag => $revision);
+                    $res->content_type('text/plain');
+                    $res->body('ok');
+
+                    if($env->{'sahara.streaming'}) {
+                        my $conns = $connections{$user};
+                        if($conns) {
+                            foreach my $writer (@$conns) {
+                                $writer->write("$blob\n");
+                            }
+                        }
+                    }
+                } else {
+                    $res->status(409);
+                    $res->content_type('text/plain');
+                    $res->body('conflict');
                 }
             }
         }
         when('DELETE') {
-            my $exists = $store->store_blob($user, $blob, undef);
+            my $revision = $req->header('If-Match');
 
-            if($exists) {
-                $res->status(200);
+            unless(defined $revision) {
+                $res->status(400);
                 $res->content_type('text/plain');
-                $res->body('ok');
+                $res->body('revision required');
+            } else {
+                $revision = eval {
+                    $store->delete_blob($user, $blob, $revision);
+                };
+                if($@) {
+                    if(UNIVERSAL::isa($@, 'SaharaSync::X::NoSuchBlob')) {
+                        $res->status(404);
+                        $res->content_type('text/plain');
+                        $res->body('not found');
+                    } else {
+                        die;
+                    }
+                } else {
+                    if(defined $revision) {
+                        $res->status(200);
+                        $res->content_type('text/plain');
+                        $res->body('ok');
 
-                if($env->{'sahara.streaming'}) {
-                    my $conns = $connections{$user};
-                    if($conns) {
-                        foreach my $writer (@$conns) {
-                            $writer->write("$blob\n");
+                        if($env->{'sahara.streaming'}) {
+                            my $conns = $connections{$user};
+                            if($conns) {
+                                foreach my $writer (@$conns) {
+                                    $writer->write("$blob\n");
+                                }
+                            }
                         }
+                    } else {
+                        $res->status(409);
+                        $res->content_type('text/plain');
+                        $res->body('conflict');
                     }
                 }
-            } else {
-                $res->status(404);
-                $res->content_type('text/plain');
-                $res->body('not found');
             }
        }
     }
@@ -164,7 +231,7 @@ sub to_app {
         };
 
         mount '/blobs' => builder {
-            enable 'Options', allowed => [qw/GET PUT DELETE/];
+            enable 'Options', allowed => [qw/GET HEAD PUT DELETE/];
             enable 'Sahara::Auth', store => $store;
             \&blobs;
         };

@@ -206,17 +206,25 @@ SELECT is_deleted, revision FROM blobs
 WHERE owner     = ?
 AND   blob_name = ?
 SQL
-
     if(defined $current_revision) {
-        unless(defined $revision) {
-            SaharaSync::X::InvalidArgs->throw({
-                message => "Revision required",
-            });
+        if($is_deleted) {
+            if(defined $revision) {
+                SaharaSync::X::InvalidArgs->throw({
+                    message => "You can't provide a revision when creating a new blob",
+                });
+            }
+            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $handle);
+        } else {
+            unless(defined $revision) {
+                SaharaSync::X::InvalidArgs->throw({
+                    message => "Revision required",
+                });
+            }
+            unless($revision eq $current_revision) {
+                return undef;
+            }
+            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
         }
-        unless($revision eq $current_revision) {
-            return undef;
-        }
-        $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $revision, $user_id, $blob);
 UPDATE blobs

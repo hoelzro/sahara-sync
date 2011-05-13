@@ -46,9 +46,9 @@ around fetch_blob => sub {
 before store_blob => sub {
     my ( $self, $user, $name, $contents ) = @_;
 
-    unless(UNIVERSAL::can($contents, 'read')) {
+    unless(UNIVERSAL::can($contents, 'read') || ref($contents) eq 'GLOB') {
         SaharaSync::X::InvalidArgs->throw({
-            message => "store_blob contents must support the getline operation",
+            message => "store_blob contents must support the read operation",
         });
     }
 };

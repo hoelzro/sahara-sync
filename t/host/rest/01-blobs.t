@@ -27,7 +27,7 @@ test_host sub {
     is $res->code, 400, "Attempting a delete operation without a revision should result in a 400";
 
     $res = $cb->(PUT_AUTHD 'http://localhost:5000/blobs/test.txt', Content => 'Hello, World!', 'If-Match' => $BAD_REVISION);
-    is $res->code, 409, "Attempting a put operation with a non-matching revision should result in a 409";
+    is $res->code, 400, "Attempting to create a blob and specifying a revision should result in a 400";
 
     $res = $cb->(GET_AUTHD '/blobs/test.txt');
     is $res->code, 404, "Fetching a non-existent blob should result in a 404";
@@ -104,7 +104,7 @@ test_host sub {
     is $res->code, 400, "Writing to an existing resource without revision information should result in a 400";
 
     $res = $cb->(PUT_AUTHD '/blobs/test.txt', Content => 'Hello, World (again)', 'If-Match' => $previous_revision);
-    is $res->code, 409, "Writing to an existing resource with a non-matching revision should result in a 409";
+    is($res->code, 409, "Writing to an existing resource with a non-matching revision should result in a 409") || diag($res->content);
 
     $res = $cb->(PUT_AUTHD '/blobs/test.txt', Content => 'Hello, World (again)', 'If-Match' => $last_revision);
     is $res->code, 200, "Writing to an existing resource with a matching revision should result in a 200";

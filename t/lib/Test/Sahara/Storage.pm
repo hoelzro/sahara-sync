@@ -5,6 +5,9 @@ use warnings;
 use parent 'Exporter';
 
 use IO::String;
+use File::Slurp qw(read_file);
+use File::Spec;
+use File::Temp qw(tempfile);
 use List::MoreUtils qw(uniq);
 use Test::Deep;
 use Test::Exception;
@@ -41,7 +44,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 85;
+        plan tests => 88;
 
         my $info;
         my $blob;
@@ -294,6 +297,17 @@ sub run_store_tests {
             $revision = $store->store_blob('test3', 'file.txt', IO::String->new('test text (again)'));
         } "A previously deleted blob should act like a blob that's never exited";
         ok $revision;
+
+        ################# Try leaving our FS storage "cage" ##################
+        my ( undef, $tempfile ) = tempfile('saharaXXXXX', DIR => '/tmp');
+        my $contents = read_file($tempfile);
+        my ( undef, undef, $filename ) = File::Spec->splitpath($tempfile);
+        is $contents, '', 'assert temp file is empty';
+        $revision = $store->store_blob('test', "../../$filename", IO::String->new('This better not be there!'));
+        ok $revision, 'storing a strange name should still succeed';
+        $contents = read_file($tempfile);
+        is $contents, '', 'temp file contents should still be empty';
+        unlink $filename;
     };
 }
 

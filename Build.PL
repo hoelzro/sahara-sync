@@ -7,6 +7,7 @@ use Module::Build;
 
 my $build = Module::Build->new(
     build_requires    => {
+        'File::Temp'      => 0,
         'Pod::Readme'     => 0,
         'TAP::Harness'    => 0,
         'Test::Deep'      => 0,

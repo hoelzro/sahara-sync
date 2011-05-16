@@ -44,7 +44,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 88;
+        plan tests => 92;
 
         my $info;
         my $blob;
@@ -299,7 +299,7 @@ sub run_store_tests {
         ok $revision;
 
         ################# Try leaving our FS storage "cage" ##################
-        my ( undef, $tempfile ) = tempfile('saharaXXXXX', DIR => '/tmp');
+        my ( undef, $tempfile ) = tempfile('saharaXXXXX', DIR => '/tmp'); ## DBIWithFS happens to store files under /tmp/sahara...for now...
         my $contents = read_file($tempfile);
         my ( undef, undef, $filename ) = File::Spec->splitpath($tempfile);
         is $contents, '', 'assert temp file is empty';
@@ -307,7 +307,14 @@ sub run_store_tests {
         ok $revision, 'storing a strange name should still succeed';
         $contents = read_file($tempfile);
         is $contents, '', 'temp file contents should still be empty';
-        unlink $filename;
+        unlink $tempfile;
+
+        ( $blob, $revision2 ) = $store->fetch_blob('test', "../../$filename");
+        ok $blob, 'Retrieving a strange filename should succeed';
+        ok $revision2, 'Retrieving a strange filename should succeed';
+        $blob = slurp_handle $blob;
+        is $blob, 'This better not be there!';
+        is $revision2, $revision;
     };
 }
 

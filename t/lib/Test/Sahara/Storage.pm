@@ -41,7 +41,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 84;
+        plan tests => 85;
 
         my $info;
         my $blob;
@@ -176,6 +176,10 @@ sub run_store_tests {
         isnt $revision2, $revision, 'Deleting a blob changes the revision';
 
         $last_revision = $revision2;
+
+        throws_ok {
+            $revision = $store->delete_blob('test', 'file.txt', $revision2);
+        } 'SaharaSync::X::NoSuchBlob', 'Deleting a once-existent blob should throw a SaharaSync::X::NoSuchBlob exception';
 
         ##################### Test fetch_changed_blobs ######################
 

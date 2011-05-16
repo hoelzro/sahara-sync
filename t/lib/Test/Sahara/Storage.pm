@@ -165,7 +165,7 @@ sub run_store_tests {
 
         throws_ok {
             $store->delete_blob('test', 'file4.txt', $BAD_REVISION);
-        } 'SaharaSync::X::NoSuchBlob', 'Deleting a non-existent blob should throws a SaharaSync::X::NoSuchBlob exception';
+        } 'SaharaSync::X::NoSuchBlob', 'Deleting a non-existent blob should throw a SaharaSync::X::NoSuchBlob exception';
 
         $revision = $store->delete_blob('test', 'file.txt', $BAD_REVISION);
         ok !defined($revision), 'Deleting a blob with a non-matching revision returns undef';

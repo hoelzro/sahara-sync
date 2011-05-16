@@ -9,6 +9,7 @@ use File::Slurp qw(read_file);
 use File::Spec;
 use File::Temp qw(tempfile);
 use List::MoreUtils qw(uniq);
+use Symbol qw(gensym);
 use Test::Deep;
 use Test::Exception;
 use Test::More;
@@ -44,7 +45,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 92;
+        plan tests => 97;
 
         my $info;
         my $blob;
@@ -314,6 +315,18 @@ sub run_store_tests {
         ok $revision2, 'Retrieving a strange filename should succeed';
         $blob = slurp_handle $blob;
         is $blob, 'This better not be there!';
+        is $revision2, $revision;
+
+        ################## Try passing a GLOB to store_blob ##################
+        my $sym = gensym;
+        tie *$sym, 'IO::String', 'My content';
+        $revision = $store->store_blob('test', 'file.txt', $sym);
+        ok $revision, 'Creating a blob with a GLOB reference should succeed';
+        ( $blob, $revision2 ) = $store->fetch_blob('test', 'file.txt');
+        ok $blob;
+        ok $revision2;
+        $blob = slurp_handle $blob;
+        is $blob, 'My content';
         is $revision2, $revision;
     };
 }

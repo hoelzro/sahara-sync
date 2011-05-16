@@ -41,7 +41,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 76;
+        plan tests => 84;
 
         my $info;
         my $blob;
@@ -240,6 +240,21 @@ sub run_store_tests {
         $blob = slurp_handle $blob;
         is $blob, 'hey', "The returned IO::Handle should match the contents of the previous store operation";
         is $revision2, $revision, "The returned revision should match the revision from store_blob";
+
+        $revision = $store->store_blob('test', 'file-looks-like-dir/', IO::String->new('hey'));
+        ok $revision, 'Creating a blob with a slash at the end should succeed';
+
+        ( $blob, $revision2 ) = $store->fetch_blob('test', 'file-looks-like-dir/');
+        ok $blob, 'Fetching an existent blob with a slash at the end should return a pair of truthy values';
+        ok $revision2, 'Fetching an existent blob with a slash at the end should return a pair of truthy values';
+        can_ok $blob, 'getline';
+        $blob = slurp_handle $blob;
+        is $blob, 'hey', 'The returned IO::Handle should match the contents of the previous store operation';
+        is $revision2, $revision, 'The returned revision should match the revision from store_blob';
+
+        ( $blob, $revision ) = $store->fetch_blob('test', 'file-looks-like-dir');
+        ok !defined($blob), 'file-looks-like-dir is not file-looks-like-dir/';
+        ok !defined($revision), 'file-looks-like-dir is not file-looks-like-dir/';
 
         ########################## Test create_user ##########################
         throws_ok {

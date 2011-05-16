@@ -6,6 +6,7 @@ use DBI;
 use File::Path qw(make_path remove_tree);
 use File::Spec;
 use IO::File;
+use MIME::Base64 qw(encode_base64);
 
 use SaharaSync::X::BadUser;
 use SaharaSync::X::BadRevision;
@@ -45,12 +46,19 @@ sub BUILDARGS {
     return \%args;
 }
 
+sub _blob_to_disk_name {
+    my ( $self, $blob_name ) = @_;
+
+    return encode_base64($blob_name, '');
+}
+
 sub _save_blob_to_disk {
     my ( $self, $user, $blob, $revision, $src ) = @_;
 
-    my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
+    my $disk_name      = $self->_blob_to_disk_name($blob);
+    my $path           = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
     my ( undef, $dir ) = File::Spec->splitpath($path);
-    my $buf  = '';
+    my $buf            = '';
     my $n;
 
     make_path $dir;
@@ -183,8 +191,9 @@ SQL
     }
 
     if($file_exists) {
-        my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-        my $handle = IO::File->new($path, 'r');
+        my $disk_name = $self->_blob_to_disk_name($blob);
+        my $path      = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
+        my $handle    = IO::File->new($path, 'r');
         unless($handle) {
             croak "Unable to open '$path': $!";
         }

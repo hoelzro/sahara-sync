@@ -290,6 +290,8 @@ sub run_store_tests {
         ( $blob, $revision ) = $store->fetch_blob('test3', 'file.txt');
         ok !$blob, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
         ok !$revision, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
+        @changes = $store->fetch_changed_blobs('test3');
+        is_deeply(\@changes, [], "Fetching changes for a user that has been deleted and recreated should be empty");
 
         #################### Test store + delete + store #####################
         $revision = $store->store_blob('test3', 'file.txt', IO::String->new('test text'));

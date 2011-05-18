@@ -45,7 +45,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 97;
+        plan tests => 104;
 
         my $info;
         my $blob;
@@ -327,6 +327,29 @@ sub run_store_tests {
 
         $store->delete_blob('test', 'file.txt', $revision);
 
+        #################### Test store + delete + store #####################
+        $store->create_user('test3', 'abc123');
+        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
+        $revision2 = $store->delete_blob('test3', 'file.txt', $revision);
+        throws_ok {
+            $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), $revision2);
+        } 'SaharaSync::X::InvalidArgs', 'Storing a new blob (but previously deleted) blob with a revision should throw a SaharaSync::X::InvalidArgs exception';
+        lives_ok {
+            $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
+        } 'Storing a new (but previously deleted) blob without a revision should succeed';
+        ok $revision2, 'Storing a new (but previously deleted) blob without a revision should succeed';
+        isnt $revision2, $revision, "A new (but previously deleted) blob's revision should differ from its original";
+
+        throws_ok {
+            $revision = $store->store_blob('test3', 'file.txt', IO::String->new('More text!'));
+        } 'SaharaSync::X::InvalidArgs', 'Storing another revision to a previously deleted blob with no revision should throws_ok a SaharaSync::X::InvalidArgs exception';
+
+        lives_ok {
+            $revision = $store->store_blob('test3', 'file.txt', IO::String->new('More text!'), $revision2);
+        } 'Storing another revision to a previously deleted blob should succeed';
+        ok $revision, 'Storing another revision to a previously deleted blob should succeed';
+        isnt $revision, $revision2, 'Storing a blob should change its revision';
+        $store->remove_user('test3');
     };
 }
 

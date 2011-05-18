@@ -330,6 +330,9 @@ sub run_store_tests {
         $blob = slurp_handle $blob;
         is $blob, 'My content';
         is $revision2, $revision;
+
+        $store->delete_blob('test', 'file.txt', $revision);
+
     };
 }
 

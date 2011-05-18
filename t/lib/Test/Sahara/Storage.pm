@@ -293,13 +293,6 @@ sub run_store_tests {
         @changes = $store->fetch_changed_blobs('test3');
         is_deeply(\@changes, [], "Fetching changes for a user that has been deleted and recreated should be empty");
 
-        #################### Test store + delete + store #####################
-        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('test text'));
-        $store->delete_blob('test3', 'file.txt', $revision);
-        lives_ok {
-            $revision = $store->store_blob('test3', 'file.txt', IO::String->new('test text (again)'));
-        } "A previously deleted blob should act like a blob that's never exited";
-        ok $revision;
 
         ################# Try leaving our FS storage "cage" ##################
         my ( undef, $tempfile ) = tempfile('saharaXXXXX', DIR => '/tmp'); ## DBIWithFS happens to store files under /tmp/sahara...for now...

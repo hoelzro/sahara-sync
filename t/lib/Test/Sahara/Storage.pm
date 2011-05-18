@@ -3,6 +3,7 @@ package Test::Sahara::Storage;
 use strict;
 use warnings;
 use parent 'Exporter';
+use utf8;
 
 use IO::String;
 use File::Slurp qw(read_file);
@@ -45,7 +46,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 104;
+        plan tests => 108;
 
         my $info;
         my $blob;
@@ -350,6 +351,15 @@ sub run_store_tests {
         ok $revision, 'Storing another revision to a previously deleted blob should succeed';
         isnt $revision, $revision2, 'Storing a blob should change its revision';
         $store->remove_user('test3');
+
+        ############################# Test UTF-8 filenames #############################
+        lives_ok {
+            $revision = $store->store_blob('test', 'über', IO::String->new('Fake text'));
+        } 'UTF-8 filenames should save ok';
+        ( $blob, $revision2 ) = $store->fetch_blob('test', 'über');
+        ok $blob, 'Fetching a UTF-8 filename should succeed';
+        ok $revision2, 'Fetching a UTF-8 filename should succeed';
+        is $revision2, $revision, 'A fetched revision for a UTF-8 filename should match its most recent store';
     };
 }
 

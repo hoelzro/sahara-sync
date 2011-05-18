@@ -293,6 +293,7 @@ sub run_store_tests {
         @changes = $store->fetch_changed_blobs('test3');
         is_deeply(\@changes, [], "Fetching changes for a user that has been deleted and recreated should be empty");
 
+        $store->remove_user('test3');
 
         ################# Try leaving our FS storage "cage" ##################
         my ( undef, $tempfile ) = tempfile('saharaXXXXX', DIR => '/tmp'); ## DBIWithFS happens to store files under /tmp/sahara...for now...

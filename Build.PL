@@ -7,6 +7,8 @@ use Module::Build;
 
 my $build = Module::Build->new(
     build_requires    => {
+        'File::Temp'      => 0,
+        'IO::String'      => 0,
         'Pod::Readme'     => 0,
         'TAP::Harness'    => 0,
         'Test::Deep'      => 0,
@@ -35,7 +37,8 @@ my $build = Module::Build->new(
         'Plack::Middleware::Auth::Digest' => 0,
         'Plack::Middleware::Options'      => 0,
         'perl'                            => '5.10.0',
-        'Twiggy'                           => 0,
+        'Throwable'                       => 0,
+        'Twiggy'                          => 0,
     },
     script_files      => [
     ],

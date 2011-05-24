@@ -1,10 +1,17 @@
 package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
 use Carp qw(croak);
+use Digest::SHA;
 use DBI;
 use File::Path qw(make_path remove_tree);
 use File::Spec;
 use IO::File;
+use MIME::Base64 qw(encode_base64);
+
+use SaharaSync::X::BadUser;
+use SaharaSync::X::BadRevision;
+use SaharaSync::X::InvalidArgs;
+use SaharaSync::X::NoSuchBlob;
 
 use namespace::clean;
 
@@ -39,22 +46,47 @@ sub BUILDARGS {
     return \%args;
 }
 
-sub _dump_to_file {
-    my ( $self, $dest, $src ) = @_;
+sub _blob_to_disk_name {
+    my ( $self, $blob_name ) = @_;
 
-    my $buf = '';
+    return encode_base64($blob_name, '');
+}
+
+sub _save_blob_to_disk {
+    my ( $self, $user, $blob, $revision, $src ) = @_;
+
+    my $disk_name      = $self->_blob_to_disk_name($blob);
+    my $path           = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
+    my ( undef, $dir ) = File::Spec->splitpath($path);
+    my $buf            = '';
     my $n;
 
-    my $f = IO::File->new($dest, 'w');
-    croak "Unable to open '$dest': $!" unless $f;
+    make_path $dir;
+    my $digest = Digest::SHA->new(256);
+    $digest->add($blob);
+    $digest->add($revision);
+    if(defined $src) {
+        $digest->add("\1");
 
-    do {
-        $n = $src->read($buf, 1024);
-        croak "read failed: $!" unless defined $n;
-        $f->syswrite($buf, $n) || croak "write failed: $!" if $n;
-    } while $n;
+        my $f = IO::File->new($path, 'w');
+        croak "Unable to open '$path': $!" unless $f;
 
-    $f->close;
+        do {
+            $n = $src->read($buf, 1024);
+            croak "read failed: $!" unless defined $n;
+            if($n) {
+                $digest->add($buf);
+                $f->syswrite($buf, $n) || croak "write failed: $!";
+            }
+        } while $n;
+        $f->close;
+    } else {
+        $digest->add("\0");
+
+        unlink($path) || die "Unable to delete '$path': $!";
+    }
+
+    return $digest->hexdigest;
 }
 
 sub _get_user_id {
@@ -68,83 +100,12 @@ SQL
     $sth->execute($user);
     my ( $user_id ) = $sth->fetchrow_array;
     unless(defined $user_id) {
-        croak "No user '$user' found!";
+        SaharaSync::X::BadUser->throw({
+            username => $user,
+        });
     }
 
     return $user_id;
-}
-
-sub _put_blob {
-    my ( $self, $user, $blob, $handle ) = @_;
-
-    my $path    = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-    my $user_id = $self->_get_user_id($user);
-    my $dbh     = $self->dbh;
-
-    $dbh->begin_work;
-
-    my ( $row_exists, $is_deleted ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
-SELECT 1, is_deleted FROM blobs
-WHERE owner     = ?
-AND   blob_name = ?
-SQL
-
-    my $exists = $row_exists && !$is_deleted;
-
-    if($row_exists) {
-        $dbh->do(<<SQL, undef, $user_id, $blob);
-UPDATE blobs
-SET modified_time = CURRENT_TIMESTAMP,
-    is_deleted    = FALSE
-WHERE owner      = ?
-AND   blob_name  = ?
-SQL
-    } else {
-        $dbh->do(<<SQL, undef, $user_id, $blob);
-INSERT INTO blobs (owner, blob_name) VALUES (?, ?)
-SQL
-    }
-
-    my ( undef, $dir ) = File::Spec->splitpath($path);
-    eval {
-        make_path $dir;
-        $self->_dump_to_file($path, $handle);
-    };
-    if($@) {
-        $dbh->rollback;
-        die;
-    }
-    $dbh->commit;
-    return $exists;
-}
-
-sub _delete_blob {
-    my ( $self, $user, $blob ) = @_;
-
-    my $path    = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-    my $user_id = $self->_get_user_id($user);
-    my $dbh     = $self->dbh;
-
-    $dbh->begin_work;
-## HELLO non-portable SQL!
-    my $sth = $dbh->prepare(<<SQL);
-UPDATE blobs
-SET modified_time = CURRENT_TIMESTAMP, 
-    is_deleted    = TRUE
-WHERE owner     = ?
-AND   blob_name = ?
-AND   is_deleted = FALSE
-SQL
-    my $exists = $sth->execute($user_id, $blob) != 0;
-    if($exists) {
-        unless(unlink $path) {
-            my $error = $!;
-            $dbh->rollback;
-            croak "Unable to delete '$path': $error";
-        }
-    }
-    $dbh->commit;
-    return $exists != 0;
 }
 
 sub create_user {
@@ -156,11 +117,14 @@ SELECT COUNT(1) FROM users
 WHERE username = ?
 SQL
     if($exists) {
-        return 0;
+        SaharaSync::X::BadUser->throw({
+            username => $username,
+        });
     } else {
         $dbh->do(<<SQL, undef, $username, $password);
 INSERT INTO users (username, password) VALUES (?, ?)
 SQL
+        return 1;
     }
 }
 
@@ -172,10 +136,16 @@ sub remove_user {
 
     remove_tree $path;
 
-    my $exists = $dbh->do(<<SQL, undef, $username);
+    my $exists = $dbh->do(<<SQL, undef, $username) != 0;
 DELETE FROM users WHERE username = ?
 SQL
-    return $exists != 0;
+    if($exists) {
+        return 1;
+    } else {
+        SaharaSync::X::BadUser->throw({
+            username => $username,
+        });
+    }
 }
 
 sub load_user_info {
@@ -201,7 +171,8 @@ sub fetch_blob {
     my $dbh = $self->dbh;
 ## HELLO non-portable SQL!
     my $sth = $dbh->prepare(<<SQL);
-SELECT u.username IS NOT NULL, b.blob_name IS NOT NULL FROM users AS u
+SELECT u.username IS NOT NULL, b.blob_name IS NOT NULL, b.revision
+FROM users AS u
 LEFT JOIN blobs AS b
 ON  b.owner = u.user_id
 AND b.blob_name = ?
@@ -211,59 +182,180 @@ SQL
 
     $sth->execute($blob, $user);
 
-    my ( $user_exists, $file_exists ) = $sth->fetchrow_array;
+    my ( $user_exists, $file_exists, $revision ) = $sth->fetchrow_array;
 
     unless($user_exists) {
-        croak "No user '$user' found!";
+        SaharaSync::X::BadUser->throw({
+            username => $user,
+        });
     }
 
     if($file_exists) {
-        my $path = File::Spec->catfile($self->fs_storage_path, $user, $blob);
-        my $handle = IO::File->new($path, 'r');
+        my $disk_name = $self->_blob_to_disk_name($blob);
+        my $path      = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
+        my $handle    = IO::File->new($path, 'r');
         unless($handle) {
             croak "Unable to open '$path': $!";
         }
-        return $handle;
+        return ( $handle, $revision );
     } else {
         return;
     }
 }
 
 sub store_blob {
-    my ( $self, $user, $blob, $handle ) = @_;
+    my ( $self, $user, $blob, $handle, $revision ) = @_;
 
-    if(defined $handle) {
-        return $self->_put_blob($user, $blob, $handle);
+    my $user_id = $self->_get_user_id($user);
+    my $dbh     = $self->dbh;
+
+    my ( $is_deleted, $current_revision ) =
+        $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
+SELECT is_deleted, revision FROM blobs
+WHERE owner     = ?
+AND   blob_name = ?
+SQL
+    if(defined $current_revision) {
+        if($is_deleted) {
+            if(defined $revision) {
+                SaharaSync::X::InvalidArgs->throw({
+                    message => "You can't provide a revision when creating a new blob",
+                });
+            }
+            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $handle);
+        } else {
+            unless(defined $revision) {
+                SaharaSync::X::InvalidArgs->throw({
+                    message => "Revision required",
+                });
+            }
+            unless($revision eq $current_revision) {
+                return undef;
+            }
+            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
+        }
+        $dbh->begin_work;
+        $dbh->do(<<SQL, undef, $revision, $user_id, $blob);
+UPDATE blobs
+SET is_deleted = FALSE,
+    revision   = ?
+WHERE owner      = ?
+AND   blob_name  = ?
+SQL
+        $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
+INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)
+SQL
+        $dbh->commit;
     } else {
-        return $self->_delete_blob($user, $blob);
+        if(defined $revision) {
+            SaharaSync::X::InvalidArgs->throw({
+                message => "You can't provide a revision when creating a new blob",
+            });
+        }
+        $revision = $self->_save_blob_to_disk($user, $blob, '', $handle);
+        $dbh->begin_work;
+        $dbh->do(<<SQL, undef, $user_id, $blob, $revision);
+INSERT INTO blobs (owner, blob_name, revision) VALUES (?, ?, ?)
+SQL
+        $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
+INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)
+SQL
+        $dbh->commit;
     }
+
+    return $revision;
+}
+
+sub delete_blob {
+    my ( $self, $user, $blob, $revision ) = @_;
+
+    my $user_id = $self->_get_user_id($user);
+    my $dbh     = $self->dbh;
+
+    my ( $current_revision ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
+SELECT revision FROM blobs
+WHERE owner      = ?
+AND   blob_name  = ?
+AND   is_deleted = FALSE
+SQL
+
+    unless(defined $current_revision) {
+        SaharaSync::X::NoSuchBlob->throw({
+            blob => $blob,
+        });
+    }
+    unless($revision eq $current_revision) {
+        return undef;
+    }
+
+    $revision = $self->_save_blob_to_disk($user, $blob, $revision);
+
+    $dbh->begin_work;
+    $dbh->do(<<SQL, undef, $revision, $user_id, $blob);
+UPDATE blobs
+SET is_deleted = TRUE,
+    revision   = ?
+WHERE owner      = ?
+AND   blob_name  = ?
+AND   is_deleted = FALSE
+SQL
+    $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
+INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)
+SQL
+    $dbh->commit;
+
+    return $revision;
 }
 
 sub fetch_changed_blobs {
-    my ( $self, $user, $last_sync ) = @_;
+    my ( $self, $user, $last_revision ) = @_;
 
-    my $dbh = $self->dbh;
-    my $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, b.blob_name FROM blobs AS b
-INNER JOIN users AS u ON u.user_id = b.owner
-WHERE u.username       = ?
-AND   EXTRACT(EPOCH FROM b.modified_time) >= ?
+    my $dbh     = $self->dbh;
+    my $user_id = $self->_get_user_id($user);
+    my $sth;
+
+    if(defined $last_revision) {
+        my ( $rev_id ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $last_revision);
+SELECT revision_id FROM revision_log
+WHERE user_id       = ?
+AND   blob_revision = ?
 SQL
 
-    $sth->execute($user, $last_sync);
-    my @blobs;
+        unless(defined $rev_id) {
+            SaharaSync::X::BadRevision->throw({
+                revision => $last_revision,
+            });
+        }
+
+        $sth = $dbh->prepare(<<SQL);
+SELECT b.is_deleted, r.blob_name FROM revision_log AS r
+INNER JOIN blobs AS b
+ON  r.blob_name = b.blob_name
+AND r.user_id   = b.owner
+WHERE r.user_id     = ?
+AND   r.revision_id > ?
+SQL
+
+        $sth->execute($user_id, $rev_id);
+    } else {
+        $sth = $dbh->prepare(<<SQL);
+SELECT b.is_deleted, r.blob_name FROM revision_log AS r
+INNER JOIN blobs AS b
+ON  r.blob_name = b.blob_name
+AND r.user_id   = b.owner
+WHERE r.user_id = ?
+SQL
+        $sth->execute($user_id);
+    }
+
+    my %blobs;
+
     ## we need to include deleted data eventually
     while(my ( undef, $blob ) = $sth->fetchrow_array) {
-        push @blobs, $blob;
-    }
-    unless(@blobs) {
-        my ( $exists ) = $dbh->selectrow_array(<<SQL, undef, $user);
-SELECT COUNT(1) FROM users WHERE username = ?
-SQL
-        croak "No such user '$user'" unless $exists;
+        $blobs{$blob} = 1;
     }
 
-    return @blobs;
+    return keys %blobs;
 }
 
 1;

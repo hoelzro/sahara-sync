@@ -8,7 +8,7 @@ my @http_methods = qw(HEAD GET PUT POST DELETE);
 
 my @tests = (
     [ '/',        [qw/HEAD/] ],
-    [ '/blobs',   [qw/GET PUT DELETE/] ],
+    [ '/blobs',   [qw/GET HEAD PUT DELETE/] ],
     [ '/changes', [qw/GET/] ],
 );
 plan tests => @tests * (@http_methods + 1);

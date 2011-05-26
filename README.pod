@@ -1,1 +1,123 @@
-lib/SaharaSync.pod
+=head1 NAME
+
+SaharaSync - Sync freely
+
+=head1 VERSION
+
+version 0.01
+
+=head1 DESCRIPTION
+
+If you're reading this and are confused about what this is, I suggest you skip
+ahead to the L<""/FAQ> section.
+
+=head2 Running Sahara Sync
+
+There are two principal scripts that need to be run:
+I<hostd.pl> (which handles storage and notification of clients)
+and I<clientd.pl> (which handles messages from the host and pushes
+updated files to the host).  You can currently only run them both
+on the same machine.  Also, you may see some configuration files here,
+but they are currently unused.  Let's set things up on the host.
+
+The host stores its metadata in a PostgreSQL database called B<sahara>, and
+the actual file contents under B</tmp/sahara>.  If you already have a database
+called sahara on your current machine, or if you're using /tmp/sahara for
+something already, you'll need to figure out a way around this.  Also, since
+the files are stored in /tmp, rebooting your machine will get rid of your
+"host" files!  Eventually, we'll move away from storing files in /tmp.
+
+For the remainder of this section I'll assume that you don't have PostgreSQL
+running, but you I<do> have it installed on your machine.  You can initialize
+the database with the following commands:
+
+  $ mkdir /tmp/sahara-data # more temporary data!
+  $ initdb -D /tmp/sahara-data
+  $ pg_ctl -D /tmp/sahara-data -l /dev/null start
+  $ createdb sahara
+  $ psql -f schema.psql
+
+You have now set up a user I<test> with the password I<abc123>.
+
+You can now run I<hostd.pl>:
+
+  perl hostd.pl
+
+This will cause the Sahara Sync host to listen on port 5000.
+
+Now for the client...the client is much easier to run:
+
+  perl clientd.pl
+
+The client currently synchronizes the directory I<~/Sandbox>.
+
+=head2 Help Wanted
+
+=head3 Different Databases
+
+I'm developing against PostgreSQL, but there's no technical reason for Sahara
+Sync to not function fine under MySQL, SQLite, or even a NoSQL database.
+Patches to SaharaSync::Hostd::Plugin::Store::DBIAndFS that help SQL
+portability or additional storage plugins are welcome!
+
+=head2 Technical Details
+
+=head2 FAQ
+
+=head3 What is Sahara Sync?
+
+Sahara Sync is a free software alternative for simple file synchronization,
+akin to Dropbox.  Sahara allows you to run your storage on hardware you control,
+should you so desire.  You can also customize the syncing software running on your
+endpoint machines, either through plugins or direct modification of source.
+
+=head3 Why Sahara Sync?
+
+Dropbox is a fine product, and it works very well with little interaction from the
+user.  However, there are those of us who aren't comfortable with the cloud hosting
+our data, or would like additional features that we could add ourselves.
+
+=head3 No, no...why the name "Sahara Sync"?
+
+I was trying to come up with a name that showed how the project is steering away from
+the cloud, and I figured "The Sahara's a desert.  It hardly has any clouds, right?"
+
+=head3 Why HTTP?
+
+Obviously there are many more advanced protocols than HTTP for this sort of job; for
+push data to a client, you need to resort to polling or a long-polling solution.  However,
+during the initial design phase, I wanted to make sure that anyone could set up their
+own Sahara Sync host, whether that be on a desktop computer, a virtual private server, or
+even a $5 a month hosting provider that only allows you to access MySQL from a CGI script.
+So I had to go with the lowest common denominator: HTTP.  However, it's not all bad; Sahara
+will use long-polling when it can, and require regular polling when it has to.  HTTP has other
+benefits as well: it has many well-supported tools and libraries (I'm using cURL and AnyEvent::HTTP on it
+as I develop), Javascript understands how to speak HTTP (assuming you have cross-domain stuff figured
+out), supporting more secure connection is trivial because of HTTPS, etc.
+
+=head3 Supported Platforms
+
+As a GNU/Linux and Android user, I'll be focusing my efforts there.  Since I also own a MacBook, Mac OS X
+is also a priority.  Patches for other platforms are more than welcome, though!
+
+=head1 AUTHOR
+
+Rob Hoelz <rob@hoelz.ro>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is Copyright (c) 2011 by Rob Hoelz.
+
+This is free software, licensed under:
+
+  The GNU Affero General Public License, Version 3, November 2007
+
+=head1 BUGS
+
+Please report any bugs or feature requests on the bugtracker website
+http://github.com/hoelzro/sahara-sync/issues
+
+When submitting a bug or request, please include a test-file or a
+patch to an existing test-file that illustrates the bug or desired
+feature.
+

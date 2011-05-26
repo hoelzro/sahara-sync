@@ -3,3 +3,5 @@ _build
 Build
 MYMETA.yml
 MYMETA.json
+.build
+SaharaSync-*

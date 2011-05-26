@@ -19,8 +19,6 @@ use Moose;
 
 with 'SaharaSync::Hostd::Plugin::Store';
 
-our $VERSION = '0.01';
-
 has dbh => (
     is       => 'ro',
     required => 1,
@@ -362,13 +360,7 @@ SQL
 
 __END__
 
-=head1 NAME
-
-SaharaSync::Hostd::Plugin::Store::DBIWithFS
-
-=head1 VERSION
-
-0.01
+# ABSTRACT: Storage plugin that leverages a database and the local filesystem
 
 =head1 SYNOPSIS
 
@@ -376,33 +368,9 @@ SaharaSync::Hostd::Plugin::Store::DBIWithFS
 
 =head1 FUNCTIONS
 
-=head1 AUTHOR
-
-Rob Hoelz, C<< rob at hoelz.ro >>
-
-=head1 BUGS
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2011 Rob Hoelz.
-
-This file is part of Sahara Sync.
-
-Sahara Sync is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-Sahara Sync is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with Sahara Sync.  If not, see <http://www.gnu.org/licenses/>.
-
 =head1 SEE ALSO
 
-L<SaharaSync>, L<SaharaSync::Hostd>, L<SaharaSync::Hostd::Plugin::Store>
+SaharaSync::Hostd
+SaharaSync::Hostd::Plugin::Store
 
 =cut

@@ -9,6 +9,7 @@ CREATE TABLE users (
 ) ENGINE=InnoDB;
 
 CREATE TABLE blobs (
+    blob_id       INTEGER      NOT NULL AUTO_INCREMENT PRIMARY KEY,
     blob_name     VARCHAR(250) NOT NULL, -- more efficient?
     owner         INTEGER      NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     revision      CHAR(64)     NOT NULL, -- SHA-256
@@ -19,11 +20,8 @@ CREATE TABLE blobs (
 
 CREATE TABLE revision_log (
     revision_id   INTEGER      NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id       INTEGER      NOT NULL,
-    blob_name     VARCHAR(250) NOT NULL,
-    blob_revision CHAR(64)     NOT NULL,
-
-    FOREIGN KEY (blob_name, user_id) REFERENCES blobs(blob_name, owner) ON DELETE CASCADE
+    blob_id       INTEGER      NOT NULL REFERENCES blobs(blob_id) ON DELETE CASCADE,
+    blob_revision CHAR(64)     NOT NULL
 ) ENGINE=InnoDB;
 
 CREATE INDEX blob_revision_idx ON revision_log(blob_revision);

@@ -207,9 +207,9 @@ sub store_blob {
     my $user_id = $self->_get_user_id($user);
     my $dbh     = $self->dbh;
 
-    my ( $is_deleted, $current_revision ) =
+    my ( $is_deleted, $blob_id, $current_revision ) =
         $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
-SELECT is_deleted, revision FROM blobs
+SELECT is_deleted, blob_id, revision FROM blobs
 WHERE owner     = ?
 AND   blob_name = ?
 SQL
@@ -233,15 +233,14 @@ SQL
             $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
         }
         $dbh->begin_work;
-        $dbh->do(<<SQL, undef, $revision, $user_id, $blob);
+        $dbh->do(<<SQL, undef, $revision, $blob_id);
 UPDATE blobs
 SET is_deleted = 0,
     revision   = ?
-WHERE owner      = ?
-AND   blob_name  = ?
+WHERE blob_id = ?
 SQL
-        $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
-INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)
+        $dbh->do(<<SQL, undef, $blob_id, $revision);
+INSERT INTO revision_log (blob_id, blob_revision) VALUES(?, ?)
 SQL
         $dbh->commit;
     } else {
@@ -255,8 +254,9 @@ SQL
         $dbh->do(<<SQL, undef, $user_id, $blob, $revision);
 INSERT INTO blobs (owner, blob_name, revision) VALUES (?, ?, ?)
 SQL
-        $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
-INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)
+        my $blob_id = $dbh->last_insert_id(undef, 'public', 'blobs', undef);
+        $dbh->do(<<SQL, undef, $blob_id, $revision);
+INSERT INTO revision_log (blob_id, blob_revision) VALUES(?, ?)
 SQL
         $dbh->commit;
     }
@@ -270,8 +270,8 @@ sub delete_blob {
     my $user_id = $self->_get_user_id($user);
     my $dbh     = $self->dbh;
 
-    my ( $current_revision ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
-SELECT revision FROM blobs
+    my ( $blob_id, $current_revision ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
+SELECT blob_id, revision FROM blobs
 WHERE owner      = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
@@ -297,8 +297,8 @@ WHERE owner      = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
 SQL
-    $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
-INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)
+    $dbh->do(<<SQL, undef, $blob_id, $revision);
+INSERT INTO revision_log (blob_id, blob_revision) VALUES (?, ?)
 SQL
     $dbh->commit;
 
@@ -314,9 +314,11 @@ sub fetch_changed_blobs {
 
     if(defined $last_revision) {
         my ( $rev_id ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $last_revision);
-SELECT revision_id FROM revision_log
-WHERE user_id       = ?
-AND   blob_revision = ?
+SELECT r.revision_id FROM revision_log AS r
+INNER JOIN blobs AS b
+ON b.blob_id = r.blob_id
+WHERE b.owner         = ?
+AND   r.blob_revision = ?
 SQL
 
         unless(defined $rev_id) {
@@ -326,22 +328,20 @@ SQL
         }
 
         $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, r.blob_name FROM revision_log AS r
+SELECT b.is_deleted, b.blob_name FROM revision_log AS r
 INNER JOIN blobs AS b
-ON  r.blob_name = b.blob_name
-AND r.user_id   = b.owner
-WHERE r.user_id     = ?
+ON  r.blob_id = b.blob_id
+WHERE b.owner       = ?
 AND   r.revision_id > ?
 SQL
 
         $sth->execute($user_id, $rev_id);
     } else {
         $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, r.blob_name FROM revision_log AS r
+SELECT b.is_deleted, b.blob_name FROM revision_log AS r
 INNER JOIN blobs AS b
-ON  r.blob_name = b.blob_name
-AND r.user_id   = b.owner
-WHERE r.user_id = ?
+ON r.blob_id = b.blob_id
+WHERE b.owner = ?
 SQL
         $sth->execute($user_id);
     }

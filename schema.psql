@@ -13,6 +13,7 @@ CREATE TABLE users (
 -- how to store directories?
 -- do you really need to?
 CREATE TABLE blobs (
+    blob_id       SERIAL    NOT NULL UNIQUE,
     blob_name     TEXT      NOT NULL, -- more efficient?
     owner         INTEGER   NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     revision      CHAR(64)  NOT NULL, -- SHA-256
@@ -24,11 +25,8 @@ CREATE TABLE blobs (
 --# inconsistent naming of columns
 CREATE TABLE revision_log (
     revision_id   SERIAL   NOT NULL UNIQUE,
-    user_id       INTEGER  NOT NULL,
-    blob_name     TEXT     NOT NULL,
-    blob_revision CHAR(64) NOT NULL,
-
-    FOREIGN KEY(blob_name, user_id) REFERENCES blobs(blob_name, owner) ON DELETE CASCADE
+    blob_id       INTEGER  NOT NULL REFERENCES blobs(blob_id) ON DELETE CASCADE,
+    blob_revision CHAR(64) NOT NULL
 );
 
 CREATE INDEX blob_revision_idx ON revision_log(blob_revision);

@@ -1,32 +1,34 @@
 use strict;
 use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../../lib";
 
-use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 use Test::Sahara::Storage;
+use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
 eval {
-    require DBD::Pg;
+    require DBD::mysql;
 };
 if($@) {
-    plan skip_all => 'You must install DBD::Pg to run this test';
+    diag($@);
+    plan skip_all => 'You must install DBD::mysql to run this test';
     exit;
 }
 
-my $catalog  = $ENV{'TEST_PGDATABASE'};
-my $schema   = 'public';
-my $username = $ENV{'TEST_PGUSER'} || '';
-my $password = $ENV{'TEST_PGPASS'} || '';
+my $catalog  = $ENV{'TEST_MYDATABASE'};
+my $username = $ENV{'TEST_MYUSER'} || '';
+my $password = $ENV{'TEST_MYPASS'} || '';
 
 unless(defined $catalog) {
-    plan skip_all => 'You must define TEST_PGDATABASE to run this test';
+    plan skip_all => 'You must define TEST_MYDATABASE to run this test';
     exit;
 }
 
-my $dsn = "dbi:Pg:dbname=$catalog";
-if(my $host = $ENV{'TEST_PGHOST'}) {
+my $dsn = "dbi:mysql:database=$catalog";
+if(my $host = $ENV{'TEST_MYHOST'}) {
     $dsn .= ":host=$host";
 }
-if(my $port = $ENV{'TEST_PGPORT'}) {
+if(my $port = $ENV{'TEST_MYPORT'}) {
     $dsn .= ":port=$port";
 }
 
@@ -35,7 +37,7 @@ sub reset_db {
         RaiseError => 1,
         PrintError => 0,
     });
-    my @tables = $dbh->tables($catalog, $schema, '%', 'TABLE'); 
+    my @tables = $dbh->tables(undef, $catalog, '%', 'TABLE'); 
 
     foreach my $table (@tables) {
         $dbh->do("DELETE FROM $table");
@@ -60,7 +62,7 @@ my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
     password => $password,
 );
 
-run_store_tests $store, "DBIWithFS: PostgreSQL - new dbh";
+run_store_tests $store;
 
 reset_db;
 
@@ -68,4 +70,4 @@ $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
     dbh => DBI->connect($dsn, $username, $password),
 );
 
-run_store_tests $store, "DBIWithFS: PostgreSQL - existing dbh";
+run_store_tests $store;

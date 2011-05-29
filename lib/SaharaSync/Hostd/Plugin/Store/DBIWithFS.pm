@@ -174,7 +174,7 @@ FROM users AS u
 LEFT JOIN blobs AS b
 ON  b.owner = u.user_id
 AND b.blob_name = ?
-AND b.is_deleted = FALSE
+AND b.is_deleted = 0
 WHERE u.username = ?
 SQL
 
@@ -235,7 +235,7 @@ SQL
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $revision, $user_id, $blob);
 UPDATE blobs
-SET is_deleted = FALSE,
+SET is_deleted = 0,
     revision   = ?
 WHERE owner      = ?
 AND   blob_name  = ?
@@ -274,7 +274,7 @@ sub delete_blob {
 SELECT revision FROM blobs
 WHERE owner      = ?
 AND   blob_name  = ?
-AND   is_deleted = FALSE
+AND   is_deleted = 0
 SQL
 
     unless(defined $current_revision) {
@@ -291,11 +291,11 @@ SQL
     $dbh->begin_work;
     $dbh->do(<<SQL, undef, $revision, $user_id, $blob);
 UPDATE blobs
-SET is_deleted = TRUE,
+SET is_deleted = 1,
     revision   = ?
 WHERE owner      = ?
 AND   blob_name  = ?
-AND   is_deleted = FALSE
+AND   is_deleted = 0
 SQL
     $dbh->do(<<SQL, undef, $user_id, $revision, $blob);
 INSERT INTO revision_log (user_id, blob_revision, blob_name) VALUES(?, ?, ?)

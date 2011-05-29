@@ -16,7 +16,7 @@ CREATE TABLE blobs (
     blob_name     TEXT      NOT NULL, -- more efficient?
     owner         INTEGER   NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     revision      CHAR(64)  NOT NULL, -- SHA-256
-    is_deleted    BOOLEAN   NOT NULL DEFAULT FALSE,
+    is_deleted    INTEGER   NOT NULL DEFAULT 0,
 
     UNIQUE(blob_name, owner)
 );

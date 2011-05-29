@@ -1,0 +1,31 @@
+-- vim:ft=mysql
+
+CREATE TABLE users (
+    user_id  INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(32) NOT NULL,
+    password VARCHAR(32) NOT NULL,
+
+    UNIQUE(username)
+) ENGINE=InnoDB;
+
+CREATE TABLE blobs (
+    blob_name     VARCHAR(250) NOT NULL, -- more efficient?
+    owner         INTEGER      NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    revision      CHAR(64)     NOT NULL, -- SHA-256
+    is_deleted    INTEGER      NOT NULL DEFAULT 0,
+
+    UNIQUE(blob_name, owner)
+) ENGINE=InnoDB;
+
+CREATE TABLE revision_log (
+    revision_id   INTEGER      NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id       INTEGER      NOT NULL,
+    blob_name     VARCHAR(250) NOT NULL,
+    blob_revision CHAR(64)     NOT NULL,
+
+    FOREIGN KEY (blob_name, user_id) REFERENCES blobs(blob_name, owner) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE INDEX blob_revision_idx ON revision_log(blob_revision);
+
+INSERT INTO users (username, password) VALUES ('test', 'abc123');

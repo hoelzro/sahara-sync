@@ -172,7 +172,7 @@ sub fetch_blob {
 SELECT u.username IS NOT NULL, b.blob_name IS NOT NULL, b.revision
 FROM users AS u
 LEFT JOIN blobs AS b
-ON  b.owner = u.user_id
+ON  b.user_id   = u.user_id
 AND b.blob_name = ?
 AND b.is_deleted = 0
 WHERE u.username = ?
@@ -210,7 +210,7 @@ sub store_blob {
     my ( $is_deleted, $blob_id, $current_revision ) =
         $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
 SELECT is_deleted, blob_id, revision FROM blobs
-WHERE owner     = ?
+WHERE user_id   = ?
 AND   blob_name = ?
 SQL
     if(defined $current_revision) {
@@ -252,7 +252,7 @@ SQL
         $revision = $self->_save_blob_to_disk($user, $blob, '', $handle);
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $user_id, $blob, $revision);
-INSERT INTO blobs (owner, blob_name, revision) VALUES (?, ?, ?)
+INSERT INTO blobs (user_id, blob_name, revision) VALUES (?, ?, ?)
 SQL
         my $blob_id = $dbh->last_insert_id(undef, 'public', 'blobs', undef);
         $dbh->do(<<SQL, undef, $blob_id, $revision);
@@ -272,7 +272,7 @@ sub delete_blob {
 
     my ( $blob_id, $current_revision ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $blob);
 SELECT blob_id, revision FROM blobs
-WHERE owner      = ?
+WHERE user_id    = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
 SQL
@@ -293,7 +293,7 @@ SQL
 UPDATE blobs
 SET is_deleted = 1,
     revision   = ?
-WHERE owner      = ?
+WHERE user_id    = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
 SQL
@@ -317,7 +317,7 @@ sub fetch_changed_blobs {
 SELECT r.revision_id FROM revision_log AS r
 INNER JOIN blobs AS b
 ON b.blob_id = r.blob_id
-WHERE b.owner         = ?
+WHERE b.user_id       = ?
 AND   r.blob_revision = ?
 SQL
 
@@ -331,7 +331,7 @@ SQL
 SELECT b.is_deleted, b.blob_name FROM revision_log AS r
 INNER JOIN blobs AS b
 ON  r.blob_id = b.blob_id
-WHERE b.owner       = ?
+WHERE b.user_id     = ?
 AND   r.revision_id > ?
 SQL
 
@@ -341,7 +341,7 @@ SQL
 SELECT b.is_deleted, b.blob_name FROM revision_log AS r
 INNER JOIN blobs AS b
 ON r.blob_id = b.blob_id
-WHERE b.owner = ?
+WHERE b.user_id = ?
 SQL
         $sth->execute($user_id);
     }

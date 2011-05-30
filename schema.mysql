@@ -11,11 +11,11 @@ CREATE TABLE users (
 CREATE TABLE blobs (
     blob_id       INTEGER      NOT NULL AUTO_INCREMENT PRIMARY KEY,
     blob_name     VARCHAR(250) NOT NULL, -- more efficient?
-    owner         INTEGER      NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id       INTEGER      NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     revision      CHAR(64)     NOT NULL, -- SHA-256
     is_deleted    INTEGER      NOT NULL DEFAULT 0,
 
-    UNIQUE(blob_name, owner)
+    UNIQUE(blob_name, user_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE revision_log (

@@ -1,0 +1,27 @@
+-- vim:ft=sqlite
+
+CREATE TABLE users (
+    user_id  INTEGER NOT NULL PRIMARY KEY,
+    username TEXT    NOT NULL,
+    password TEXT    NOT NULL,
+
+    UNIQUE(username)
+);
+
+CREATE TABLE blobs (
+    blob_id    INTEGER NOT NULL PRIMARY KEY,
+    blob_name  TEXT    NOT NULL,
+    user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    revision   TEXT    NOT NULL,
+    is_deleted INTEGER NOT NULL DEFAULT 0,
+
+    UNIQUE(blob_name, user_id)
+);
+
+CREATE TABLE revision_log (
+    revision_id   INTEGER NOT NULL PRIMARY KEY,
+    blob_id       INTEGER NOT NULL REFERENCES blobs(blob_id) ON DELETE CASCADE,
+    blob_revision TEXT    NOT NULL
+);
+
+CREATE INDEX blob_revision_idx ON revision_log(blob_revision);

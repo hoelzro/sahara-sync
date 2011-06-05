@@ -40,6 +40,11 @@ sub BUILDARGS {
     if(defined $dsn) {
         $args{'dbh'} = DBI->connect($dsn, $username, $password);
     }
+    
+    my $dbh = $args{'dbh'};
+    if($dbh->{'Driver'}{'Name'} eq 'SQLite') {
+        $dbh->do('PRAGMA foreign_keys = ON');
+    }
 
     return \%args;
 }

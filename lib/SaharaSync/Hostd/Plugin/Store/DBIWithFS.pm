@@ -1,6 +1,6 @@
 package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
-use Carp qw(croak);
+use Carp::Clan qw(^SaharaSync::Hostd::Plugin::Store ^Class::MOP::Method);
 use Digest::SHA;
 use DBI;
 use File::Path qw(make_path remove_tree);

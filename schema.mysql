@@ -25,5 +25,3 @@ CREATE TABLE revision_log (
 ) ENGINE=InnoDB;
 
 CREATE INDEX blob_revision_idx ON revision_log(blob_revision);
-
-INSERT INTO users (username, password) VALUES ('test', 'abc123');

@@ -30,6 +30,4 @@ CREATE TABLE revision_log (
 
 CREATE INDEX blob_revision_idx ON revision_log(blob_revision);
 
-INSERT INTO users (username, password) VALUES ('test', 'abc123');
-
 COMMIT;

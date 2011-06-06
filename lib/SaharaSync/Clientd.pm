@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package SaharaSync::Clientd;
 
+## use critic (RequireUseStrict)
 use strict;
 use warnings;
 

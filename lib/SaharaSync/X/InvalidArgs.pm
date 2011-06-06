@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package SaharaSync::X::InvalidArgs;
 
+## use critic (RequireUseStrict)
 use Moose;
 with 'Throwable';
 

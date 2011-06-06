@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package SaharaSync::X::BadContext;
 
+## use critic (RequireUseStrict)
 use Moose::Util::TypeConstraints qw(enum);
 use namespace::clean;
 

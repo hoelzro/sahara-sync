@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package Plack::Middleware::Sahara::Streaming;
 
+## use critic (RequireUseStrict)
 use strict;
 use warnings;
 

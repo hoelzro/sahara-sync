@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
+## use critic (RequireUseStrict)
 use Carp::Clan qw(^SaharaSync::Hostd::Plugin::Store ^Class::MOP::Method);
 use Digest::SHA;
 use DBI;
@@ -233,7 +235,7 @@ SQL
                 });
             }
             unless($revision eq $current_revision) {
-                return undef;
+                return;
             }
             $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
         }
@@ -288,7 +290,7 @@ SQL
         });
     }
     unless($revision eq $current_revision) {
-        return undef;
+        return;
     }
 
     $revision = $self->_save_blob_to_disk($user, $blob, $revision);

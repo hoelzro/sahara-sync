@@ -1,3 +1,4 @@
+## no critic (RequireUseStrict)
 package SaharaSync::Hostd::Plugin::Store;
 
 use Carp qw(croak);;
@@ -5,6 +6,7 @@ use SaharaSync::X::BadContext;
 use SaharaSync::X::InvalidArgs;
 use namespace::clean;
 
+## use critic (RequireUseStrict)
 use Moose::Role;
 
 sub get {

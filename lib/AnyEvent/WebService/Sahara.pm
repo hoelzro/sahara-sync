@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package AnyEvent::WebService::Sahara;
 
+## use critic (RequireUseStrict)
 use strict;
 use warnings;
 

@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package Plack::Middleware::Sahara::Auth;
 
+## use critic (RequireUseStrict)
 use strict;
 use warnings;
 use parent 'Plack::Middleware::Auth::Basic';

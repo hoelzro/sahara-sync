@@ -1,5 +1,7 @@
+## no critic (RequireUseStrict)
 package SaharaSync::Hostd;
 
+## use critic (RequireUseStrict)
 use Moose;
 use feature 'switch';
 

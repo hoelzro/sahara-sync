@@ -1,7 +1,6 @@
 package SaharaSync::Hostd;
 
-use strict;
-use warnings;
+use Moose;
 use feature 'switch';
 
 use Plack::Builder;
@@ -15,17 +14,39 @@ use UNIVERSAL;
 ## relying on Twiggy.  That way, I don't have to resort to voodoo
 ## with Twiggy's handles.
 
-## probably replace this with a plugin loader module some day
-use SaharaSync::Hostd::Plugin::Store;
 use SaharaSync::X::InvalidArgs;
 use SaharaSync::X::NoSuchBlob;
 
-my $store = SaharaSync::Hostd::Plugin::Store->get;
+has storage => (
+    is       => 'ro',
+    does     => 'SaharaSync::Hostd::Plugin::Store',
+    required => 1,
+);
 
-my %connections;
+has connections => (
+    is       => 'ro',
+    isa      => 'HashRef',
+    init_arg => undef,
+    default  => sub { {} },
+);
+
+sub BUILDARGS {
+    my ( $class, %args ) = @_;
+
+    my $storage = $args{'storage'};
+    my $type    = delete $storage->{'type'};
+    $type       = 'SaharaSync::Hostd::Plugin::Store::' . $type;
+    my $path    = $type;
+    $path       =~ s/::/\//g;
+    $path       .= '.pm';
+    require $path;
+    $args{'storage'} = $type->new(%$storage);
+
+    return \%args;
+}
 
 sub top_level {
-    my ( $env ) = @_;
+    my ( $self, $env ) = @_;
 
     my $req = Plack::Request->new($env);
     my $res = $req->new_response;
@@ -43,17 +64,18 @@ sub top_level {
 }
 
 sub changes {
-    my ( $env ) = @_;
+    my ( $self, $env ) = @_;
 
-    my $req       = Plack::Request->new($env);
-    my $last_sync = $req->header('X-Sahara-Last-Sync');
-    my $user      = $req->user;
-    my @blobs     = $store->fetch_changed_blobs($user, $last_sync);
+    my $req         = Plack::Request->new($env);
+    my $last_sync   = $req->header('X-Sahara-Last-Sync');
+    my $user        = $req->user;
+    my @blobs       = $self->storage->fetch_changed_blobs($user, $last_sync);
+    my $connections = $self->connections;
 
     if($env->{'sahara.streaming'}) {
-        my $conns = $connections{$user};
+        my $conns = $connections->{$user};
         unless($conns) {
-            $conns = $connections{$user} = [];
+            $conns = $connections->{$user} = [];
         }
 
         return sub {
@@ -84,7 +106,7 @@ sub changes {
 }
 
 sub blobs {
-    my ( $env ) = @_;
+    my ( $self, $env ) = @_;
 
     my $req    = Plack::Request->new($env);
     my $res    = $req->new_response;
@@ -96,7 +118,7 @@ sub blobs {
 
     given($method) {
         when('GET') {
-            my ( $handle, $revision ) = $store->fetch_blob($user, $blob);
+            my ( $handle, $revision ) = $self->storage->fetch_blob($user, $blob);
 
             if(defined $handle) {
                 no warnings 'uninitialized';
@@ -115,7 +137,7 @@ sub blobs {
             }
         }
         when('HEAD') {
-            my ( undef, $revision ) = $store->fetch_blob($user, $blob);
+            my ( undef, $revision ) = $self->storage->fetch_blob($user, $blob);
 
             if(defined $revision) {
                 no warnings 'uninitialized';
@@ -132,7 +154,7 @@ sub blobs {
         when('PUT') {
             my $current_revision = $req->header('If-Match');
             my $revision         = eval {
-                $store->store_blob($user, $blob, $req->body, $current_revision);
+                $self->storage->store_blob($user, $blob, $req->body, $current_revision);
             };
             if($@) {
                 if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
@@ -160,7 +182,7 @@ sub blobs {
                     $res->body('ok');
 
                     if($env->{'sahara.streaming'}) {
-                        my $conns = $connections{$user};
+                        my $conns = $self->connections->{$user};
                         if($conns) {
                             foreach my $writer (@$conns) {
                                 $writer->write("$blob\n");
@@ -183,7 +205,7 @@ sub blobs {
                 $res->body('revision required');
             } else {
                 $revision = eval {
-                    $store->delete_blob($user, $blob, $revision);
+                    $self->storage->delete_blob($user, $blob, $revision);
                 };
                 if($@) {
                     if(UNIVERSAL::isa($@, 'SaharaSync::X::NoSuchBlob')) {
@@ -200,7 +222,7 @@ sub blobs {
                         $res->body('ok');
 
                         if($env->{'sahara.streaming'}) {
-                            my $conns = $connections{$user};
+                            my $conns = $self->connections->{$user};
                             if($conns) {
                                 foreach my $writer (@$conns) {
                                     $writer->write("$blob\n");
@@ -220,23 +242,33 @@ sub blobs {
 }
 
 sub to_app {
+    my ( $self ) = @_;
+
+    my $store = $self->storage;
+
     builder {
 	enable 'Sahara::Streaming';
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
             enable 'Sahara::Auth', store => $store;
-            \&changes;
+            sub {
+                return $self->changes(@_);
+            };
         };
 
         mount '/blobs' => builder {
             enable 'Options', allowed => [qw/GET HEAD PUT DELETE/];
             enable 'Sahara::Auth', store => $store;
-            \&blobs;
+            sub {
+                return $self->blobs(@_);
+            };
         };
 
         mount '/' => builder {
             enable_if { $_[0]->{'REQUEST_URI'} eq '/' } 'Options', allowed => [qw/HEAD/];
-            \&top_level;
+            sub {
+                return $self->top_level(@_);
+            };
         };
     };
 }

@@ -3,6 +3,9 @@ package Test::Sahara;
 use strict;
 use warnings;
 
+use Cwd ();
+use DBI ();
+use File::Spec ();
 use HTTP::Request ();
 use MIME::Base64 ();
 use Plack::Test ();
@@ -14,7 +17,33 @@ our $VERSION = '0.01';
 sub test_host {
     my ( $cb ) = @_;
 
-    my $app = SaharaSync::Hostd->to_app;
+    my $dsn      = "dbi:SQLite:dbname=:memory:";
+    my $dbh      = DBI->connect($dsn, '', '', {
+        RaiseError                       => 1,
+        PrintError                       => 0,
+        sqlite_allow_multiple_statements => 1,
+    });
+
+    my $schema = Cwd::realpath(File::Spec->catfile($INC{'Test/Sahara.pm'},
+        (File::Spec->updir) x 4, 'schema.sqlite'));
+
+    my $fh;
+    open $fh, '<', $schema or die $!;
+    $schema = do {
+        local $/;
+        <$fh>;
+    };
+    close $fh;
+
+    $dbh->do($schema);
+    $dbh->do("INSERT INTO users (username, password) VALUES ('test', 'abc123')");
+
+    my $app = SaharaSync::Hostd->new(
+        storage => {
+            type => 'DBIWithFS',
+            dbh  => $dbh,
+        },
+    )->to_app;
 
     return Plack::Test::test_psgi $app, $cb;
 }

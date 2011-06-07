@@ -44,7 +44,28 @@ around fetch_blob => sub {
 };
 
 before store_blob => sub {
-    my ( $self, $user, $name, $contents ) = @_;
+    my ( $self, $user, $name, $contents, $metadata ) = @_;
+
+    if(defined($metadata) && ref($metadata) ne 'HASH') {
+        SaharaSync::X::InvalidArgs->throw({
+            message => "store_blob metadata must be a hash reference",
+        });
+    }
+
+    foreach my $k (keys %$metadata) {
+        my $v = $metadata->{$k};
+        if(length $k > 255) {
+            SaharaSync::X::InvalidArgs->throw({
+                message => "Metadata key is too long",
+            });
+        }
+        if(length $v > 255) {
+            SaharaSync::X::InvalidArgs->throw({
+                message => "Metadata value is too long",
+            });
+        }
+    }
+
 
     unless(UNIVERSAL::can($contents, 'read') || ref($contents) eq 'GLOB') {
         SaharaSync::X::InvalidArgs->throw({

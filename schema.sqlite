@@ -24,4 +24,10 @@ CREATE TABLE revision_log (
     blob_revision TEXT    NOT NULL
 );
 
+CREATE TABLE metadata (
+    blob_id    INTEGER NOT NULL REFERENCES blobs(blob_id) ON DELETE CASCADE,
+    meta_key   TEXT    NOT NULL,
+    meta_value TEXT    NOT NULL
+);
+
 CREATE INDEX blob_revision_idx ON revision_log(blob_revision);

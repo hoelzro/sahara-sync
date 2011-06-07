@@ -120,7 +120,8 @@ sub blobs {
 
     given($method) {
         when('GET') {
-            my ( $handle, $revision ) = $self->storage->fetch_blob($user, $blob);
+            my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
+            my $revision = delete $metadata->{'revision'};
 
             if(defined $handle) {
                 no warnings 'uninitialized';
@@ -129,6 +130,11 @@ sub blobs {
                 } else {
                     $res->status(200);
                     $res->header(ETag => $revision);
+                    foreach my $k (keys %$metadata) {
+                        my $v = $metadata->{$k};
+                        $k =~ s/^(.)/uc $1/ge;
+                        $res->header("X-Sahara-$k", $v);
+                    }
                     $res->content_type('application/octet-stream');
                     $res->body($handle);
                 }
@@ -139,7 +145,8 @@ sub blobs {
             }
         }
         when('HEAD') {
-            my ( undef, $revision ) = $self->storage->fetch_blob($user, $blob);
+            my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+            my $revision = delete $metadata->{'revision'};
 
             if(defined $revision) {
                 no warnings 'uninitialized';
@@ -147,6 +154,11 @@ sub blobs {
                     $res->status(304);
                 } else {
                     $res->status(200);
+                    foreach my $k (keys %$metadata) {
+                        my $v = $metadata->{$k};
+                        $k =~ s/^(.)/uc $1/ge;
+                        $res->header("X-Sahara-$k", $v);
+                    }
                     $res->header(ETag => $revision);
                 }
             } else {
@@ -154,9 +166,22 @@ sub blobs {
             }
         }
         when('PUT') {
-            my $current_revision = $req->header('If-Match');
+            my %metadata;
+            my $headers = $req->headers;
+            foreach my $header (grep { /^X-Sahara-/ } $headers->header_field_names) {
+                my $value = $headers->header($header);
+                $header =~ s/^X-Sahara-//;
+                if(lc($header) eq 'revision') {
+                    $res->status(400);
+                    $res->content_type('text/plain');
+                    $res->body('X-Sahara-Revision is an invalid metadata header');
+                    return $res->finalize;
+                }
+                $metadata{$header} = $value;
+            }
+            my $current_revision = $metadata{'revision'} = $req->header('If-Match');
             my $revision         = eval {
-                $self->storage->store_blob($user, $blob, $req->body, $current_revision);
+                $self->storage->store_blob($user, $blob, $req->body, \%metadata);
             };
             if($@) {
                 if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {

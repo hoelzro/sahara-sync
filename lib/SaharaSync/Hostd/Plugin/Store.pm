@@ -52,19 +52,21 @@ before store_blob => sub {
         });
     }
 
-    foreach my $k (keys %$metadata) {
-        my $v = delete $metadata->{$k};
-        if(length $k > 255) {
-            SaharaSync::X::InvalidArgs->throw({
-                message => "Metadata key is too long",
-            });
+    if(defined $metadata) {
+        foreach my $k (keys %$metadata) {
+            my $v = delete $metadata->{$k};
+            if(length $k > 255) {
+                SaharaSync::X::InvalidArgs->throw({
+                    message => "Metadata key is too long",
+                });
+            }
+            if(defined $v && length $v > 255) {
+                SaharaSync::X::InvalidArgs->throw({
+                    message => "Metadata value is too long",
+                });
+            }
+            $metadata->{lc $k} = $v;
         }
-        if(length $v > 255) {
-            SaharaSync::X::InvalidArgs->throw({
-                message => "Metadata value is too long",
-            });
-        }
-        $metadata->{lc $k} = $v;
     }
 
 

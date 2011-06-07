@@ -46,7 +46,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 131;
+        plan tests => 138;
 
         my $info;
         my $blob;
@@ -425,6 +425,45 @@ sub run_store_tests {
         } "Storing metadata with 255 characters or less for the keys or values should succeed";
 
         $store->remove_user('test3');
+
+        ############################ Test revision function ############################
+
+        $store->create_user('test3', 'abc123');
+        $store->create_user('test4', 'abc123');
+        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+        $revision2 = $store->store_blob('test4', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+        is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+
+        $store->remove_user('test3');
+        $store->remove_user('test4');
+        $store->create_user('test3', 'abc123');
+        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+        is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+
+        $store->remove_user('test3');
+        $store->create_user('test3', 'abc123');
+        $revision2 = $store->store_blob('test3', 'file2.txt', IO::String->new('Test text'), { foo => 1 });
+        isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+
+        $store->remove_user('test3');
+        $store->create_user('test3', 'abc123');
+        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { foo => 1 });
+        isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+
+        $store->remove_user('test3');
+        $store->create_user('test3', 'abc123');
+        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 2 });
+        isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+
+        $store->remove_user('test3');
+        $store->create_user('test3', 'abc123');
+        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { Foo => 1 });
+        is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+
+        $store->remove_user('test3');
+        $store->create_user('test3', 'abc123');
+        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { bar => 1 });
+        isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
     };
 }
 

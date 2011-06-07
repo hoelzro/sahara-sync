@@ -53,7 +53,7 @@ before store_blob => sub {
     }
 
     foreach my $k (keys %$metadata) {
-        my $v = $metadata->{$k};
+        my $v = delete $metadata->{$k};
         if(length $k > 255) {
             SaharaSync::X::InvalidArgs->throw({
                 message => "Metadata key is too long",
@@ -64,6 +64,7 @@ before store_blob => sub {
                 message => "Metadata value is too long",
             });
         }
+        $metadata->{lc $k} = $v;
     }
 
 

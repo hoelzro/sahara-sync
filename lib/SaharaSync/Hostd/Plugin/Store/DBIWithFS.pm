@@ -58,7 +58,7 @@ sub _blob_to_disk_name {
 }
 
 sub _save_blob_to_disk {
-    my ( $self, $user, $blob, $revision, $src ) = @_;
+    my ( $self, $user, $blob, $revision, $metadata, $src ) = @_;
 
     my $disk_name      = $self->_blob_to_disk_name($blob);
     my $path           = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
@@ -71,6 +71,11 @@ sub _save_blob_to_disk {
     $digest->add($blob);
     $digest->add($revision);
     if(defined $src) {
+        foreach my $k (sort keys %$metadata) {
+            my $v = $metadata->{$k};
+            $digest->add($k);
+            $digest->add($v);
+        }
         $digest->add("\1");
 
         my $f = IO::File->new($path, 'w');
@@ -234,7 +239,7 @@ SQL
                     message => "You can't provide a revision when creating a new blob",
                 });
             }
-            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $handle);
+            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $metadata, $handle);
         } else {
             unless(defined $revision) {
                 SaharaSync::X::InvalidArgs->throw({
@@ -244,7 +249,7 @@ SQL
             unless($revision eq $current_revision) {
                 return;
             }
-            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
+            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $metadata, $handle);
         }
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $revision, $blob_id);
@@ -259,7 +264,7 @@ SQL
                 message => "You can't provide a revision when creating a new blob",
             });
         }
-        $revision = $self->_save_blob_to_disk($user, $blob, '', $handle);
+        $revision = $self->_save_blob_to_disk($user, $blob, '', $metadata, $handle);
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $user_id, $blob, $revision);
 INSERT INTO blobs (user_id, blob_name, revision) VALUES (?, ?, ?)
@@ -272,7 +277,6 @@ SQL
     my $sth = $dbh->prepare('INSERT INTO metadata (blob_id, meta_key, meta_value) VALUES (?, ?, ?)');
     foreach my $k (keys %$metadata) {
         my $v = $metadata->{$k};
-        $k    = lc $k;
         $sth->execute($blob_id, $k, $v);
     }
     $dbh->commit;

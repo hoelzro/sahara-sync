@@ -46,10 +46,11 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 108;
+        plan tests => 131;
 
         my $info;
         my $blob;
+        my $metadata;
         my $revision;
         my $revision2;
         my $last_revision;
@@ -74,15 +75,15 @@ sub run_store_tests {
             $store->fetch_blob('test', 'file.txt');
         } 'SaharaSync::X::BadContext', "Calling fetch_blob in void context should throw a SaharaSync::X::BadContext exception";
 
-        ( $blob, $revision ) = $store->fetch_blob('test', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
         ok ! defined($blob), "fetch_blob should return a pair of undefs for a non-existent blob";
-        ok ! defined($revision), "fetch_blob should return a pair of undefs for a non-existent blob";
-        ( $blob, $revision ) = $store->fetch_blob('test', 'file2.txt');
+        ok ! defined($metadata), "fetch_blob should return a pair of undefs for a non-existent blob";
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file2.txt');
         ok ! defined($blob), "fetch_blob should return a pair of undefs for a non-existent blob";
-        ok ! defined($revision), "fetch_blob should return a pair of undefs for a non-existent blob";
+        ok ! defined($metadata), "fetch_blob should return a pair of undefs for a non-existent blob";
 
         throws_ok {
-            ( $blob, $revision ) = $store->fetch_blob('test3', 'file.txt');
+            ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
         } 'SaharaSync::X::BadUser', "fetch_blob should throw a SaharaSync::X::BadUser exception if called with a non-existent user";
 
         ########################## Test store_blob ###########################
@@ -100,6 +101,10 @@ sub run_store_tests {
 
         throws_ok {
             $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'), $BAD_REVISION);
+        } 'SaharaSync::X::InvalidArgs', "store_blob should throw a SaharaSync::X::InvalidArgs exception if attempting to use a string for metadata";
+
+        throws_ok {
+            $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'), { revision => $BAD_REVISION });
         } 'SaharaSync::X::InvalidArgs', "store_blob should throw a SaharaSync::X::InvalidArgs exception if attempting to create a blob using a revision";
 
         $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'));
@@ -114,43 +119,51 @@ sub run_store_tests {
 
         throws_ok {
             $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, again.'), undef);
-        } 'SaharaSync::X::InvalidArgs', "Updating a blob with an undef revision should throw a SaharaSync::X::InvalidArgs exception";
+        } 'SaharaSync::X::InvalidArgs', "Updating a blob with undef metadata should throw a SaharaSync::X::InvalidArgs exception";
 
-        ( $blob, $revision2 ) = $store->fetch_blob('test', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
         ok defined($blob), "Fetching an existent blob should return a pair of truthy values";
+        isa_ok $metadata, 'HASH', 'Fetching an existent blob should return its metadata as a hash';
+        $revision2 = $metadata->{'revision'};
         is $revision2, $revision, "The revision returned by fetch_blob should match the revision returned by the latest store_blob";
         can_ok $blob, 'getline';
         $blob = slurp_handle $blob;
         is $blob, 'Hello, World!', "The contents of the returned handler should match the last store operation";
-        ( $blob, $revision ) = $store->fetch_blob('test', 'file3.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file3.txt');
         ok ! defined($blob), "Fetching a non-existent blob should return a pair of undefs";
-        ok ! defined($revision), "Fetching a non-existent blob should return a pair of undefs";
-        ( $blob, $revision ) = $store->fetch_blob('test2', 'file.txt');
+        ok ! defined($metadata), "Fetching a non-existent blob should return a pair of undefs";
+        ( $blob, $metadata ) = $store->fetch_blob('test2', 'file.txt');
         ok ! defined($blob), "Fetching a non-existent blob should return a pair of undefs";
-        ok ! defined($revision), "Fetching a non-existent blob should return a pair of undefs";
+        ok ! defined($metadata), "Fetching a non-existent blob should return a pair of undefs";
 
         $revision = $store->store_blob('test2', 'file.txt', IO::String->new('Hi there'));
         ok $revision, "Creating a new blob should return its revision";
-        ( $blob, $revision ) = $store->fetch_blob('test', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
+        $revision = $metadata->{'revision'};
         ok $blob, "fetch_blob should return a pair of truthy values for an existing blob";
-        ok $revision, "fetch_blob should return a pair of truthy values for an existing blob";
+        ok $metadata, "fetch_blob should return a pair of truthy values for an existing blob";
+        ok $metadata->{'revision'}, "fetch_blobs should return metadata with a revision key";
         can_ok $blob, 'getline';
         $blob = slurp_handle $blob;
         is $blob, 'Hello, World!', "Two separate users using the same blob name should not affect one another";
-        ( $blob, $revision ) = $store->fetch_blob('test2', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test2', 'file.txt');
         ok $blob, "Fetching an existent blob should return a pair of truthy values";
-        ok $revision, "Fetching an existent blob should return a pair of truthy values";
+        ok $metadata, "Fetching an existent blob should return a pair of truthy values";
+        ok $metadata->{'revision'}, "fetch_blobs should return metadata with a revision key";
+        $revision = $metadata->{'revision'};
         can_ok $blob, 'getline';
         $blob = slurp_handle $blob;
         is $blob, 'Hi there', "The contents of the returned handle should match the last store operation";
 
-        ( undef, $revision ) = $store->fetch_blob('test', 'file.txt');
-        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('New contents'), $BAD_REVISION);
+        ( undef, $metadata ) = $store->fetch_blob('test', 'file.txt');
+        $revision = $metadata->{'revision'};
+        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('New contents'), { revision => $BAD_REVISION });
         ok !defined($revision2), 'Updating a blob with a non-matching revision should return undef';
-        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('New contents'), $revision);
+        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('New contents'), { revision => $revision });
         ok $revision2, 'Updating a blob with a matching revision should return the new revision';
         isnt $revision2, $revision, 'Updating a blob should change its revision';
-        ( $blob, $revision ) = $store->fetch_blob('test', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
+        $revision = $metadata->{'revision'};
         is $revision, $revision2, 'Fetching a blob should yield its most recent revision';
         $blob = slurp_handle $blob;
         is $blob, 'New contents', 'Fetching a blob should yield its most recent contents';
@@ -175,7 +188,8 @@ sub run_store_tests {
         $revision = $store->delete_blob('test', 'file.txt', $BAD_REVISION);
         ok !defined($revision), 'Deleting a blob with a non-matching revision returns undef';
 
-        ( undef, $revision ) = $store->fetch_blob('test', 'file.txt');
+        ( undef, $metadata ) = $store->fetch_blob('test', 'file.txt');
+        $revision = $metadata->{'revision'};
         $revision2 = $store->delete_blob('test', 'file.txt', $revision);
         ok $revision2, 'Deleting a blob with a matching revision returns a new revision';
         isnt $revision2, $revision, 'Deleting a blob changes the revision';
@@ -242,9 +256,11 @@ sub run_store_tests {
         $revision = $store->store_blob('test', 'dir/file.txt', IO::String->new('hey'));
         ok $revision, 'Creating a blob with a slash in its name should succeed';
 
-        ( $blob, $revision2 ) = $store->fetch_blob('test', 'dir/file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'dir/file.txt');
         ok $blob, "Fetching an existent blob with a slash in its name should return a pair of truthy values";
-        ok $revision2, "Fetching an existent blob with a slash in its name should return a pair of truthy values";
+        ok $metadata, "Fetching an existent blob with a slash in its name should return a pair of truthy values";
+        ok $metadata->{'revision'}, "fetch_blobs should return metadata with a revision key";
+        $revision2 = $metadata->{'revision'};
         can_ok $blob, 'getline';
         $blob = slurp_handle $blob;
         is $blob, 'hey', "The returned IO::Handle should match the contents of the previous store operation";
@@ -253,17 +269,20 @@ sub run_store_tests {
         $revision = $store->store_blob('test', 'file-looks-like-dir/', IO::String->new('hey'));
         ok $revision, 'Creating a blob with a slash at the end should succeed';
 
-        ( $blob, $revision2 ) = $store->fetch_blob('test', 'file-looks-like-dir/');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file-looks-like-dir/');
+        $revision2 = $metadata->{'revision'};
         ok $blob, 'Fetching an existent blob with a slash at the end should return a pair of truthy values';
-        ok $revision2, 'Fetching an existent blob with a slash at the end should return a pair of truthy values';
+        ok $metadata, 'Fetching an existent blob with a slash at the end should return a pair of truthy values';
+        ok $metadata->{'revision'}, "fetch_blobs should return metadata with a revision key";
+        $revision2 = $metadata->{'revision'};
         can_ok $blob, 'getline';
         $blob = slurp_handle $blob;
         is $blob, 'hey', 'The returned IO::Handle should match the contents of the previous store operation';
         is $revision2, $revision, 'The returned revision should match the revision from store_blob';
 
-        ( $blob, $revision ) = $store->fetch_blob('test', 'file-looks-like-dir');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file-looks-like-dir');
         ok !defined($blob), 'file-looks-like-dir is not file-looks-like-dir/';
-        ok !defined($revision), 'file-looks-like-dir is not file-looks-like-dir/';
+        ok !defined($metadata), 'file-looks-like-dir is not file-looks-like-dir/';
 
         ########################## Test create_user ##########################
         throws_ok {
@@ -288,9 +307,9 @@ sub run_store_tests {
         $store->store_blob('test3', 'file.txt', IO::String->new('my text'));
         $store->remove_user('test3');
         $store->create_user('test3', 'abc123');
-        ( $blob, $revision ) = $store->fetch_blob('test3', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
         ok !$blob, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
-        ok !$revision, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
+        ok !$metadata, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
         @changes = $store->fetch_changed_blobs('test3');
         is_deeply(\@changes, [], "Fetching changes for a user that has been deleted and recreated should be empty");
 
@@ -307,9 +326,11 @@ sub run_store_tests {
         is $contents, '', 'temp file contents should still be empty';
         unlink $tempfile;
 
-        ( $blob, $revision2 ) = $store->fetch_blob('test', "../../$filename");
+        ( $blob, $metadata ) = $store->fetch_blob('test', "../../$filename");
         ok $blob, 'Retrieving a strange filename should succeed';
-        ok $revision2, 'Retrieving a strange filename should succeed';
+        ok $metadata, 'Retrieving a strange filename should succeed';
+        ok $metadata->{'revision'}, "fetch_blobs should return metadata with a revision key";
+        $revision2 = $metadata->{'revision'};
         $blob = slurp_handle $blob;
         is $blob, 'This better not be there!';
         is $revision2, $revision;
@@ -319,9 +340,11 @@ sub run_store_tests {
         tie *$sym, 'IO::String', 'My content';
         $revision = $store->store_blob('test', 'file.txt', $sym);
         ok $revision, 'Creating a blob with a GLOB reference should succeed';
-        ( $blob, $revision2 ) = $store->fetch_blob('test', 'file.txt');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
         ok $blob;
-        ok $revision2;
+        ok $metadata;
+        ok $metadata->{'revision'};
+        $revision2 = $metadata->{'revision'};
         $blob = slurp_handle $blob;
         is $blob, 'My content';
         is $revision2, $revision;
@@ -333,7 +356,7 @@ sub run_store_tests {
         $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
         $revision2 = $store->delete_blob('test3', 'file.txt', $revision);
         throws_ok {
-            $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), $revision2);
+            $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { revision => $revision2 });
         } 'SaharaSync::X::InvalidArgs', 'Storing a new blob (but previously deleted) blob with a revision should throw a SaharaSync::X::InvalidArgs exception';
         lives_ok {
             $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
@@ -346,7 +369,7 @@ sub run_store_tests {
         } 'SaharaSync::X::InvalidArgs', 'Storing another revision to a previously deleted blob with no revision should throws_ok a SaharaSync::X::InvalidArgs exception';
 
         lives_ok {
-            $revision = $store->store_blob('test3', 'file.txt', IO::String->new('More text!'), $revision2);
+            $revision = $store->store_blob('test3', 'file.txt', IO::String->new('More text!'), { revision => $revision2 });
         } 'Storing another revision to a previously deleted blob should succeed';
         ok $revision, 'Storing another revision to a previously deleted blob should succeed';
         isnt $revision, $revision2, 'Storing a blob should change its revision';
@@ -356,10 +379,52 @@ sub run_store_tests {
         lives_ok {
             $revision = $store->store_blob('test', 'über', IO::String->new('Fake text'));
         } 'UTF-8 filenames should save ok';
-        ( $blob, $revision2 ) = $store->fetch_blob('test', 'über');
+        ( $blob, $metadata ) = $store->fetch_blob('test', 'über');
         ok $blob, 'Fetching a UTF-8 filename should succeed';
-        ok $revision2, 'Fetching a UTF-8 filename should succeed';
+        ok $metadata, 'Fetching a UTF-8 filename should succeed';
+        $revision2 = $metadata->{'revision'};
         is $revision2, $revision, 'A fetched revision for a UTF-8 filename should match its most recent store';
+
+        ################################ Test metadata #################################
+
+        $store->create_user('test3', 'abc123');
+        $revision  = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+        $revision2 = $revision;
+        ok $revision;
+        ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+        ok $blob;
+        is_deeply($metadata, { foo => 1, revision => $revision }, "Adding metadata to a new blob should show up on subsequent fetches");
+        throws_ok {
+            $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { bar => 2 });
+        } 'SaharaSync::X::InvalidArgs', "Updating a blob with no revision should fail";
+        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { bar => 2, revision => $revision });
+        ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+        ok $blob;
+        is_deeply($metadata, { foo => 1, bar => 2, revision => $revision }, "Updating a blob preserves old metadata");
+        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 3'), { Foo => 3, revision => $revision });
+        ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+        ok $blob;
+        is_deeply($metadata, { foo => 3, bar => 2, revision => $revision }, "Metadata are case-insensitive");
+        ok $store->delete_blob('test3', 'file.txt', $revision);
+        $revision  = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
+        ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+        ok $blob;
+        is_deeply($metadata, { revision => $revision }, "Deleting a blob deletes all attached metadata");
+
+        ok $store->delete_blob('test3', 'file.txt', $revision);
+        throws_ok {
+            $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'a' x 256 => 1 });
+        } 'SaharaSync::X::InvalidArgs', "Storing metadata with a key longer than 255 characters should fail";
+
+        throws_ok {
+            $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 'a' x 256 });
+        } 'SaharaSync::X::InvalidArgs', "Storing metadata with a value longer than 255 characters should fail";
+
+        lives_ok {
+            $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'a' x 255 => 'b' x 255 });
+        } "Storing metadata with 255 characters or less for the keys or values should succeed";
+
+        $store->remove_user('test3');
     };
 }
 

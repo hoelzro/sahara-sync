@@ -9,19 +9,6 @@ use namespace::clean;
 ## use critic (RequireUseStrict)
 use Moose::Role;
 
-sub get {
-    my ( $class ) = @_;
-
-    unless($class eq __PACKAGE__) {
-        croak 'Must be called as ' . __PACKAGE__ . '->get';
-    }
-
-    require SaharaSync::Hostd::Plugin::Store::DBIWithFS;
-    return SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-        dsn => 'dbi:Pg:dbname=sahara',
-    );
-}
-
 requires 'create_user';
 requires 'remove_user';
 requires 'load_user_info';

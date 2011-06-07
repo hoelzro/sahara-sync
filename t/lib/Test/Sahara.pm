@@ -49,14 +49,22 @@ sub test_host {
 }
 
 sub REQUEST {
-    my ( $method, $path, %headers ) = @_;
+    my ( $method, $path, @headers ) = @_;
 
-    my $content = delete $headers{'Content'};
+    my $content;
+    for(my $i = 0; $i < @headers; $i += 2) {
+        if($headers[$i] eq 'Content') {
+            $content = $headers[$i + 1];
+            splice @headers, $i, 2;
+            last;
+        }
+    }
 
     my $req = HTTP::Request->new($method, $path);
-    foreach my $k (keys %headers) {
-        $req->header($k => $headers{$k});
+    for(my $i = 0; $i < @headers; $i += 2) {
+        $req->push_header(@headers[$i, $i + 1]);
     }
+
     if(defined $content) {
         $req->content($content);
     }
@@ -65,11 +73,11 @@ sub REQUEST {
 }
 
 sub REQUEST_AUTHD {
-    my ( $method, $path, %headers ) = @_;
+    my ( $method, $path, @headers ) = @_;
 
-    $headers{'Authorization'} = 'Basic ' . MIME::Base64::encode_base64('test:abc123');
+    push @headers, 'Authorization' => 'Basic ' . MIME::Base64::encode_base64('test:abc123');
 
-    return REQUEST($method, $path, %headers);
+    return REQUEST($method, $path, @headers);
 }
 
 my @methods = qw(GET POST PUT DELETE HEAD OPTIONS);

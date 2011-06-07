@@ -138,6 +138,43 @@ __END__
 
 =head1 DESCRIPTION
 
-=head1 FUNCTIONS
+=head1 METHODS
+
+=head2 AnyEvent::WebService::Sahara->new(%options)
+
+Creates a new AnyEvent::WebService::Sahara object.  The parameters C<user> and
+C<password> are required.  Also, you must specify either the C<url> parameter
+or the C<host>, C<port>, or C<scheme> parameters.
+
+=head2 $client->capabilities($callback)
+
+Fetches the capabilties of the Sahara host the client is connected to, and
+passes them to C<$callback> as hash reference.  The keys of the hash reference
+are the capabilities; the values are just truthy values.
+
+=head2 $client->get_blob($blob, $callback)
+
+Gets the contents of the blob C<$blob> and pass them to C<$callback>.
+
+=head2 $client->put_blob($blob, $contents, $callback)
+
+Stores C<$contents> as the contents of C<$blob> and passes
+the result of the operation to C<$callback>.
+
+=head2 $client->changes($callback)
+
+Sets up a change listener and pass each change object to C<$callback>.
+
+=begin comment
+
+=over
+
+=item add_auth
+
+=item do_request
+
+=back
+
+=end comment
 
 =cut

@@ -286,4 +286,29 @@ __END__
 =head1 DESCRIPTION
 
 =head1 FUNCTIONS
+
+=head2 SaharaSync::Hostd->to_app
+
+=head2 $hostd->to_app
+
+Returns the PSGI application for this host daemon.
+
+=head1 SEE ALSO
+
+PSGI
+
+=begin comment
+
+=over
+
+=item top_level
+
+=item blobs
+
+=item changes
+
+=back
+
+=end comment
+
 =cut

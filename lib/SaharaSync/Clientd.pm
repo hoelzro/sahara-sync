@@ -113,4 +113,14 @@ __END__
 
 =head1 FUNCTIONS
 
+=head2 SaharaSync::Clientd->to_app
+
+=head2 $clientd->to_app
+
+Returns the PSGI application for this client daemon.
+
+=head1 SEE ALSO
+
+PSGI
+
 =cut

@@ -373,7 +373,35 @@ __END__
 
 =head1 DESCRIPTION
 
-=head1 FUNCTIONS
+=head1 METHODS
+
+=head2 $store->create_user($username, $password)
+
+L<SaharaSync::Hostd::Plugin::Store/create_user>
+
+=head2 $store->remove_user($username)
+
+L<SaharaSync::Hostd::Plugin::Store/remove_user>
+
+=head2 $store->load_user_info($username)
+
+L<SaharaSync::Hostd::Plugin::Store/load_user_info>
+
+=head2 $store->fetch_blob($user, $blob)
+
+L<SaharaSync::Hostd::Plugin::Store/fetch_blob>
+
+=head2 $store->store_blob($user, $blob, $handle, $revision)
+
+L<SaharaSync::Hostd::Plugin::Store/store_blob>
+
+=head2 $store->delete_blob($user, $blob, $revision)
+
+L<SaharaSync::Hostd::Plugin::Store/delete_blob>
+
+=head2 $store->fetch_changed_blobs($user, $since_revision)
+
+L<SaharaSync::Hostd::Plugin::Store/fetch_changed_blobs>
 
 =head1 SEE ALSO
 

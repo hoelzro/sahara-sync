@@ -1,9 +1,10 @@
 use strict;
 use warnings;
+use utf8;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::Sahara ':methods', tests => 69;
+use Test::Sahara ':methods', tests => 73;
 
 my $BAD_REVISION = '0' x 64;
 
@@ -189,4 +190,15 @@ test_host sub {
 
     $res = $cb->(PUT_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision, 'X-Sahara-Revision' => 1);
     is $res->code, 400, 'Using X-Sahara-Revision should fail';
+
+    $cb->(DELETE_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision);
+    $res = $cb->(PUT_AUTHD '/blobs/test.txt', Content => 'wunderschön', 'X-Sahara-GermanWord' => 'über');
+    is $res->code, 201;
+
+    $res = $cb->(GET_AUTHD '/blobs/test.txt');
+    is $res->code, 200;
+    is $res->content, 'wunderschön', "UTF-8 blobs should be preserved";
+    metadata_ok($res, { 'germanword' => 'über' }, 'UTF-8 metadata values should be preserved');
+    # we don't include UTF-8 metadata keys, because right now we're using headers as the metadata transport,
+    # and HTTP forbids characters higher than 127 in header names
 };

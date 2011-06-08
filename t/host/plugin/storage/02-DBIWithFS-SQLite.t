@@ -52,21 +52,25 @@ SQL
 }
 
 plan tests => 2;
+my $tempdir = File::Temp->newdir;
 reset_db;
 
 ## we need to enable the foreign pragma somehow...
 my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dsn      => $dsn,
-    username => '',
-    password => '',
+    dsn             => $dsn,
+    username        => '',
+    password        => '',
+    fs_storage_path => $tempdir->dirname,
 );
 
 run_store_tests $store, "DBIWithFS: SQLite - new dbh";
 
 reset_db;
+$tempdir = File::Temp->newdir;
 
 $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dbh => DBI->connect($dsn, '', ''),
+    dbh             => DBI->connect($dsn, '', ''),
+    fs_storage_path => $tempdir->dirname,
 );
 
 run_store_tests $store, "DBIWithFS: SQLite - existing dbh";

@@ -4,6 +4,8 @@ use warnings;
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 use Test::Sahara::Storage;
 
+use File::Temp;
+
 eval {
     require DBD::Pg;
 };
@@ -52,20 +54,24 @@ SQL
 }
 
 plan tests => 2;
+my $tempdir = File::Temp->newdir;
 reset_db;
 
 my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dsn      => $dsn,
-    username => $username,
-    password => $password,
+    dsn             => $dsn,
+    username        => $username,
+    password        => $password,
+    fs_storage_path => $tempdir->dirname,
 );
 
 run_store_tests $store, "DBIWithFS: PostgreSQL - new dbh";
 
 reset_db;
+$tempdir = File::Temp->newdir;
 
 $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dbh => DBI->connect($dsn, $username, $password),
+    dbh             => DBI->connect($dsn, $username, $password),
+    fs_storage_path => $tempdir->dirname,
 );
 
 run_store_tests $store, "DBIWithFS: PostgreSQL - existing dbh";

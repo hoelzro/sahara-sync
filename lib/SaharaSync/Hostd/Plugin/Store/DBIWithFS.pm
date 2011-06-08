@@ -27,9 +27,9 @@ has dbh => (
 );
 
 has fs_storage_path => (
-    is      => 'ro',
-    isa     => 'Str',
-    default => '/tmp/sahara/',
+    is       => 'ro',
+    isa      => 'Str',
+    required => 1,
 );
 
 sub BUILDARGS {

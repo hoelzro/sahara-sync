@@ -6,6 +6,7 @@ use warnings;
 use Cwd ();
 use DBI ();
 use File::Spec ();
+use File::Temp ();
 use HTTP::Request ();
 use MIME::Base64 ();
 use Plack::Test ();
@@ -38,10 +39,13 @@ sub test_host {
     $dbh->do($schema);
     $dbh->do("INSERT INTO users (username, password) VALUES ('test', 'abc123')");
 
+    my $tempdir = File::Temp->newdir;
+
     my $app = SaharaSync::Hostd->new(
         storage => {
-            type => 'DBIWithFS',
-            dbh  => $dbh,
+            type            => 'DBIWithFS',
+            dbh             => $dbh,
+            fs_storage_path => $tempdir->dirname,
         },
     )->to_app;
 

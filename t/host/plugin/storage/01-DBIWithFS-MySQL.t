@@ -3,6 +3,7 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 
+use File::Temp;
 use Test::Sahara::Storage;
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
@@ -54,20 +55,24 @@ SQL
 }
 
 plan tests => 2;
+my $tempdir = File::Temp->newdir;
 reset_db;
 
 my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dsn      => $dsn,
-    username => $username,
-    password => $password,
+    dsn             => $dsn,
+    username        => $username,
+    password        => $password,
+    fs_storage_path => $tempdir->dirname,
 );
 
 run_store_tests $store;
 
 reset_db;
+$tempdir = File::Temp->newdir;
 
 $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dbh => DBI->connect($dsn, $username, $password),
+    dbh             => DBI->connect($dsn, $username, $password),
+    fs_storage_path => $tempdir->dirname,
 );
 
 run_store_tests $store;

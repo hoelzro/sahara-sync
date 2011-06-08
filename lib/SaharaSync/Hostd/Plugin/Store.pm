@@ -2,6 +2,7 @@
 package SaharaSync::Hostd::Plugin::Store;
 
 use Carp qw(croak);;
+use Encode qw(encode_utf8 decode_utf8);
 use SaharaSync::X::BadContext;
 use SaharaSync::X::InvalidArgs;
 use namespace::clean;
@@ -40,7 +41,17 @@ around fetch_blob => sub {
         });
     }
 
-    return $self->$orig(@_);
+    if(my ( $blob, $metadata ) = $self->$orig(@_)) {
+        foreach my $k (keys %$metadata) {
+            my $v = delete $metadata->{$k};
+            $k = decode_utf8($k);
+            $v = decode_utf8($v);
+            $metadata->{$k} = $v;
+        }
+        return ( $blob, $metadata );
+    } else {
+        return;
+    }
 };
 
 before store_blob => sub {
@@ -65,6 +76,8 @@ before store_blob => sub {
                     message => "Metadata value is too long",
                 });
             }
+            $k = encode_utf8($k);
+            $v = encode_utf8($v) if defined $v;
             $metadata->{lc $k} = $v;
         }
     }

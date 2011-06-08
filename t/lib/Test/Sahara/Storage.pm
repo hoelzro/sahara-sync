@@ -46,7 +46,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 138;
+        plan tests => 140;
 
         my $info;
         my $blob;
@@ -424,6 +424,16 @@ sub run_store_tests {
             $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'a' x 255 => 'b' x 255 });
         } "Storing metadata with 255 characters or less for the keys or values should succeed";
 
+        $store->remove_user('test3');
+
+        ############################# Test UTF-8 metadata ##############################
+        
+        $store->create_user('test3', 'abc123');
+        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'über' => 'schön' });
+        ok $revision;
+        ( undef, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+
+        is_deeply($metadata, { revision => $revision, 'über' => 'schön' }, "UTF-8 metadata should be preserved");
         $store->remove_user('test3');
 
         ############################ Test revision function ############################

@@ -25,7 +25,14 @@ use Plack::Runner;
 use Twiggy;
 use SaharaSync::Hostd;
 
-my $app = SaharaSync::Hostd->to_app;
+my $app = SaharaSync::Hostd->new(
+    storage => {
+        type => 'DBIWithFS',
+        dsn  => 'dbi:Pg:database=sahara',
+        fs_storage_path => '/tmp/sahara',
+    },
+)->to_app;
+
 my $runner = Plack::Runner->new(
     server => 'Twiggy',
 );

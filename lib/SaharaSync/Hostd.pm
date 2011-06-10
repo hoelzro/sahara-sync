@@ -32,6 +32,18 @@ has connections => (
     default  => sub { {} },
 );
 
+has git_revision => (
+    is       => 'ro',
+    isa      => 'Undef|Str',
+    init_arg => undef,
+    default  => sub {
+        my $revision = qx(git rev-parse HEAD 2>/dev/null);
+        chomp $revision;
+
+        return $revision || undef;
+    },
+);
+
 sub BUILDARGS {
     my ( $class, %args ) = @_;
 
@@ -61,6 +73,11 @@ sub top_level {
         $res->status(200);
         $res->header('X-Sahara-Capabilities' => $env->{'sahara.streaming'} ? 'streaming' : '');
         $res->header('X-Sahara-Version' => $SaharaSync::Hostd::VERSION);
+
+        my $revision = $self->git_revision;
+        if(defined $revision) {
+            $res->header('X-Sahara-Revision' => $revision);
+        }
     };
     $res->finalize;
 }

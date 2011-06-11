@@ -4,7 +4,7 @@ use utf8;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::Sahara ':methods', tests => 74;
+use Test::Sahara ':methods', tests => 75;
 
 my $BAD_REVISION = '0' x 64;
 
@@ -193,6 +193,9 @@ test_host sub {
 
     $res = $cb->(PUT_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision, 'X-Sahara-Name' => 'test.txt');
     is $res->code, 400, 'Using X-Sahara-Name should fail';
+
+    $res = $cb->(PUT_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision, 'X-Sahara-IsDeleted' => 1);
+    is $res->code, 400, 'Using X-Sahara-IsDeleted should fail';
 
     $cb->(DELETE_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision);
     $res = $cb->(PUT_AUTHD '/blobs/test.txt', Content => 'wunderschön', 'X-Sahara-GermanWord' => 'über');

@@ -203,34 +203,57 @@ sub run_store_tests {
         ##################### Test fetch_changed_blobs ######################
 
         @changes = $store->fetch_changed_blobs('test');
-        cmp_bag(\@changes, [uniq @changes], "fetch_changed_blobs should filter out duplicates");
-        cmp_bag(\@changes, ['file.txt', 'file2.txt'], "The list of all changed blobs should include all blobs for the given user");
+        cmp_bag([ map { $_->{'name'} } @changes ], [uniq map { $_->{'name'} } @changes], "fetch_changed_blobs should filter out duplicates");
+        ( undef, $metadata ) = $store->fetch_blob('test', 'file2.txt');
+        my $file2_revision = $metadata->{'revision'};
+        cmp_bag(\@changes, [{ name => 'file.txt', isdeleted => 1 }, { name => 'file2.txt', revision => $file2_revision }],
+            "The list of all changed blobs should include all blobs for the given user");
 
         @changes = $store->fetch_changed_blobs('test', undef);
-        cmp_bag(\@changes, ['file.txt', 'file2.txt'], "fetch_changed_blobs should also allow a manual argument of undef");
+        cmp_bag(\@changes, [{ name => 'file.txt', isdeleted => 1 }, { name => 'file2.txt', revision => $file2_revision}],
+            "fetch_changed_blobs should also allow a manual argument of undef");
 
         @changes = $store->fetch_changed_blobs('test2');
 
-        cmp_bag(\@changes, ['file.txt'], "The list of all changed blobs should include all blobs for the given user");
+        ( undef, $metadata ) = $store->fetch_blob('test2', 'file.txt');
+        cmp_bag(\@changes, [{ name => 'file.txt', revision => $metadata->{'revision'}}], "The list of all changed blobs should include all blobs for the given user");
 
         $revision = $store->store_blob('test', 'file3.txt', IO::String->new('More text'));
 
         @changes = $store->fetch_changed_blobs('test', $last_revision);
-        cmp_bag(\@changes, ['file3.txt'], "The list of changed blobs since a revision should only include blobs changed since that revision");
+        cmp_bag(\@changes, [{ name => 'file3.txt', revision => $revision}], "The list of changed blobs since a revision should only include blobs changed since that revision");
 
         @changes = $store->fetch_changed_blobs('test', $revision);
         cmp_bag(\@changes, [], 'The list of changed blobs since the latest revision should be empty');
 
         @changes = $store->fetch_changed_blobs('test', undef);
-        cmp_bag(\@changes, ['file.txt', 'file2.txt', 'file3.txt'], 'The list of changed blobs should include all changes');
+        cmp_bag(\@changes, [{
+            name      => 'file.txt',
+            isdeleted => 1,
+        }, {
+            name     => 'file2.txt',
+            revision => $file2_revision,
+        }, {
+            name     => 'file3.txt',
+            revision => $revision,
+        }], 'The list of changed blobs should include all changes');
 
         $last_revision = $revision;
         $revision = $store->delete_blob('test', 'file3.txt', $revision);
         @changes = $store->fetch_changed_blobs('test', $last_revision);
-        cmp_bag(\@changes, ['file3.txt'], 'The list of changed blobs should include deletions');
+        cmp_bag(\@changes, [{ name => 'file3.txt', isdeleted => 1 }], 'The list of changed blobs should include deletions');
 
         @changes = $store->fetch_changed_blobs('test', undef);
-        cmp_bag(\@changes, ['file.txt', 'file2.txt', 'file3.txt'], 'The list of changed blobs should include deletions');
+        cmp_bag(\@changes, [{
+            name     => 'file.txt', 
+            isdeleted => 1,
+        }, {
+            name     => 'file2.txt', 
+            revision => $file2_revision,
+        }, {
+            name      => 'file3.txt',
+            isdeleted => 1,
+        }], 'The list of changed blobs should include deletions');
 
         throws_ok {
             $store->fetch_changed_blobs('test2', $last_revision);
@@ -250,7 +273,7 @@ sub run_store_tests {
         $store->delete_blob('test', 'file4.txt', $revision);
 
         @changes = $store->fetch_changed_blobs('test', $last_revision);
-        cmp_bag(\@changes, ['file4.txt'], 'A blob that is immediately deleted should still appear in the revision list');
+        cmp_bag(\@changes, [{ name => 'file4.txt', isdeleted => 1 }], 'A blob that is immediately deleted should still appear in the revision list');
 
         ###################### Test strange blob names #######################
         $revision = $store->store_blob('test', 'dir/file.txt', IO::String->new('hey'));

@@ -170,13 +170,13 @@ sub blobs {
             my $headers = $req->headers;
             foreach my $header (grep { /^X-Sahara-/ } $headers->header_field_names) {
                 my $value = $headers->header($header);
-                $header =~ s/^X-Sahara-//;
-                if(lc($header) eq 'revision') {
+                if($header =~ /^x-sahara-(revision|name)$/i) {
                     $res->status(400);
                     $res->content_type('text/plain');
-                    $res->body('X-Sahara-Revision is an invalid metadata header');
+                    $res->body($header . ' is an invalid metadata header');
                     return $res->finalize;
                 }
+                $header =~ s/^X-Sahara-//;
                 $metadata{$header} = $value;
             }
             my $current_revision = $metadata{'revision'} = $req->header('If-Match');

@@ -351,7 +351,7 @@ SQL
         }
 
         $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, b.blob_name FROM revision_log AS r
+SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON  r.blob_id = b.blob_id
 WHERE b.user_id     = ?
@@ -361,7 +361,7 @@ SQL
         $sth->execute($user_id, $rev_id);
     } else {
         $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, b.blob_name FROM revision_log AS r
+SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON r.blob_id = b.blob_id
 WHERE b.user_id = ?
@@ -371,12 +371,14 @@ SQL
 
     my %blobs;
 
-    ## we need to include deleted data eventually
-    while(my ( undef, $blob ) = $sth->fetchrow_array) {
-        $blobs{$blob} = 1;
+    while(my ( $is_deleted, $blob, $revision ) = $sth->fetchrow_array) {
+        $blobs{$blob} = {
+            name => $blob,
+            $is_deleted ? (isdeleted => 1) : (revision => $revision),
+        };
     }
 
-    return keys %blobs;
+    return values %blobs;
 }
 
 1;

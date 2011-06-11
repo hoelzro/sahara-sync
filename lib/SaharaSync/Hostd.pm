@@ -170,7 +170,7 @@ sub blobs {
             my $headers = $req->headers;
             foreach my $header (grep { /^X-Sahara-/ } $headers->header_field_names) {
                 my $value = $headers->header($header);
-                if($header =~ /^x-sahara-(revision|name)$/i) {
+                if($header =~ /^x-sahara-(revision|name|isdeleted)$/i) {
                     $res->status(400);
                     $res->content_type('text/plain');
                     $res->body($header . ' is an invalid metadata header');

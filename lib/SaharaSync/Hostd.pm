@@ -10,6 +10,7 @@ use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
 use UNIVERSAL;
+use YAML ();
 
 ## NOTE: I should probably just refactor the common functionality of
 ## the standalone daemon out, and write a separate script that handles
@@ -59,6 +60,8 @@ sub determine_mime_type {
         return 'application/json';
     } elsif($accept =~ m!application/xml!) {
         return 'application/xml';
+    } elsif($accept =~ m!application/x-yaml!) {
+        return 'application/x-yaml';
     } else {
         return;
     }
@@ -140,6 +143,9 @@ sub changes {
                 }
                 $w->endTag('changes');
                 $w->end;
+            }
+            when('application/x-yaml') {
+                $body = YAML::Dump(\@blobs);
             }
         }
 
@@ -333,6 +339,9 @@ sub to_app {
                         }
                         when('xml') {
                             $env->{'HTTP_ACCEPT'} = 'application/xml; charset=utf-8';
+                        }
+                        when(/^ya?ml$/) {
+                            $env->{'HTTP_ACCEPT'} = 'application/x-yaml; charset=utf-8';
                         }
                         default {
                             return [

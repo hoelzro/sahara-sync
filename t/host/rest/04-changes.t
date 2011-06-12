@@ -29,9 +29,6 @@ test_host sub {
     is $res->content_type, 'application/json', 'Accept json return type is JSON';
     is_valid_json $res->content, 'Response body is actually JSON';
 
-SKIP: {
-    skip 'XML support not yet implemented', 6;
-
     $res = $cb->(GET_AUTHD '/changes.xml', Connection => 'close');
     is $res->code, 200, "Fetching changes with authorization should result in a 200";
     is $res->content_type, 'application/xml', '.xml return type is XML';
@@ -41,7 +38,6 @@ SKIP: {
     is $res->code, 200, "Fetching changes with authorization should result in a 200";
     is $res->content_type, 'application/xml', 'Accept xml return type is XML';
     is_well_formed_xml $res->content, 'Response body is actually XML';
-}
 
 SKIP: {
     skip 'YAML support not yet implemented', 9;

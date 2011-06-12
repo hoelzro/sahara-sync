@@ -374,7 +374,7 @@ SQL
     while(my ( $is_deleted, $blob, $revision ) = $sth->fetchrow_array) {
         $blobs{$blob} = {
             name => $blob,
-            $is_deleted ? (isdeleted => 1) : (revision => $revision),
+            $is_deleted ? (is_deleted => 1) : (revision => $revision),
         };
     }
 

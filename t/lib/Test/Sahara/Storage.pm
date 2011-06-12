@@ -206,11 +206,11 @@ sub run_store_tests {
         cmp_bag([ map { $_->{'name'} } @changes ], [uniq map { $_->{'name'} } @changes], "fetch_changed_blobs should filter out duplicates");
         ( undef, $metadata ) = $store->fetch_blob('test', 'file2.txt');
         my $file2_revision = $metadata->{'revision'};
-        cmp_bag(\@changes, [{ name => 'file.txt', isdeleted => 1 }, { name => 'file2.txt', revision => $file2_revision }],
+        cmp_bag(\@changes, [{ name => 'file.txt', is_deleted => 1 }, { name => 'file2.txt', revision => $file2_revision }],
             "The list of all changed blobs should include all blobs for the given user");
 
         @changes = $store->fetch_changed_blobs('test', undef);
-        cmp_bag(\@changes, [{ name => 'file.txt', isdeleted => 1 }, { name => 'file2.txt', revision => $file2_revision}],
+        cmp_bag(\@changes, [{ name => 'file.txt', is_deleted => 1 }, { name => 'file2.txt', revision => $file2_revision}],
             "fetch_changed_blobs should also allow a manual argument of undef");
 
         @changes = $store->fetch_changed_blobs('test2');
@@ -229,7 +229,7 @@ sub run_store_tests {
         @changes = $store->fetch_changed_blobs('test', undef);
         cmp_bag(\@changes, [{
             name      => 'file.txt',
-            isdeleted => 1,
+            is_deleted => 1,
         }, {
             name     => 'file2.txt',
             revision => $file2_revision,
@@ -241,18 +241,18 @@ sub run_store_tests {
         $last_revision = $revision;
         $revision = $store->delete_blob('test', 'file3.txt', $revision);
         @changes = $store->fetch_changed_blobs('test', $last_revision);
-        cmp_bag(\@changes, [{ name => 'file3.txt', isdeleted => 1 }], 'The list of changed blobs should include deletions');
+        cmp_bag(\@changes, [{ name => 'file3.txt', is_deleted => 1 }], 'The list of changed blobs should include deletions');
 
         @changes = $store->fetch_changed_blobs('test', undef);
         cmp_bag(\@changes, [{
             name     => 'file.txt', 
-            isdeleted => 1,
+            is_deleted => 1,
         }, {
             name     => 'file2.txt', 
             revision => $file2_revision,
         }, {
             name      => 'file3.txt',
-            isdeleted => 1,
+            is_deleted => 1,
         }], 'The list of changed blobs should include deletions');
 
         throws_ok {
@@ -273,7 +273,7 @@ sub run_store_tests {
         $store->delete_blob('test', 'file4.txt', $revision);
 
         @changes = $store->fetch_changed_blobs('test', $last_revision);
-        cmp_bag(\@changes, [{ name => 'file4.txt', isdeleted => 1 }], 'A blob that is immediately deleted should still appear in the revision list');
+        cmp_bag(\@changes, [{ name => 'file4.txt', is_deleted => 1 }], 'A blob that is immediately deleted should still appear in the revision list');
 
         ###################### Test strange blob names #######################
         $revision = $store->store_blob('test', 'dir/file.txt', IO::String->new('hey'));

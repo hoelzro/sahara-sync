@@ -5,6 +5,7 @@ package SaharaSync::Hostd;
 use Moose;
 use feature 'switch';
 
+use JSON ();
 use Plack::Builder;
 use Plack::Request;
 use UNIVERSAL;
@@ -47,6 +48,14 @@ sub BUILDARGS {
     return \%args;
 }
 
+sub determine_mime_type {
+    my ( $self, $req ) = @_;
+
+    #my $path   = $req->path;
+    #my $accept = $req->header('Accept');
+    return 'application/json';
+}
+
 sub top_level {
     my ( $self, $env ) = @_;
 
@@ -73,6 +82,8 @@ sub changes {
     my $user        = $req->user;
     my @blobs       = $self->storage->fetch_changed_blobs($user, $last_sync);
     my $connections = $self->connections;
+
+    my $mime_type = $self->determine_mime_type($req);
 
     if($env->{'sahara.streaming'}) {
         my $conns = $connections->{$user};
@@ -101,8 +112,8 @@ sub changes {
     } else {
         return [
             200,
-            ['Content-Type' => 'text/plain'],
-            [ join("\n", @blobs) ],
+            ['Content-Type' => $mime_type],
+            [ JSON::encode_json(\@blobs) ],
         ];
     }
 }
@@ -274,7 +285,21 @@ sub to_app {
     my $store = $self->storage;
 
     builder {
-	enable 'Sahara::Streaming';
+        enable 'Sahara::Streaming';
+        enable sub {
+            my ( $app ) = @_;
+
+            return sub {
+                my ( $env ) = @_;
+
+                my $path = $env->{'PATH_INFO'};
+                if($path =~ /\.json$/) {
+                    $env->{'PATH_INFO'}   = $`;
+                    $env->{'HTTP_ACCEPT'} = 'application/json; charset=utf-8';
+                }
+                return $app->($env);
+            };
+        };
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
             enable 'Sahara::Auth', store => $store;

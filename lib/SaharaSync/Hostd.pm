@@ -6,6 +6,7 @@ use Moose;
 use feature 'switch';
 
 use JSON ();
+use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
 use UNIVERSAL;
@@ -51,9 +52,16 @@ sub BUILDARGS {
 sub determine_mime_type {
     my ( $self, $req ) = @_;
 
-    #my $path   = $req->path;
-    #my $accept = $req->header('Accept');
-    return 'application/json';
+    my $accept = $req->header('Accept');
+    $accept  ||= 'application/json';
+
+    if($accept =~ m!application/json!) {
+        return 'application/json';
+    } elsif($accept =~ m!application/xml!) {
+        return 'application/xml';
+    } else {
+        return;
+    }
 }
 
 sub top_level {
@@ -110,10 +118,35 @@ sub changes {
             });
         };
     } else {
+        my $body;
+
+        given($mime_type) {
+            when('application/json') {
+                $body = JSON::encode_json(\@blobs);
+            }
+            when('application/xml') {
+                $body = '';
+                my $w = XML::Writer->new(OUTPUT => \$body);
+                $w->startTag('changes');
+                foreach my $change (@blobs) {
+                    $w->startTag('change');
+                    foreach my $k (keys %$change) {
+                        my $v = $change->{$k};
+                        $w->startTag($k);
+                        $w->characters($v);
+                        $w->endTag($k);
+                    }
+                    $w->endTag('change');
+                }
+                $w->endTag('changes');
+                $w->end;
+            }
+        }
+
         return [
             200,
-            ['Content-Type' => $mime_type],
-            [ JSON::encode_json(\@blobs) ],
+            ['Content-Type' => "$mime_type; charset=utf-8"],
+            [ $body ],
         ];
     }
 }
@@ -293,9 +326,23 @@ sub to_app {
                 my ( $env ) = @_;
 
                 my $path = $env->{'PATH_INFO'};
-                if($path =~ /\.json$/) {
+                if($path =~ /\.(?<type>\w+)$/) {
+                    given($+{'type'}) {
+                        when('json') {
+                            $env->{'HTTP_ACCEPT'} = 'application/json; charset=utf-8';
+                        }
+                        when('xml') {
+                            $env->{'HTTP_ACCEPT'} = 'application/xml; charset=utf-8';
+                        }
+                        default {
+                            return [
+                                406,
+                                ['Content-Type' => 'text/plain'],
+                                ['Not Acceptable'],
+                            ];
+                        }
+                    }
                     $env->{'PATH_INFO'}   = $`;
-                    $env->{'HTTP_ACCEPT'} = 'application/json; charset=utf-8';
                 }
                 return $app->($env);
             };

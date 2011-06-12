@@ -39,9 +39,6 @@ test_host sub {
     is $res->content_type, 'application/xml', 'Accept xml return type is XML';
     is_well_formed_xml $res->content, 'Response body is actually XML';
 
-SKIP: {
-    skip 'YAML support not yet implemented', 9;
-
     $res = $cb->(GET_AUTHD '/changes.yml', Connection => 'close');
     is $res->code, 200, "Fetching changes with authorization should result in a 200";
     is $res->content_type, 'application/x-yaml', '.yml return type is YAML';
@@ -56,7 +53,6 @@ SKIP: {
     is $res->code, 200, "Fetching changes with authorization should result in a 200";
     is $res->content_type, 'application/x-yaml', 'Accept yaml return type is YAML';
     yaml_string_ok $res->content, 'Response body is actually YAML';
-}
 };
 
 ## inspect structure

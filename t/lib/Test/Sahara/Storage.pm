@@ -46,7 +46,7 @@ sub run_store_tests {
     }
 
     subtest $name => sub {
-        plan tests => 140;
+        plan tests => 150;
 
         my $info;
         my $blob;
@@ -497,6 +497,77 @@ sub run_store_tests {
         $store->create_user('test3', 'abc123');
         $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { bar => 1 });
         isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+        $store->remove_user('test3');
+
+        ################# Test fetch_changed_blobs metadata ##################
+
+        $store->create_user('test3', 'abc123');
+        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+        @changes  = $store->fetch_changed_blobs('test3', undef);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision,
+        }], 'Omitting the metadata parameter should return no extra metadata');
+        @changes  = $store->fetch_changed_blobs('test3', undef, undef);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision,
+        }], 'Requesting no metadata should return no extra metadata');
+        @changes  = $store->fetch_changed_blobs('test3', undef, []);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision,
+        }], 'Requesting no metadata should return no extra metadata');
+        @changes  = $store->fetch_changed_blobs('test3', undef, ['foo']);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision,
+            foo      => 1,
+        }], 'Requesting existing metadata returns that metadata');
+        @changes  = $store->fetch_changed_blobs('test3', undef, ['bar']);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision,
+        }], 'Requesting non-existing metadata omits those metadata from the results');
+
+        $revision2    = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { foo => 2, revision => $revision });
+        my $revision3 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 3'), { foo => 3, revision => $revision2 });
+        @changes      = $store->fetch_changed_blobs('test3', undef, ['foo']);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision3,
+            foo      => 3,
+        }], 'Only the latest metadata are returned');
+
+        @changes      = $store->fetch_changed_blobs('test3', $revision, ['foo']);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision3,
+            foo      => 3,
+        }], 'Only the latest metadata are returned');
+
+        @changes      = $store->fetch_changed_blobs('test3', $revision2, ['foo']);
+        cmp_bag(\@changes, [{
+            name     => 'file.txt',
+            revision => $revision3,
+            foo      => 3,
+        }], 'Only the latest metadata are returned');
+
+        $store->delete_blob('test3', 'file.txt', $revision3);
+
+        @changes      = $store->fetch_changed_blobs('test3', $revision3, ['foo']);
+        cmp_bag(\@changes, [{
+            name       => 'file.txt',
+            is_deleted => 1,
+        }], 'No extra metadata are returned for deleted blobs');
+
+        @changes      = $store->fetch_changed_blobs('test3', $revision2, ['foo']);
+        cmp_bag(\@changes, [{
+            name       => 'file.txt',
+            is_deleted => 1,
+        }], 'No extra metadata are returned for deleted blobs');
+
+        $store->remove_user('test3');
     };
 }
 

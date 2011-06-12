@@ -329,11 +329,13 @@ SQL
 }
 
 sub fetch_changed_blobs {
-    my ( $self, $user, $last_revision ) = @_;
+    my ( $self, $user, $last_revision, $metadata ) = @_;
 
     my $dbh     = $self->dbh;
     my $user_id = $self->_get_user_id($user);
     my $sth;
+
+    $metadata ||= [];
 
     if(defined $last_revision) {
         my ( $rev_id ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $last_revision);
@@ -377,6 +379,24 @@ SQL
             $is_deleted ? (is_deleted => 1) : (revision => $revision),
         };
     }
+
+    if(@$metadata) {
+        my $in_clause = 'AND m.meta_key IN (' . join(',', map { '?' } @$metadata) . ')';
+
+        $sth = $dbh->prepare(<<SQL);
+SELECT b.blob_name, m.meta_key, m.meta_value FROM blobs AS b
+INNER JOIN metadata AS m
+ON    m.blob_id = b.blob_id
+WHERE b.user_id = ?
+$in_clause
+SQL
+
+        $sth->execute($user_id, @$metadata);
+        while(my ( $blob, $key, $value ) = $sth->fetchrow_array) {
+            $blobs{$blob}{$key} = $value;
+        }
+    }
+
 
     return values %blobs;
 }

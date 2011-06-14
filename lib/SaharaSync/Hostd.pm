@@ -56,6 +56,8 @@ sub determine_mime_type {
     my $accept = $req->header('Accept');
     $accept  ||= 'application/json';
 
+    $accept = 'application/json' if $accept eq '*/*';
+
     if($accept =~ m!application/json!) {
         return 'application/json';
     } elsif($accept =~ m!application/xml!) {
@@ -325,37 +327,13 @@ sub to_app {
 
     builder {
         enable 'Sahara::Streaming';
-        enable sub {
-            my ( $app ) = @_;
-
-            return sub {
-                my ( $env ) = @_;
-
-                my $path = $env->{'PATH_INFO'};
-                if($path =~ /\.(?<type>\w+)$/) {
-                    given($+{'type'}) {
-                        when('json') {
-                            $env->{'HTTP_ACCEPT'} = 'application/json; charset=utf-8';
-                        }
-                        when('xml') {
-                            $env->{'HTTP_ACCEPT'} = 'application/xml; charset=utf-8';
-                        }
-                        when(/^ya?ml$/) {
-                            $env->{'HTTP_ACCEPT'} = 'application/x-yaml; charset=utf-8';
-                        }
-                        default {
-                            return [
-                                406,
-                                ['Content-Type' => 'text/plain'],
-                                ['Not Acceptable'],
-                            ];
-                        }
-                    }
-                    $env->{'PATH_INFO'}   = $`;
-                }
-                return $app->($env);
+        enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
+            from => 'suffix', tolerant => 0, mapping => {
+                json => 'application/json',
+                xml  => 'application/xml',
+                yml  => 'application/x-yaml',
+                yaml => 'application/x-yaml',
             };
-        };
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
             enable 'Sahara::Auth', store => $store;

@@ -1,7 +1,8 @@
 use strict;
 use warnings;
 
-use Test::Sahara ':methods', tests => 35;
+use Test::Deep;
+use Test::Sahara ':methods';
 use Test::JSON;
 use Test::XML;
 use Test::YAML::Valid;
@@ -9,6 +10,8 @@ use Test::YAML::Valid;
 use JSON qw(decode_json);
 use YAML qw(Load);
 use XML::Parser;
+
+my $BAD_REVISON = '0' x 64;
 
 sub deserialize_xml
 {
@@ -34,10 +37,20 @@ sub deserialize_xml
     return \@results;
 }
 
+my %types = (
+    json => \&decode_json,
+    yaml => \&Load,
+    xml  => \&deserialize_xml,
+);
+
+plan tests => 35 + keys(%types) * 8;
+
 test_host sub {
     my ( $cb ) = @_;
 
     my $res;
+    my $revision;
+    my $revision2;
 
     $res = $cb->(GET '/changes');
     is $res->code, 401, "Fetching changes with no authorization should result in a 401";
@@ -95,7 +108,64 @@ test_host sub {
 
     $res = $cb->(GET_AUTHD '/changes', Connection => 'close', Accept => 'text/plain');
     is $res->code, 406;
+
+    $res      = $cb->(PUT_AUTHD '/blobs/file.txt', Content => 'Test content');
+    $revision = $res->header('ETag');
+
+    foreach my $type (keys %types) {
+        my $deserializer = $types{$type};
+        $res             = $cb->(GET_AUTHD "/changes.$type", Connection => 'close');
+        my $changes      = $deserializer->($res->content);
+        is_deeply $changes, [{ name => 'file.txt', revision => $revision }], '/changes with no last revision should return all changes';
+
+        $res     = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $revision);
+        $changes = $deserializer->($res->content);
+        is_deeply $changes, [], '/changes with the most recent last revision should return no changes';
+
+        $res = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $BAD_REVISON);
+        is $res->code, 400, "/changes with a bad last revision should return a 400 error";
+    }
+
+    $res       = $cb->(PUT_AUTHD '/blobs/file2.txt', Content => 'Test content');
+    $revision2 = $res->header('ETag');
+
+    foreach my $type (keys %types) {
+        my $deserializer = $types{$type};
+        $res             = $cb->(GET_AUTHD "/changes.$type", Connection => 'close');
+        my $changes      = $deserializer->($res->content);
+        cmp_bag $changes, [
+            { name => 'file.txt',  revision => $revision },
+            { name => 'file2.txt', revision => $revision2 },
+        ], '/changes with no last revision should return all changes';
+
+        $res     = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $revision);
+        $changes = $deserializer->($res->content);
+        is_deeply $changes, [{ name => 'file2.txt', revision => $revision2 }], '/changes with a last revision should return changes since that revision';
+    }
+
+    $res      = $cb->(PUT_AUTHD '/blobs/file.txt', Content => 'More Test Content', 'If-Match' => $revision, 'X-Sahara-Value' => 17);
+    $revision = $res->header('ETag');
+
+    foreach my $type (keys %types) {
+        my $deserializer = $types{$type};
+        $res             = $cb->(GET_AUTHD "/changes.$type", Connection => 'close');
+        my $changes      = $deserializer->($res->content);
+        cmp_bag $changes, [
+            { name => 'file.txt',  revision => $revision },
+            { name => 'file2.txt', revision => $revision2 },
+        ], '/changes with no last revision should return all changes';
+
+        $res     = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $revision2);
+        $changes = $deserializer->($res->content);
+        is_deeply $changes, [{ name => 'file.txt', revision => $revision }], '/changes with a last revision should return changes since that revision';
+
+        $res     = $cb->(GET_AUTHD "/changes.$type?metadata=value", Connection => 'close');
+        $changes = $deserializer->($res->content);
+        cmp_bag $changes, [
+            { name => 'file.txt',  revision => $revision, value => 17 },
+            { name => 'file2.txt', revision => $revision2 },
+        ], '/changes with a metadata query param should fetch that metadata'
+    }
 };
 
-## inspect structure
 ## Accept text/json?

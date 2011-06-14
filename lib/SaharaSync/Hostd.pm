@@ -93,7 +93,20 @@ sub changes {
     my $req         = Plack::Request->new($env);
     my $last_sync   = $req->header('X-Sahara-Last-Sync');
     my $user        = $req->user;
-    my @blobs       = $self->storage->fetch_changed_blobs($user, $last_sync);
+    my @blobs       = eval {
+        $self->storage->fetch_changed_blobs($user, $last_sync);
+    };
+    if($@) {
+        if(UNIVERSAL::isa($@, 'SaharaSync::X::BadRevision')) {
+            return [
+                400,
+                ['Content-Type' => 'text/plain'],
+                ['Bad Revision'],
+            ];
+        } else {
+            die;
+        }
+    }
     my $connections = $self->connections;
 
     my $mime_type = $self->determine_mime_type($req);

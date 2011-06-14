@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::Sahara ':methods', tests => 33;
+use Test::Sahara ':methods', tests => 35;
 use Test::JSON;
 use Test::XML;
 use Test::YAML::Valid;
@@ -89,9 +89,13 @@ test_host sub {
     is $res->content_type, 'application/x-yaml', 'Accept yaml return type is YAML';
     yaml_string_ok $res->content, 'Response body is actually YAML';
     is_deeply Load($res->content), [], 'Response contains no changes';
+
+    $res = $cb->(GET_AUTHD '/changes.foo', Connection => 'close');
+    is $res->code, 406;
+
+    $res = $cb->(GET_AUTHD '/changes', Connection => 'close', Accept => 'text/plain');
+    is $res->code, 406;
 };
 
 ## inspect structure
-## encoding
-## bad Accept?
 ## Accept text/json?

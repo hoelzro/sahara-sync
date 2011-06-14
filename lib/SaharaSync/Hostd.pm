@@ -93,8 +93,9 @@ sub changes {
     my $req         = Plack::Request->new($env);
     my $last_sync   = $req->header('X-Sahara-Last-Sync');
     my $user        = $req->user;
+    my @metadata    = $req->param('metadata');
     my @blobs       = eval {
-        $self->storage->fetch_changed_blobs($user, $last_sync);
+        $self->storage->fetch_changed_blobs($user, $last_sync, \@metadata);
     };
     if($@) {
         if(UNIVERSAL::isa($@, 'SaharaSync::X::BadRevision')) {

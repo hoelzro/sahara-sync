@@ -58,7 +58,7 @@ sub _blob_to_disk_name {
 }
 
 sub _save_blob_to_disk {
-    my ( $self, $user, $blob, $revision, $src ) = @_;
+    my ( $self, $user, $blob, $revision, $metadata, $src ) = @_;
 
     my $disk_name      = $self->_blob_to_disk_name($blob);
     my $path           = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
@@ -71,6 +71,11 @@ sub _save_blob_to_disk {
     $digest->add($blob);
     $digest->add($revision);
     if(defined $src) {
+        foreach my $k (sort keys %$metadata) {
+            my $v = $metadata->{$k};
+            $digest->add($k);
+            $digest->add($v);
+        }
         $digest->add("\1");
 
         my $f = IO::File->new($path, 'w');
@@ -174,9 +179,8 @@ sub fetch_blob {
     my ( $self, $user, $blob ) = @_;
 
     my $dbh = $self->dbh;
-## HELLO non-portable SQL!
     my $sth = $dbh->prepare(<<SQL);
-SELECT u.username IS NOT NULL, b.blob_name IS NOT NULL, b.revision
+SELECT u.username IS NOT NULL, b.blob_id, b.revision
 FROM users AS u
 LEFT JOIN blobs AS b
 ON  b.user_id   = u.user_id
@@ -187,7 +191,7 @@ SQL
 
     $sth->execute($blob, $user);
 
-    my ( $user_exists, $file_exists, $revision ) = $sth->fetchrow_array;
+    my ( $user_exists, $blob_id, $revision ) = $sth->fetchrow_array;
 
     unless($user_exists) {
         SaharaSync::X::BadUser->throw({
@@ -195,21 +199,29 @@ SQL
         });
     }
 
-    if($file_exists) {
+    if(defined $blob_id) {
         my $disk_name = $self->_blob_to_disk_name($blob);
         my $path      = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
         my $handle    = IO::File->new($path, 'r');
         unless($handle) {
             croak "Unable to open '$path': $!";
         }
-        return ( $handle, $revision );
+        my %metadata = ( revision => $revision );
+        $sth = $dbh->prepare('SELECT meta_key, meta_value FROM metadata WHERE blob_id = ?');
+        $sth->execute($blob_id);
+        while(my ( $k, $v ) = $sth->fetchrow_array) {
+            $metadata{$k} = $v;
+        }
+        return ( $handle, \%metadata );
     } else {
         return;
     }
 }
 
 sub store_blob {
-    my ( $self, $user, $blob, $handle, $revision ) = @_;
+    my ( $self, $user, $blob, $handle, $metadata ) = @_;
+
+    my $revision = delete $metadata->{'revision'};
 
     my $user_id = $self->_get_user_id($user);
     my $dbh     = $self->dbh;
@@ -227,7 +239,7 @@ SQL
                     message => "You can't provide a revision when creating a new blob",
                 });
             }
-            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $handle);
+            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $metadata, $handle);
         } else {
             unless(defined $revision) {
                 SaharaSync::X::InvalidArgs->throw({
@@ -237,7 +249,7 @@ SQL
             unless($revision eq $current_revision) {
                 return;
             }
-            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $handle);
+            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $metadata, $handle);
         }
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $revision, $blob_id);
@@ -246,27 +258,28 @@ SET is_deleted = 0,
     revision   = ?
 WHERE blob_id = ?
 SQL
-        $dbh->do(<<SQL, undef, $blob_id, $revision);
-INSERT INTO revision_log (blob_id, blob_revision) VALUES(?, ?)
-SQL
-        $dbh->commit;
     } else {
         if(defined $revision) {
             SaharaSync::X::InvalidArgs->throw({
                 message => "You can't provide a revision when creating a new blob",
             });
         }
-        $revision = $self->_save_blob_to_disk($user, $blob, '', $handle);
+        $revision = $self->_save_blob_to_disk($user, $blob, '', $metadata, $handle);
         $dbh->begin_work;
         $dbh->do(<<SQL, undef, $user_id, $blob, $revision);
 INSERT INTO blobs (user_id, blob_name, revision) VALUES (?, ?, ?)
 SQL
-        my $blob_id = $dbh->last_insert_id(undef, 'public', 'blobs', undef);
-        $dbh->do(<<SQL, undef, $blob_id, $revision);
+        $blob_id = $dbh->last_insert_id(undef, 'public', 'blobs', undef);
+    }
+    $dbh->do(<<SQL, undef, $blob_id, $revision);
 INSERT INTO revision_log (blob_id, blob_revision) VALUES(?, ?)
 SQL
-        $dbh->commit;
+    my $sth = $dbh->prepare('INSERT INTO metadata (blob_id, meta_key, meta_value) VALUES (?, ?, ?)');
+    foreach my $k (keys %$metadata) {
+        my $v = $metadata->{$k};
+        $sth->execute($blob_id, $k, $v);
     }
+    $dbh->commit;
 
     return $revision;
 }
@@ -307,17 +320,22 @@ SQL
     $dbh->do(<<SQL, undef, $blob_id, $revision);
 INSERT INTO revision_log (blob_id, blob_revision) VALUES (?, ?)
 SQL
+    $dbh->do(<<SQL, undef, $blob_id);
+DELETE FROM metadata WHERE blob_id = ?
+SQL
     $dbh->commit;
 
     return $revision;
 }
 
 sub fetch_changed_blobs {
-    my ( $self, $user, $last_revision ) = @_;
+    my ( $self, $user, $last_revision, $metadata ) = @_;
 
     my $dbh     = $self->dbh;
     my $user_id = $self->_get_user_id($user);
     my $sth;
+
+    $metadata ||= [];
 
     if(defined $last_revision) {
         my ( $rev_id ) = $dbh->selectrow_array(<<SQL, undef, $user_id, $last_revision);
@@ -335,7 +353,7 @@ SQL
         }
 
         $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, b.blob_name FROM revision_log AS r
+SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON  r.blob_id = b.blob_id
 WHERE b.user_id     = ?
@@ -345,7 +363,7 @@ SQL
         $sth->execute($user_id, $rev_id);
     } else {
         $sth = $dbh->prepare(<<SQL);
-SELECT b.is_deleted, b.blob_name FROM revision_log AS r
+SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON r.blob_id = b.blob_id
 WHERE b.user_id = ?
@@ -355,12 +373,32 @@ SQL
 
     my %blobs;
 
-    ## we need to include deleted data eventually
-    while(my ( undef, $blob ) = $sth->fetchrow_array) {
-        $blobs{$blob} = 1;
+    while(my ( $is_deleted, $blob, $revision ) = $sth->fetchrow_array) {
+        $blobs{$blob} = {
+            name => $blob,
+            $is_deleted ? (is_deleted => 1) : (revision => $revision),
+        };
     }
 
-    return keys %blobs;
+    if(@$metadata) {
+        my $in_clause = 'AND m.meta_key IN (' . join(',', map { '?' } @$metadata) . ')';
+
+        $sth = $dbh->prepare(<<SQL);
+SELECT b.blob_name, m.meta_key, m.meta_value FROM blobs AS b
+INNER JOIN metadata AS m
+ON    m.blob_id = b.blob_id
+WHERE b.user_id = ?
+$in_clause
+SQL
+
+        $sth->execute($user_id, @$metadata);
+        while(my ( $blob, $key, $value ) = $sth->fetchrow_array) {
+            $blobs{$blob}{$key} = $value;
+        }
+    }
+
+
+    return values %blobs;
 }
 
 1;

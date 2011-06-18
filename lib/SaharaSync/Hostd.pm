@@ -5,9 +5,12 @@ package SaharaSync::Hostd;
 use Moose;
 use feature 'switch';
 
+use JSON ();
+use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
 use UNIVERSAL;
+use YAML ();
 
 ## NOTE: I should probably just refactor the common functionality of
 ## the standalone daemon out, and write a separate script that handles
@@ -59,6 +62,25 @@ sub BUILDARGS {
     return \%args;
 }
 
+sub determine_mime_type {
+    my ( $self, $req ) = @_;
+
+    my $accept = $req->header('Accept');
+    $accept  ||= 'application/json';
+
+    $accept = 'application/json' if $accept eq '*/*';
+
+    if($accept =~ m!application/json!) {
+        return 'application/json';
+    } elsif($accept =~ m!application/xml!) {
+        return 'application/xml';
+    } elsif($accept =~ m!application/x-yaml!) {
+        return 'application/x-yaml';
+    } else {
+        return;
+    }
+}
+
 sub top_level {
     my ( $self, $env ) = @_;
 
@@ -88,8 +110,24 @@ sub changes {
     my $req         = Plack::Request->new($env);
     my $last_sync   = $req->header('X-Sahara-Last-Sync');
     my $user        = $req->user;
-    my @blobs       = $self->storage->fetch_changed_blobs($user, $last_sync);
+    my @metadata    = $req->param('metadata');
+    my @blobs       = eval {
+        $self->storage->fetch_changed_blobs($user, $last_sync, \@metadata);
+    };
+    if($@) {
+        if(UNIVERSAL::isa($@, 'SaharaSync::X::BadRevision')) {
+            return [
+                400,
+                ['Content-Type' => 'text/plain'],
+                ['Bad Revision'],
+            ];
+        } else {
+            die;
+        }
+    }
     my $connections = $self->connections;
+
+    my $mime_type = $self->determine_mime_type($req);
 
     if($env->{'sahara.streaming'}) {
         my $conns = $connections->{$user};
@@ -116,10 +154,38 @@ sub changes {
             });
         };
     } else {
+        my $body;
+
+        given($mime_type) {
+            when('application/json') {
+                $body = JSON::encode_json(\@blobs);
+            }
+            when('application/xml') {
+                $body = '';
+                my $w = XML::Writer->new(OUTPUT => \$body);
+                $w->startTag('changes');
+                foreach my $change (@blobs) {
+                    $w->startTag('change');
+                    foreach my $k (keys %$change) {
+                        my $v = $change->{$k};
+                        $w->startTag($k);
+                        $w->characters($v);
+                        $w->endTag($k);
+                    }
+                    $w->endTag('change');
+                }
+                $w->endTag('changes');
+                $w->end;
+            }
+            when('application/x-yaml') {
+                $body = YAML::Dump(\@blobs);
+            }
+        }
+
         return [
             200,
-            ['Content-Type' => 'text/plain'],
-            [ join("\n", @blobs) ],
+            ['Content-Type' => "$mime_type; charset=utf-8"],
+            [ $body ],
         ];
     }
 }
@@ -137,7 +203,8 @@ sub blobs {
 
     given($method) {
         when('GET') {
-            my ( $handle, $revision ) = $self->storage->fetch_blob($user, $blob);
+            my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
+            my $revision = delete $metadata->{'revision'};
 
             if(defined $handle) {
                 no warnings 'uninitialized';
@@ -146,6 +213,11 @@ sub blobs {
                 } else {
                     $res->status(200);
                     $res->header(ETag => $revision);
+                    foreach my $k (keys %$metadata) {
+                        my $v = $metadata->{$k};
+                        $k =~ s/^(.)/uc $1/ge;
+                        $res->header("X-Sahara-$k", $v);
+                    }
                     $res->content_type('application/octet-stream');
                     $res->body($handle);
                 }
@@ -156,7 +228,8 @@ sub blobs {
             }
         }
         when('HEAD') {
-            my ( undef, $revision ) = $self->storage->fetch_blob($user, $blob);
+            my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+            my $revision = delete $metadata->{'revision'};
 
             if(defined $revision) {
                 no warnings 'uninitialized';
@@ -164,6 +237,11 @@ sub blobs {
                     $res->status(304);
                 } else {
                     $res->status(200);
+                    foreach my $k (keys %$metadata) {
+                        my $v = $metadata->{$k};
+                        $k =~ s/^(.)/uc $1/ge;
+                        $res->header("X-Sahara-$k", $v);
+                    }
                     $res->header(ETag => $revision);
                 }
             } else {
@@ -171,9 +249,22 @@ sub blobs {
             }
         }
         when('PUT') {
-            my $current_revision = $req->header('If-Match');
+            my %metadata;
+            my $headers = $req->headers;
+            foreach my $header (grep { /^X-Sahara-/ } $headers->header_field_names) {
+                my $value = $headers->header($header);
+                if($header =~ /^x-sahara-(revision|name|is-deleted)$/i) {
+                    $res->status(400);
+                    $res->content_type('text/plain');
+                    $res->body($header . ' is an invalid metadata header');
+                    return $res->finalize;
+                }
+                $header =~ s/^X-Sahara-//;
+                $metadata{$header} = $value;
+            }
+            my $current_revision = $metadata{'revision'} = $req->header('If-Match');
             my $revision         = eval {
-                $self->storage->store_blob($user, $blob, $req->body, $current_revision);
+                $self->storage->store_blob($user, $blob, $req->body, \%metadata);
             };
             if($@) {
                 if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
@@ -266,7 +357,14 @@ sub to_app {
     my $store = $self->storage;
 
     builder {
-	enable 'Sahara::Streaming';
+        enable 'Sahara::Streaming';
+        enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
+            from => 'suffix', tolerant => 0, mapping => {
+                json => 'application/json',
+                xml  => 'application/xml',
+                yml  => 'application/x-yaml',
+                yaml => 'application/x-yaml',
+            };
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
             enable 'Sahara::Auth', store => $store;

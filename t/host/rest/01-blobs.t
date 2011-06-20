@@ -4,7 +4,7 @@ use utf8;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::Sahara ':methods', tests => 75;
+use Test::Sahara ':methods', tests => 79;
 
 my $BAD_REVISION = '0' x 64;
 
@@ -75,6 +75,7 @@ test_host sub {
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt');
     is $res->code, 200, "Using the HEAD method on an existing blob should result in a 200";
+    is $res->header('Content-Length'), length('Hello, World!'), "Content-Length should be populated on a HEAD request";
     is $res->header('ETag'), $last_revision, "The ETag of an exisent blob should match the one returned from its last PUT";
     metadata_ok($res, {}, "Using HEAD on a blob with no metadata should return no metadata");
 
@@ -92,6 +93,7 @@ test_host sub {
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt', 'If-None-Match' => $BAD_REVISION);
     is $res->code, 200, "Conditional HEAD of a modified blob should result in a 200";
+    is $res->header('Content-Length'), length('Hello, World!'), "Content-Length should be populated on a HEAD request";
     is $res->header('ETag'), $last_revision, "Conditional HEAD of a modified blob should yield its ETag";
 
     $res = $cb->(DELETE_AUTHD '/blobs/test.txt');
@@ -149,6 +151,7 @@ test_host sub {
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt');
     is $res->code, 200, "The HEAD method should result in a 200 when called on an existent blob";
+    is $res->header('Content-Length'), length('Hello, World (again)'), "Content-Length should be populated on a HEAD request";
     is $res->header('ETag'), $last_revision, "The HEAD method should yield the ETag header when called on an existent blob";
 
     $cb->(DELETE_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision); # clean up (we should avoid this kind of stuff in the future)
@@ -160,6 +163,7 @@ test_host sub {
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt');
     is $res->code, 200, "Using the HEAD method on a blob with metadata should succeed";
+    is $res->header('Content-Length'), length('Hello'), "Content-Length should be populated on a HEAD request";
     metadata_ok($res, { foobar => 17 }, "Using the HEAD method on a blob with metadata should return the metadata");
 
     $res = $cb->(GET_AUTHD '/blobs/test.txt');

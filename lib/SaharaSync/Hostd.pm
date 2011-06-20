@@ -156,7 +156,7 @@ sub changes {
         return sub {
             my ( $respond ) = @_;
 
-            my $writer = $respond->([200, ['Content-Type' => 'text/plain']]);
+            my $writer = $respond->([200, ['Content-Type' => "$mime_type; charset=utf-8"]]);
             my $stream = SaharaSync::Stream::Writer->for_mimetype($mime_type,
                 writer => $writer,
             );

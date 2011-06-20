@@ -36,5 +36,5 @@ my $app = SaharaSync::Hostd->new(
 my $runner = Plack::Runner->new(
     server => 'Twiggy',
 );
-$runner->parse_options(qw/--port 5000/);
+$runner->parse_options(qw/--port 5982/);
 $runner->run($app);

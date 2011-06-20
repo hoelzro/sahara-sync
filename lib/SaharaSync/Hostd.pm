@@ -9,6 +9,7 @@ use JSON ();
 use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
+use Scalar::Util qw(reftype);
 use UNIVERSAL;
 use YAML ();
 
@@ -165,14 +166,16 @@ sub changes {
             $stream->write_objects(@blobs);
 
             # this is REALLY naughty!
-            my $h = $writer->{'handle'};
-            ## properly clean up connections (I don't think this will do the trick)
-            $h->on_error(sub {
-                @$conns = grep { $_ ne $writer } @$conns;
-            });
-            $h->on_eof(sub {
-                @$conns = grep { $_ ne $writer } @$conns;
-            });
+            if(reftype($writer) eq 'HASH') {
+                my $h = $writer->{'handle'};
+                ## properly clean up connections (I don't think this will do the trick)
+                $h->on_error(sub {
+                    @$conns = grep { $_ ne $writer } @$conns;
+                });
+                $h->on_eof(sub {
+                    @$conns = grep { $_ ne $writer } @$conns;
+                });
+            }
         };
     } else {
         my $body;

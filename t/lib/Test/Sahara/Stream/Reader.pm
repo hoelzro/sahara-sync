@@ -224,7 +224,6 @@ sub test_streaming_basic : Test(9) {
                 $self->end_stream($write);
                 undef $timer;
             } else {
-                use Data::Dumper::Concise;
                 $self->serialize($write, $values[$j++]); 
             }
         },

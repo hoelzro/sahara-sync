@@ -19,6 +19,7 @@ use YAML ();
 ## relying on Twiggy.  That way, I don't have to resort to voodoo
 ## with Twiggy's handles.
 
+use SaharaSync::Stream::Writer;
 use SaharaSync::X::InvalidArgs;
 use SaharaSync::X::NoSuchBlob;
 
@@ -81,6 +82,23 @@ sub determine_mime_type {
     }
 }
 
+sub send_change_to_streams {
+    my ( $self, $user, $blob, $revision, $is_deleted ) = @_;
+
+    my $streams = $self->connections->{$user};
+
+    my $changes = {
+        name => $blob,
+        $is_deleted ? (is_deleted => 1) : (revision => $revision),
+    };
+
+    if($streams) {
+        foreach my $stream (@$streams) {
+            $stream->write_object($changes);
+        }
+    }
+}
+
 sub top_level {
     my ( $self, $env ) = @_;
 
@@ -139,9 +157,12 @@ sub changes {
             my ( $respond ) = @_;
 
             my $writer = $respond->([200, ['Content-Type' => 'text/plain']]);
-            push @$conns, $writer;
+            my $stream = SaharaSync::Stream::Writer->for_mimetype($mime_type,
+                writer => $writer,
+            );
+            push @$conns, $stream;
 
-            $writer->write(join("\n", @blobs));
+            $stream->write_objects(@blobs);
 
             # this is REALLY naughty!
             my $h = $writer->{'handle'};
@@ -301,12 +322,7 @@ sub blobs {
                     $res->body('ok');
 
                     if($env->{'sahara.streaming'}) {
-                        my $conns = $self->connections->{$user};
-                        if($conns) {
-                            foreach my $writer (@$conns) {
-                                $writer->write("$blob\n");
-                            }
-                        }
+                        $self->send_change_to_streams($user, $blob, $revision);
                     }
                 } else {
                     $res->status(409);
@@ -341,12 +357,7 @@ sub blobs {
                         $res->body('ok');
 
                         if($env->{'sahara.streaming'}) {
-                            my $conns = $self->connections->{$user};
-                            if($conns) {
-                                foreach my $writer (@$conns) {
-                                    $writer->write("$blob\n");
-                                }
-                            }
+                            $self->send_change_to_streams($user, $blob, $revision, 1);
                         }
                     } else {
                         $res->status(409);

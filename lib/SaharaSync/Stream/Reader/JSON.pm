@@ -15,6 +15,13 @@ has json_reader => (
     builder  => 'build_json_reader',
 );
 
+has seen_end => (
+    is       => 'rw',
+    isa      => 'Bool',
+    init_arg => undef,
+    default  => 0,
+);
+
 sub build_json_reader {
     my ( $self ) = @_;
 
@@ -26,6 +33,7 @@ sub build_json_reader {
             $self->on_read_object->($self, $object_stack[$#object_stack]);
         }
         if(@object_stack == 1) {
+            $self->seen_end(1);
             $self->on_end->($self);
         }
         pop @object_stack;
@@ -57,7 +65,9 @@ sub build_json_reader {
                 SaharaSync::X::BadStream->new(message =>$err));
         },
         eof => sub {
-            $self->on_end->($self);
+            unless($self->seen_end) {
+                $self->on_end->($self);
+            }
         },
 
         start_object => sub {
@@ -90,6 +100,9 @@ sub feed {
     if(defined $buffer) {
         $self->json_reader->feed_buffer(\$buffer);
     } else {
+        unless($self->seen_end) {
+            $self->json_reader->feed_buffer(\']');
+        }
         $self->json_reader->signal_eof;
     }
 }

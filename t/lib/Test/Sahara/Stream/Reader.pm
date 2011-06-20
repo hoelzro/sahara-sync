@@ -134,6 +134,7 @@ sub test_bad_stream_exception : Test {
 
     throws_ok {
         $reader->feed(${ $stream->string_ref });
+        $reader->feed('i should think this is invalid input!');
         $reader->feed(undef);
     } 'SaharaSync::X::BadStream',
         "A bad stream with no callbacks should throw a SaharaSync::X::BadStream exception";
@@ -155,6 +156,7 @@ sub test_bad_stream_callback : Test(2) {
 
     lives_ok {
         $reader->feed(${ $stream->string_ref });
+        $reader->feed('i should think this is invalid input!');
         $reader->feed(undef);
     } "A bad stream with a callback should succeed";
 }

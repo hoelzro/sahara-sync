@@ -231,4 +231,59 @@ sub test_streaming_basic : Test(9) {
     $cond->recv;
 }
 
+sub test_early_eos : Test {
+    my ( $self ) = @_;
+
+    my $reader = $self->reader;
+    my $saw_error;
+
+    my $cond = AnyEvent->condvar;
+    $reader->on_parse_error(sub {
+        $saw_error = 1;
+    });
+    $reader->on_end(sub {
+        $cond->send;
+    });
+
+    my ( $read, $write );
+
+    pipe $read, $write;
+
+    my $read_handle = AnyEvent::Handle->new(
+        fh      => $read,
+        on_read => sub {
+            my ( $h ) = @_;
+
+            my $buf  = $h->rbuf;
+            $h->rbuf = '';
+            $reader->feed($buf);
+        },
+        on_eof => sub {
+            $reader->feed(undef);
+        },
+    );
+
+    $write = IO::Handle->new_from_fd($write, 'w');
+    $write->autoflush(1);
+    $self->begin_stream($write);
+
+    my $i = 0;
+    my $timer;
+    $timer = AnyEvent->timer(
+        interval => 0.25,
+        cb       => sub {
+            if($i >= @values) {
+                $write->close;
+                undef $timer;
+            } else {
+                $self->serialize($write, $values[$i++]);
+            }
+        },
+    );
+
+    $cond->recv;
+
+    ok !$saw_error, "No errors should occur on an early end-of-stream";
+}
+
 1;

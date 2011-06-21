@@ -84,18 +84,23 @@ sub determine_mime_type {
 }
 
 sub send_change_to_streams {
-    my ( $self, $user, $blob, $revision, $is_deleted ) = @_;
+    my ( $self, $user, $blob, $metadata ) = @_;
 
     my $streams = $self->connections->{$user};
 
     my $changes = {
         name => $blob,
-        $is_deleted ? (is_deleted => 1) : (revision => $revision),
+        %$metadata,
     };
 
     if($streams) {
         foreach my $stream (@$streams) {
-            $stream->write_object($changes);
+            my $meta = $stream->{'metadata'};
+            $stream->{'stream'}->write_object({
+                map {
+                    exists $changes->{$_} ? ($_ => $changes->{$_}) : ()
+                } (@$meta, 'revision', 'name', 'is_deleted')
+            });
         }
     }
 }
@@ -129,7 +134,7 @@ sub changes {
     my $req         = Plack::Request->new($env);
     my $last_sync   = $req->header('X-Sahara-Last-Sync');
     my $user        = $req->user;
-    my @metadata    = $req->param('metadata');
+    my @metadata    = $req->query_parameters->get_all('metadata');
     my @blobs       = eval {
         $self->storage->fetch_changed_blobs($user, $last_sync, \@metadata);
     };
@@ -161,7 +166,10 @@ sub changes {
             my $stream = SaharaSync::Stream::Writer->for_mimetype($mime_type,
                 writer => $writer,
             );
-            push @$conns, $stream;
+            push @$conns, {
+                stream   => $stream,
+                metadata => \@metadata,
+            };
 
             $stream->write_objects(@blobs);
 
@@ -325,7 +333,9 @@ sub blobs {
                     $res->body('ok');
 
                     if($env->{'sahara.streaming'}) {
-                        $self->send_change_to_streams($user, $blob, $revision);
+                        my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+                        $metadata->{'revision'} = $revision;
+                        $self->send_change_to_streams($user, $blob, $metadata);
                     }
                 } else {
                     $res->status(409);
@@ -337,11 +347,16 @@ sub blobs {
         when('DELETE') {
             my $revision = $req->header('If-Match');
 
+            my $metadata;
+
             unless(defined $revision) {
                 $res->status(400);
                 $res->content_type('text/plain');
                 $res->body('revision required');
             } else {
+                if($env->{'sahara.streaming'}) {
+                    ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+                }
                 $revision = eval {
                     $self->storage->delete_blob($user, $blob, $revision);
                 };
@@ -360,7 +375,9 @@ sub blobs {
                         $res->body('ok');
 
                         if($env->{'sahara.streaming'}) {
-                            $self->send_change_to_streams($user, $blob, $revision, 1);
+                            $metadata->{'is_deleted'} = 1;
+                            delete $metadata->{'revision'};
+                            $self->send_change_to_streams($user, $blob, $metadata);
                         }
                     } else {
                         $res->status(409);

@@ -228,7 +228,7 @@ sub blobs {
             }
         }
         when('HEAD') {
-            my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+            my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
             my $revision = delete $metadata->{'revision'};
 
             if(defined $revision) {
@@ -243,6 +243,15 @@ sub blobs {
                         $res->header("X-Sahara-$k", $v);
                     }
                     $res->header(ETag => $revision);
+
+                    my $size = 0;
+                    do {
+                        local $/ = \4096;
+                        while(defined(my $line = $handle->getline)) {
+                            $size += length $line;
+                        }
+                    };
+                    $res->header('Content-Length' => $size);
                 }
             } else {
                 $res->status(404);

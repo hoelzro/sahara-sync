@@ -9,6 +9,7 @@ use JSON ();
 use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
+use Scalar::Util qw(reftype);
 use UNIVERSAL;
 use YAML ();
 
@@ -19,6 +20,7 @@ use YAML ();
 ## relying on Twiggy.  That way, I don't have to resort to voodoo
 ## with Twiggy's handles.
 
+use SaharaSync::Stream::Writer;
 use SaharaSync::X::InvalidArgs;
 use SaharaSync::X::NoSuchBlob;
 
@@ -81,6 +83,28 @@ sub determine_mime_type {
     }
 }
 
+sub send_change_to_streams {
+    my ( $self, $user, $blob, $metadata ) = @_;
+
+    my $streams = $self->connections->{$user};
+
+    my $changes = {
+        name => $blob,
+        %$metadata,
+    };
+
+    if($streams) {
+        foreach my $stream (@$streams) {
+            my $meta = $stream->{'metadata'};
+            $stream->{'stream'}->write_object({
+                map {
+                    exists $changes->{$_} ? ($_ => $changes->{$_}) : ()
+                } (@$meta, 'revision', 'name', 'is_deleted')
+            });
+        }
+    }
+}
+
 sub top_level {
     my ( $self, $env ) = @_;
 
@@ -110,7 +134,7 @@ sub changes {
     my $req         = Plack::Request->new($env);
     my $last_sync   = $req->header('X-Sahara-Last-Sync');
     my $user        = $req->user;
-    my @metadata    = $req->param('metadata');
+    my @metadata    = $req->query_parameters->get_all('metadata');
     my @blobs       = eval {
         $self->storage->fetch_changed_blobs($user, $last_sync, \@metadata);
     };
@@ -138,20 +162,28 @@ sub changes {
         return sub {
             my ( $respond ) = @_;
 
-            my $writer = $respond->([200, ['Content-Type' => 'text/plain']]);
-            push @$conns, $writer;
+            my $writer = $respond->([200, ['Content-Type' => "$mime_type; charset=utf-8"]]);
+            my $stream = SaharaSync::Stream::Writer->for_mimetype($mime_type,
+                writer => $writer,
+            );
+            push @$conns, {
+                stream   => $stream,
+                metadata => \@metadata,
+            };
 
-            $writer->write(join("\n", @blobs));
+            $stream->write_objects(@blobs);
 
             # this is REALLY naughty!
-            my $h = $writer->{'handle'};
-            ## properly clean up connections (I don't think this will do the trick)
-            $h->on_error(sub {
-                @$conns = grep { $_ ne $writer } @$conns;
-            });
-            $h->on_eof(sub {
-                @$conns = grep { $_ ne $writer } @$conns;
-            });
+            if(reftype($writer) eq 'HASH') {
+                my $h = $writer->{'handle'};
+                ## properly clean up connections (I don't think this will do the trick)
+                $h->on_error(sub {
+                    @$conns = grep { $_ ne $writer } @$conns;
+                });
+                $h->on_eof(sub {
+                    @$conns = grep { $_ ne $writer } @$conns;
+                });
+            }
         };
     } else {
         my $body;
@@ -301,12 +333,9 @@ sub blobs {
                     $res->body('ok');
 
                     if($env->{'sahara.streaming'}) {
-                        my $conns = $self->connections->{$user};
-                        if($conns) {
-                            foreach my $writer (@$conns) {
-                                $writer->write("$blob\n");
-                            }
-                        }
+                        my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+                        $metadata->{'revision'} = $revision;
+                        $self->send_change_to_streams($user, $blob, $metadata);
                     }
                 } else {
                     $res->status(409);
@@ -318,11 +347,16 @@ sub blobs {
         when('DELETE') {
             my $revision = $req->header('If-Match');
 
+            my $metadata;
+
             unless(defined $revision) {
                 $res->status(400);
                 $res->content_type('text/plain');
                 $res->body('revision required');
             } else {
+                if($env->{'sahara.streaming'}) {
+                    ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+                }
                 $revision = eval {
                     $self->storage->delete_blob($user, $blob, $revision);
                 };
@@ -341,12 +375,9 @@ sub blobs {
                         $res->body('ok');
 
                         if($env->{'sahara.streaming'}) {
-                            my $conns = $self->connections->{$user};
-                            if($conns) {
-                                foreach my $writer (@$conns) {
-                                    $writer->write("$blob\n");
-                                }
-                            }
+                            $metadata->{'is_deleted'} = 1;
+                            delete $metadata->{'revision'};
+                            $self->send_change_to_streams($user, $blob, $metadata);
                         }
                     } else {
                         $res->status(409);

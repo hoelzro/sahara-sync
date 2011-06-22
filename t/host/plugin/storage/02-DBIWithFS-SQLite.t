@@ -79,7 +79,9 @@ sub cleanup_impl : Test(teardown) {
     undef $self->{'tempdir'};
 }
 
-unless(__PACKAGE__->SKIP_CLASS) {
+if(my $reason = __PACKAGE__->SKIP_CLASS) {
+    plan skip_all => $reason;
+} else {
     plan tests => __PACKAGE__->expected_tests * 2;
 
     __PACKAGE__->new(

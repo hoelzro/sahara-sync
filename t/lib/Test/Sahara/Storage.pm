@@ -34,16 +34,6 @@ sub arguments {
     return %{ $self->{'arguments'} };
 }
 
-sub runtests {
-    my ( $self ) = @_;
-
-    if(my $reason = $self->SKIP_CLASS) {
-        $self->builder->skip_all($reason);
-    }
-
-    goto &Test::Class::runtests;
-}
-
 sub slurp_handle {
     my ( $h ) = @_;
 

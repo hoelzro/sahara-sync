@@ -1,38 +1,28 @@
 use strict;
 use warnings;
-
-use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
-use Test::Sahara::Storage;
+use parent 'Test::Sahara::Storage';
 
 use File::Temp;
-
-eval {
-    require DBD::Pg;
-};
-if($@) {
-    plan skip_all => 'You must install DBD::Pg to run this test';
-    exit;
-}
+use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
+use Test::More;
 
 my $catalog  = $ENV{'TEST_PGDATABASE'};
 my $schema   = 'public';
 my $username = $ENV{'TEST_PGUSER'} || '';
 my $password = $ENV{'TEST_PGPASS'} || '';
-
-unless(defined $catalog) {
-    plan skip_all => 'You must define TEST_PGDATABASE to run this test';
-    exit;
-}
-
-my $dsn = "dbi:Pg:dbname=$catalog";
-if(my $host = $ENV{'TEST_PGHOST'}) {
-    $dsn .= ":host=$host";
-}
-if(my $port = $ENV{'TEST_PGPORT'}) {
-    $dsn .= ":port=$port";
-}
+my $host     = $ENV{'TEST_PGHOST'};
+my $port     = $ENV{'TEST_PGPORT'};
+my $dsn;
+do {
+    no warnings 'uninitialized';
+    $dsn  = "dbi:Pg:dbname=$catalog";
+    $dsn .= ":host=$host" if $host;
+    $dsn .= ":port=$port" if $port;
+};
 
 sub reset_db {
+    my ( $self ) = @_;
+
     my $dbh = DBI->connect($dsn, $username, $password, {
         RaiseError => 1,
         PrintError => 0,
@@ -53,25 +43,48 @@ SQL
     $dbh->disconnect;
 }
 
-plan tests => 2;
-my $tempdir = File::Temp->newdir;
-reset_db;
+sub SKIP_CLASS {
+    eval {
+        require DBD::Pg;
+    };
+    if($@) {
+        return 'You must install DBD::Pg to run this test';
+    }
+    unless(defined($ENV{'TEST_PGDATABASE'})) {
+        return 'You must define TEST_PGDATABASE to run this test';
+    }
+    return;
+}
 
-my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dsn             => $dsn,
-    username        => $username,
-    password        => $password,
-    fs_storage_path => $tempdir->dirname,
-);
+sub create_impl : Test(setup) {
+    my ( $self ) = @_;
 
-run_store_tests $store, "DBIWithFS: PostgreSQL - new dbh";
+    my %args = $self->arguments;
 
-reset_db;
-$tempdir = File::Temp->newdir;
+    $self->{'tempdir'} = File::Temp->newdir;
+    $self->reset_db;
+    $self->store(SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
+        %args,
+        fs_storage_path => $self->{'tempdir'}->dirname,
+    ));
+}
 
-$store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dbh             => DBI->connect($dsn, $username, $password),
-    fs_storage_path => $tempdir->dirname,
-);
+sub cleanup_impl : Test(teardown) {
+    my ( $self ) = @_;
+    
+    undef $self->{'tempdir'};
+}
 
-run_store_tests $store, "DBIWithFS: PostgreSQL - existing dbh";
+unless(__PACKAGE__->SKIP_CLASS) {
+    plan tests => __PACKAGE__->expected_tests * 2;
+
+    __PACKAGE__->new(
+        dsn      => $dsn,
+        username => $username,
+        password => $password,
+    )->runtests;
+
+    __PACKAGE__->new(
+        dbh => DBI->connect($dsn, $username, $password),
+    )->runtests;
+}

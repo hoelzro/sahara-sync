@@ -1,37 +1,41 @@
 use strict;
 use warnings;
+use parent 'Test::Sahara::Storage';
 
 use File::Temp;
-use Test::Sahara::Storage;
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
-
-eval {
-    require DBD::mysql;
-};
-if($@) {
-    diag($@);
-    plan skip_all => 'You must install DBD::mysql to run this test';
-    exit;
-}
+use Test::More;
 
 my $catalog  = $ENV{'TEST_MYDATABASE'};
 my $username = $ENV{'TEST_MYUSER'} || '';
 my $password = $ENV{'TEST_MYPASS'} || '';
+my $dsn;
+do {
+    $dsn = "dbi:mysql:database=$catalog";
+    if(my $host = $ENV{'TEST_MYHOST'}) {
+        $dsn .= ":host=$host";
+    }
+    if(my $port = $ENV{'TEST_MYPORT'}) {
+        $dsn .= ":port=$port";
+    }
+};
 
-unless(defined $catalog) {
-    plan skip_all => 'You must define TEST_MYDATABASE to run this test';
-    exit;
-}
-
-my $dsn = "dbi:mysql:database=$catalog";
-if(my $host = $ENV{'TEST_MYHOST'}) {
-    $dsn .= ":host=$host";
-}
-if(my $port = $ENV{'TEST_MYPORT'}) {
-    $dsn .= ":port=$port";
+sub SKIP_CLASS {
+    eval {
+        require DBD::mysql;
+    };
+    if($@) {
+        return 'You must install DBD::mysql to run this test';
+    }
+    unless(defined($ENV{'TEST_MYDATABASE'})) {
+        return 'You must define TEST_MYDATABASE to run this test';
+    }
+    return;
 }
 
 sub reset_db {
+    my ( $self ) = @_;
+
     my $dbh = DBI->connect($dsn, $username, $password, {
         RaiseError => 1,
         PrintError => 0,
@@ -52,25 +56,35 @@ SQL
     $dbh->disconnect;
 }
 
-plan tests => 2;
-my $tempdir = File::Temp->newdir;
-reset_db;
+sub create_impl : Test(setup) {
+    my ( $self ) = @_;
 
-my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dsn             => $dsn,
-    username        => $username,
-    password        => $password,
-    fs_storage_path => $tempdir->dirname,
-);
+    my %args = $self->arguments;
 
-run_store_tests $store;
+    $self->{'tempdir'} = File::Temp->newdir;
+    $self->reset_db;
+    $self->store(SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
+        %args,
+        fs_storage_path => $self->{'tempdir'}->dirname,
+    ));
+}
 
-reset_db;
-$tempdir = File::Temp->newdir;
+sub cleanup_impl : Test(teardown) {
+    my ( $self ) = @_;
 
-$store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dbh             => DBI->connect($dsn, $username, $password),
-    fs_storage_path => $tempdir->dirname,
-);
+    undef $self->{'tempdir'};
+}
 
-run_store_tests $store;
+unless(__PACKAGE__->SKIP_CLASS) {
+    plan tests => __PACKAGE__->expected_tests * 2;
+
+    __PACKAGE__->new(
+        dsn      => $dsn,
+        username => $username,
+        password => $password,
+    )->runtests;
+
+    __PACKAGE__->new(
+        dbh => DBI->connect($dsn, $username, $password),
+    )->runtests;
+}

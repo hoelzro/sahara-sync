@@ -1,27 +1,21 @@
 use strict;
 use warnings;
+use autodie qw(open unlink);
+use parent 'Test::Sahara::Storage';
 
 use Cwd qw(realpath);
 use FindBin;
 use File::Spec;
 use File::Temp;
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
-use Test::Sahara::Storage;
-
-eval {
-    require DBD::SQLite;
-};
-if($@) {
-    plan skip_all => 'You must install DBD::SQLite to run this test';
-    exit;
-}
+use Test::More;
 
 my $tempfile = File::Temp->new;
 my $schema   = realpath(File::Spec->catfile($FindBin::Bin,
     (File::Spec->updir) x 4, 'schema.sqlite'));
 
 my $fh;
-open $fh, '<', $schema or die $!;
+open $fh, '<', $schema;
 $schema = do {
     local $/;
     <$fh>;
@@ -30,13 +24,26 @@ close $fh;
 
 my $dsn = "dbi:SQLite:dbname=$tempfile";
 
+sub SKIP_CLASS {
+    eval {
+        require DBD::SQLite;
+    };
+    if($@) {
+        return 'You must install DBD::SQLite to run this test';
+    }
+}
+
 sub reset_db {
-    unlink $tempfile;
+    my ( $self ) = @_;
+
     my $dbh = DBI->connect($dsn, '', '', {
         RaiseError                       => 1,
         PrintError                       => 0,
         sqlite_allow_multiple_statements => 1,
     });
+    my @tables = $dbh->tables(undef, undef, '%', 'TABLE'); 
+
+    $dbh->do("DROP TABLE $_") foreach @tables;
 
     $dbh->do($schema);
 
@@ -51,26 +58,35 @@ SQL
     $dbh->disconnect;
 }
 
-plan tests => 2;
-my $tempdir = File::Temp->newdir;
-reset_db;
+sub create_impl : Test(setup) {
+    my ( $self ) = @_;
 
-## we need to enable the foreign pragma somehow...
-my $store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dsn             => $dsn,
-    username        => '',
-    password        => '',
-    fs_storage_path => $tempdir->dirname,
-);
+    my %args = $self->arguments;
 
-run_store_tests $store, "DBIWithFS: SQLite - new dbh";
+    $self->{'tempdir'} = File::Temp->newdir;
+    $self->reset_db;
+    $self->store(SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
+        %args,
+        fs_storage_path => $self->{'tempdir'}->dirname,
+    ));
+}
 
-reset_db;
-$tempdir = File::Temp->newdir;
+sub cleanup_impl : Test(teardown) {
+    my ( $self ) = @_;
+    
+    undef $self->{'tempdir'};
+}
 
-$store = SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
-    dbh             => DBI->connect($dsn, '', ''),
-    fs_storage_path => $tempdir->dirname,
-);
+unless(__PACKAGE__->SKIP_CLASS) {
+    plan tests => __PACKAGE__->expected_tests * 2;
 
-run_store_tests $store, "DBIWithFS: SQLite - existing dbh";
+    __PACKAGE__->new(
+        dsn      => $dsn,
+        username => '',
+        password => '',
+    )->runtests;
+
+    __PACKAGE__->new(
+        dbh => DBI->connect($dsn, '', ''),
+    )->runtests;
+}

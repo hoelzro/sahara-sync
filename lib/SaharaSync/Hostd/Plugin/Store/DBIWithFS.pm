@@ -46,6 +46,9 @@ sub BUILDARGS {
     my $dbh = $args{'dbh'};
     if($dbh->{'Driver'}{'Name'} eq 'SQLite') {
         $dbh->do('PRAGMA foreign_keys = ON');
+        if($ENV{'TAP_VERSION'}) { # silly optimization for testing
+            $dbh->do('PRAGMA synchronous = OFF');
+        }
     }
 
     return \%args;

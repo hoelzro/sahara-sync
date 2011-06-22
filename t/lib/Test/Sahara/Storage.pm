@@ -400,20 +400,18 @@ sub test_remove_user : Test(2) {
     } "Trying to remove an existent user should succeed";
 }
 
-## test3/test4
 sub test_remove_user_cleanup : Test(3) {
     my ( $self ) = @_;
 
     my $store = $self->store;
 
-    $store->create_user('test3', 'abc123');
-    $store->store_blob('test3', 'file.txt', IO::String->new('my text'));
-    $store->remove_user('test3');
-    $store->create_user('test3', 'abc123');
-    my ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+    $store->store_blob('test', 'file.txt', IO::String->new('my text'));
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    my ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok !$blob, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
     ok !$metadata, "Fetching a blob which was created by a user that has since been deleted and recreated should return undef";
-    my @changes = $store->fetch_changed_blobs('test3');
+    my @changes = $store->fetch_changed_blobs('test');
     is_deeply(\@changes, [], "Fetching changes for a user that has been deleted and recreated should be empty");
 }
 
@@ -466,28 +464,26 @@ sub test_store_delete_store : Test(8) {
 
     my $store = $self->store;
 
-    $store->create_user('test3', 'abc123');
-    my $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
-    my $revision2 = $store->delete_blob('test3', 'file.txt', $revision);
+    my $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text'));
+    my $revision2 = $store->delete_blob('test', 'file.txt', $revision);
     throws_ok {
-        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { revision => $revision2 });
+        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { revision => $revision2 });
     } 'SaharaSync::X::InvalidArgs', 'Storing a new blob (but previously deleted) blob with a revision should throw a SaharaSync::X::InvalidArgs exception';
     lives_ok {
-        $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
+        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'));
     } 'Storing a new (but previously deleted) blob without a revision should succeed';
     ok $revision2, 'Storing a new (but previously deleted) blob without a revision should succeed';
     isnt $revision2, $revision, "A new (but previously deleted) blob's revision should differ from its original";
 
     throws_ok {
-        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('More text!'));
+        $revision = $store->store_blob('test', 'file.txt', IO::String->new('More text!'));
     } 'SaharaSync::X::InvalidArgs', 'Storing another revision to a previously deleted blob with no revision should throws_ok a SaharaSync::X::InvalidArgs exception';
 
     lives_ok {
-        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('More text!'), { revision => $revision2 });
+        $revision = $store->store_blob('test', 'file.txt', IO::String->new('More text!'), { revision => $revision2 });
     } 'Storing another revision to a previously deleted blob should succeed';
     ok $revision, 'Storing another revision to a previously deleted blob should succeed';
     isnt $revision, $revision2, 'Storing a blob should change its revision';
-    $store->remove_user('test3');
 }
 
 sub test_utf8_filenames : Test(4) {
@@ -510,41 +506,40 @@ sub test_metadata : Test(15) {
     my ( $self ) = @_;
 
     my $store = $self->store;
-    $store->create_user('test3', 'abc123');
-    my $revision  = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+    my $revision  = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
     my $revision2 = $revision;
     ok $revision;
-    my ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+    my ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok $blob;
     is_deeply($metadata, { foo => 1, revision => $revision }, "Adding metadata to a new blob should show up on subsequent fetches");
     throws_ok {
-        $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { bar => 2 });
+        $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { bar => 2 });
     } 'SaharaSync::X::InvalidArgs', "Updating a blob with no revision should fail";
-    $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { bar => 2, revision => $revision });
-    ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { bar => 2, revision => $revision });
+    ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok $blob;
     is_deeply($metadata, { foo => 1, bar => 2, revision => $revision }, "Updating a blob preserves old metadata");
-    $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 3'), { Foo => 3, revision => $revision });
-    ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 3'), { Foo => 3, revision => $revision });
+    ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok $blob;
     is_deeply($metadata, { foo => 3, bar => 2, revision => $revision }, "Metadata are case-insensitive");
-    ok $store->delete_blob('test3', 'file.txt', $revision);
-    $revision  = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'));
-    ( $blob, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+    ok $store->delete_blob('test', 'file.txt', $revision);
+    $revision  = $store->store_blob('test', 'file.txt', IO::String->new('Test text'));
+    ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok $blob;
     is_deeply($metadata, { revision => $revision }, "Deleting a blob deletes all attached metadata");
 
-    ok $store->delete_blob('test3', 'file.txt', $revision);
+    ok $store->delete_blob('test', 'file.txt', $revision);
     throws_ok {
-        $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'a' x 256 => 1 });
+        $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { 'a' x 256 => 1 });
     } 'SaharaSync::X::InvalidArgs', "Storing metadata with a key longer than 255 characters should fail";
 
     throws_ok {
-        $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 'a' x 256 });
+        $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 'a' x 256 });
     } 'SaharaSync::X::InvalidArgs', "Storing metadata with a value longer than 255 characters should fail";
 
     lives_ok {
-        $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'a' x 255 => 'b' x 255 });
+        $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { 'a' x 255 => 'b' x 255 });
     } "Storing metadata with 255 characters or less for the keys or values should succeed";
 }
 
@@ -553,10 +548,9 @@ sub test_utf8_metadata : Test(2) {
 
     my $store = $self->store;
 
-    $store->create_user('test3', 'abc123');
-    my $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { 'über' => 'schön' });
+    my $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { 'über' => 'schön' });
     ok $revision;
-    my ( undef, $metadata ) = $store->fetch_blob('test3', 'file.txt');
+    my ( undef, $metadata ) = $store->fetch_blob('test', 'file.txt');
 
     is_deeply($metadata, { revision => $revision, 'über' => 'schön' }, "UTF-8 metadata should be preserved");
 }
@@ -566,41 +560,38 @@ sub test_revision_function : Test(7) {
 
     my $store = $self->store;
 
-    $store->create_user('test3', 'abc123');
-    $store->create_user('test4', 'abc123');
-    my $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
-    my $revision2 = $store->store_blob('test4', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+    my $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+    my $revision2 = $store->store_blob('test2', 'file.txt', IO::String->new('Test text'), { foo => 1 });
     is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 
-    $store->remove_user('test3');
-    $store->remove_user('test4');
-    $store->create_user('test3', 'abc123');
-    $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
     is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 
-    $store->remove_user('test3');
-    $store->create_user('test3', 'abc123');
-    $revision2 = $store->store_blob('test3', 'file2.txt', IO::String->new('Test text'), { foo => 1 });
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    $revision2 = $store->store_blob('test', 'file2.txt', IO::String->new('Test text'), { foo => 1 });
     isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 
-    $store->remove_user('test3');
-    $store->create_user('test3', 'abc123');
-    $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { foo => 1 });
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { foo => 1 });
     isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 
-    $store->remove_user('test3');
-    $store->create_user('test3', 'abc123');
-    $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 2 });
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 2 });
     isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 
-    $store->remove_user('test3');
-    $store->create_user('test3', 'abc123');
-    $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { Foo => 1 });
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { Foo => 1 });
     is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 
-    $store->remove_user('test3');
-    $store->create_user('test3', 'abc123');
-    $revision2 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { bar => 1 });
+    $store->remove_user('test');
+    $store->create_user('test', 'abc123');
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { bar => 1 });
     isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
 }
 
@@ -609,67 +600,66 @@ sub test_fetch_changed_blobs_metadata : Test(10) {
 
     my $store = $self->store;
 
-    $store->create_user('test3', 'abc123');
-    my $revision = $store->store_blob('test3', 'file.txt', IO::String->new('Test text'), { foo => 1 });
-    my @changes  = $store->fetch_changed_blobs('test3', undef);
+    my $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+    my @changes  = $store->fetch_changed_blobs('test', undef);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision,
     }], 'Omitting the metadata parameter should return no extra metadata');
-    @changes  = $store->fetch_changed_blobs('test3', undef, undef);
+    @changes  = $store->fetch_changed_blobs('test', undef, undef);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision,
     }], 'Requesting no metadata should return no extra metadata');
-    @changes  = $store->fetch_changed_blobs('test3', undef, []);
+    @changes  = $store->fetch_changed_blobs('test', undef, []);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision,
     }], 'Requesting no metadata should return no extra metadata');
-    @changes  = $store->fetch_changed_blobs('test3', undef, ['foo']);
+    @changes  = $store->fetch_changed_blobs('test', undef, ['foo']);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision,
         foo      => 1,
     }], 'Requesting existing metadata returns that metadata');
-    @changes  = $store->fetch_changed_blobs('test3', undef, ['bar']);
+    @changes  = $store->fetch_changed_blobs('test', undef, ['bar']);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision,
     }], 'Requesting non-existing metadata omits those metadata from the results');
 
-    my $revision2    = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 2'), { foo => 2, revision => $revision });
-    my $revision3 = $store->store_blob('test3', 'file.txt', IO::String->new('Test text 3'), { foo => 3, revision => $revision2 });
-    @changes      = $store->fetch_changed_blobs('test3', undef, ['foo']);
+    my $revision2    = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { foo => 2, revision => $revision });
+    my $revision3 = $store->store_blob('test', 'file.txt', IO::String->new('Test text 3'), { foo => 3, revision => $revision2 });
+    @changes      = $store->fetch_changed_blobs('test', undef, ['foo']);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision3,
         foo      => 3,
     }], 'Only the latest metadata are returned');
 
-    @changes      = $store->fetch_changed_blobs('test3', $revision, ['foo']);
+    @changes      = $store->fetch_changed_blobs('test', $revision, ['foo']);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision3,
         foo      => 3,
     }], 'Only the latest metadata are returned');
 
-    @changes      = $store->fetch_changed_blobs('test3', $revision2, ['foo']);
+    @changes      = $store->fetch_changed_blobs('test', $revision2, ['foo']);
     cmp_bag(\@changes, [{
         name     => 'file.txt',
         revision => $revision3,
         foo      => 3,
     }], 'Only the latest metadata are returned');
 
-    $store->delete_blob('test3', 'file.txt', $revision3);
+    $store->delete_blob('test', 'file.txt', $revision3);
 
-    @changes      = $store->fetch_changed_blobs('test3', $revision3, ['foo']);
+    @changes      = $store->fetch_changed_blobs('test', $revision3, ['foo']);
     cmp_bag(\@changes, [{
         name       => 'file.txt',
         is_deleted => 1,
     }], 'No extra metadata are returned for deleted blobs');
 
-    @changes      = $store->fetch_changed_blobs('test3', $revision2, ['foo']);
+    @changes      = $store->fetch_changed_blobs('test', $revision2, ['foo']);
     cmp_bag(\@changes, [{
         name       => 'file.txt',
         is_deleted => 1,

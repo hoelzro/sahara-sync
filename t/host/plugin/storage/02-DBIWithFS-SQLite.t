@@ -39,13 +39,15 @@ sub reset_db {
     my $dbh = DBI->connect($dsn, '', '', {
         RaiseError                       => 1,
         PrintError                       => 0,
-        sqlite_allow_multiple_statements => 1,
+        (-z $tempfile ? (sqlite_allow_multiple_statements => 1) : ()),
     });
-    my @tables = $dbh->tables(undef, undef, '%', 'TABLE'); 
+    if(-z $tempfile) {
+        $dbh->do($schema);
+    } else {
+        my @tables = $dbh->tables(undef, undef, '%', 'TABLE'); 
 
-    $dbh->do("DROP TABLE $_") foreach @tables;
-
-    $dbh->do($schema);
+        $dbh->do("DELETE FROM $_") foreach @tables;
+    }
 
     $dbh->do(<<SQL);
 INSERT INTO users (username, password) VALUES ('test', 'abc123')

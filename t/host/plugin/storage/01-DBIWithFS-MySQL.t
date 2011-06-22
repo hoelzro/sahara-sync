@@ -11,6 +11,7 @@ my $username = $ENV{'TEST_MYUSER'} || '';
 my $password = $ENV{'TEST_MYPASS'} || '';
 my $dsn;
 do {
+    no warnings 'uninitialized';
     $dsn = "dbi:mysql:database=$catalog";
     if(my $host = $ENV{'TEST_MYHOST'}) {
         $dsn .= ":host=$host";

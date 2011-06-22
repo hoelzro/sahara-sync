@@ -5,7 +5,7 @@ package SaharaSync::Hostd;
 use Moose;
 use feature 'switch';
 
-use JSON ();
+use IO::String;
 use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
@@ -190,7 +190,14 @@ sub changes {
 
         given($mime_type) {
             when('application/json') {
-                $body = JSON::encode_json(\@blobs);
+                $body = IO::String->new;
+                my $writer = SaharaSync::Stream::Writer->for_mimetype($mime_type,
+                    writer => $body,
+                );
+                $body = $body->string_ref;
+                $writer->write_objects(@blobs);
+                $writer->close;
+                $body = $$body;
             }
             when('application/xml') {
                 $body = '';

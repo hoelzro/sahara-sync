@@ -41,6 +41,7 @@ sub reset_db {
         PrintError                       => 0,
         (-z $tempfile ? (sqlite_allow_multiple_statements => 1) : ()),
     });
+    $dbh->begin_work;
     if(-z $tempfile) {
         $dbh->do($schema);
     } else {
@@ -56,6 +57,7 @@ SQL
     $dbh->do(<<SQL);
 INSERT INTO users (username, password) VALUES ('test2', 'abc123')
 SQL
+    $dbh->commit;
 
     $dbh->disconnect;
 }

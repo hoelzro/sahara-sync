@@ -5,7 +5,7 @@
 # your MySQL instance has a root user with no password, and your default
 # PostgreSQL user has no password as well.
 
-if [[ $SHLVL -ne 1 ]]; then
+if [[ "$0" == 'bash' ]]; then
     echo "Usage: . $0"
 fi
 

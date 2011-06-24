@@ -22,11 +22,11 @@ sub new {
     my %params = (
         realm           => 'Sahara',
         authenticator   => sub {
-            my ( $username, $env ) = @_;
+            my ( $username, $password, $env ) = @_;
 
             my $info = $store->load_user_info($username);
             return unless $info;
-            return $info->{'password'};
+            return $info->{'password'} eq $password;
         },
         %options,
     );

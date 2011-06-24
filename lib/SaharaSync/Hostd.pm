@@ -271,7 +271,7 @@ sub blobs {
         when('PUT') {
             my %metadata;
             my $headers = $req->headers;
-            foreach my $header (grep { /^X-Sahara-/ } $headers->header_field_names) {
+            foreach my $header (grep { /^x-sahara-/i } $headers->header_field_names) {
                 my $value = $headers->header($header);
                 if($header =~ /^x-sahara-(revision|name|is-deleted)$/i) {
                     $res->status(400);
@@ -279,7 +279,7 @@ sub blobs {
                     $res->body($header . ' is an invalid metadata header');
                     return $res->finalize;
                 }
-                $header =~ s/^X-Sahara-//;
+                $header =~ s/^x-sahara-//i;
                 $metadata{$header} = $value;
             }
             my $current_revision = $metadata{'revision'} = $req->header('If-Match');

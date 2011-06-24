@@ -6,12 +6,10 @@ use Moose;
 use feature 'switch';
 
 use IO::String;
-use XML::Writer;
 use Plack::Builder;
 use Plack::Request;
 use Scalar::Util qw(reftype);
 use UNIVERSAL;
-use YAML ();
 
 ## NOTE: I should probably just refactor the common functionality of
 ## the standalone daemon out, and write a separate script that handles
@@ -186,40 +184,14 @@ sub changes {
             }
         };
     } else {
-        my $body;
-
-        given($mime_type) {
-            when('application/json') {
-                $body = IO::String->new;
-                my $writer = SaharaSync::Stream::Writer->for_mimetype($mime_type,
-                    writer => $body,
-                );
-                $body = $body->string_ref;
-                $writer->write_objects(@blobs);
-                $writer->close;
-                $body = $$body;
-            }
-            when('application/xml') {
-                $body = '';
-                my $w = XML::Writer->new(OUTPUT => \$body);
-                $w->startTag('changes');
-                foreach my $change (@blobs) {
-                    $w->startTag('change');
-                    foreach my $k (keys %$change) {
-                        my $v = $change->{$k};
-                        $w->startTag($k);
-                        $w->characters($v);
-                        $w->endTag($k);
-                    }
-                    $w->endTag('change');
-                }
-                $w->endTag('changes');
-                $w->end;
-            }
-            when('application/x-yaml') {
-                $body = YAML::Dump(\@blobs);
-            }
-        }
+        my $body = IO::String->new;
+        my $writer = SaharaSync::Stream::Writer->for_mimetype($mime_type,
+            writer => $body,
+        );
+        $body = $body->string_ref;
+        $writer->write_objects(@blobs);
+        $writer->close;
+        $body = $$body;
 
         return [
             200,

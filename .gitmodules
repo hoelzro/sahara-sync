@@ -1,0 +1,3 @@
+[submodule "json-streaming-reader"]
+	path = json-streaming-reader
+	url = git://github.com/hoelzro/libjson-streaming-reader-perl

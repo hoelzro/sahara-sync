@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use autodie qw(open unlink);
+use autodie qw(open);
 use parent 'Test::Sahara::Storage';
 
 use Cwd qw(realpath);
@@ -10,7 +10,8 @@ use File::Temp;
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 use Test::More;
 
-my $tempfile = File::Temp->new;
+my $tempfile = File::Temp->new->filename;
+unlink $tempfile;
 my $schema   = realpath(File::Spec->catfile($FindBin::Bin,
     (File::Spec->updir) x 4, 'schema.sqlite'));
 
@@ -36,13 +37,15 @@ sub SKIP_CLASS {
 sub reset_db {
     my ( $self ) = @_;
 
+    my $first_run = !(-e $tempfile);
+
     my $dbh = DBI->connect($dsn, '', '', {
         RaiseError                       => 1,
         PrintError                       => 0,
-        (-z $tempfile ? (sqlite_allow_multiple_statements => 1) : ()),
+        ($first_run ? (sqlite_allow_multiple_statements => 1) : ()),
     });
     $dbh->begin_work;
-    if(-z $tempfile) {
+    if($first_run) {
         $dbh->do($schema);
     } else {
         my @tables = $dbh->tables(undef, undef, '%', 'TABLE'); 

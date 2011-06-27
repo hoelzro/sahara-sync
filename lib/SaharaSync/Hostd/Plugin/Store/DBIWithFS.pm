@@ -277,6 +277,11 @@ SQL
     $dbh->do(<<SQL, undef, $blob_id, $revision);
 INSERT INTO revision_log (blob_id, blob_revision) VALUES(?, ?)
 SQL
+    if(! $current_revision || $is_deleted) {
+        $dbh->do(<<SQL, undef, $blob_id);
+DELETE FROM metadata WHERE blob_id = ?
+SQL
+    }
     my $sth = $dbh->prepare('INSERT INTO metadata (blob_id, meta_key, meta_value) VALUES (?, ?, ?)');
     foreach my $k (keys %$metadata) {
         my $v = $metadata->{$k};
@@ -322,9 +327,6 @@ AND   is_deleted = 0
 SQL
     $dbh->do(<<SQL, undef, $blob_id, $revision);
 INSERT INTO revision_log (blob_id, blob_revision) VALUES (?, ?)
-SQL
-    $dbh->do(<<SQL, undef, $blob_id);
-DELETE FROM metadata WHERE blob_id = ?
 SQL
     $dbh->commit;
 

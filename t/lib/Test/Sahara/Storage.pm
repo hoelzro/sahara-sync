@@ -664,6 +664,32 @@ sub test_fetch_changed_blobs_metadata : Test(10) {
     }], 'All requested metadata are returned for deleted blobs');
 }
 
+sub test_too_much_metadata_bug : Test {
+    my ( $self ) = @_;
+
+    my $file_revision;
+    my $file1_revision;
+    my $file2_revision;
+    my $store = $self->store;
+
+    $file_revision = $store->store_blob('test', 'file.txt',
+        IO::String->new('file.txt content'), { foo => 3 });
+    $file_revision = $store->delete_blob('test', 'file.txt', $file_revision);
+
+    $file1_revision = $store->store_blob('test', 'file1.txt',
+        IO::String->new('file1.txt content'), { foo => 4 });
+    $file2_revision = $store->store_blob('test', 'file2.txt',
+        IO::String->new('file2.txt content'), { foo => 5 });
+
+    my @changes = $store->fetch_changed_blobs('test', $file1_revision, ['foo']);
+
+    is_deeply(\@changes, [{
+        name     => 'file2.txt',
+        revision => $file2_revision,
+        foo      => 5,
+    }], "metadata for blobs not modified since revision should not be present in changelog");
+}
+
 1;
 
 __END__

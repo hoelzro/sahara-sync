@@ -690,6 +690,26 @@ sub test_too_much_metadata_bug : Test {
     }], "metadata for blobs not modified since revision should not be present in changelog");
 }
 
+sub test_changes_since_deletion : Test {
+    my ( $self ) = @_;
+
+    my $revision;
+    my $revision2;
+    my $store = $self->store;
+
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test Content'));
+    $revision = $store->delete_blob('test', 'file.txt', $revision);
+
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test Content'));
+
+    my @changes = $store->fetch_changed_blobs('test', $revision);
+
+    is_deeply(\@changes, [{
+        name     => 'file.txt',
+        revision => $revision2,
+    }], "You should be able to get changes since a deletion");
+}
+
 1;
 
 __END__

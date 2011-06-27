@@ -5,7 +5,7 @@ use JSON qw(decode_json);
 use SaharaSync::Stream::Reader;
 
 use Test::Deep;
-use Test::Sahara ':methods', tests => 15;
+use Test::Sahara ':methods', tests => 16;
 
 $Plack::Test::Impl = 'AnyEvent';
 
@@ -78,6 +78,12 @@ my @objects = (
             foo      => 20,
         }
     },
+    sub {
+        {
+            name     => 'file4.txt',
+            revision => $put_revision,
+        }
+    },
 );
 
 my $i = 0;
@@ -129,6 +135,13 @@ sub put_metadata_blob3 {
 
     my $res = $cb->(PUT_AUTHD '/blobs/file3.txt', Content => 'Three',
         'X-Sahara-Bar' => 19, 'X-Sahara-Foo' => 20);
+    $put_revision = $res->header('ETag');
+}
+
+sub put_blob4 {
+    my ( $cb, $streaming_res  ) = @_;
+
+    my $res       = $cb->(PUT_AUTHD '/blobs/file4.txt', Content => 'Four');
     $put_revision = $res->header('ETag');
 }
 
@@ -215,6 +228,37 @@ test_host sub {
 
     $reader        = create_reader;
     $streaming_res = $cb->(GET_AUTHD '/changes.json?metadata=foo', 'X-Sahara-Last-Sync' => $last_revision);
+
+    $streaming_res->on_content_received(sub {
+        my ( $content ) = @_;
+
+        $reader->feed($content);
+    });
+
+    $timer = AnyEvent->timer(
+        interval => 0.5,
+        cb       => sub {
+            if(@callbacks) {
+                my $callback = shift @callbacks;
+                $callback->($cb, $streaming_res);
+            } else {
+                $streaming_res->send;
+                $reader->feed(undef);
+            }
+        },
+    );
+
+    $streaming_res->recv;
+
+    @callbacks = (
+        \&put_blob4,
+    );
+
+    $res = $cb->(DELETE_AUTHD '/blobs/file1.txt', Content => 'Two', 'If-Match' => $last_revision);
+    $delete_revision = $res->header('ETag');
+
+    $reader = create_reader;
+    $streaming_res = $cb->(GET_AUTHD '/changes.json', 'X-Sahara-Last-Sync' => $delete_revision);
 
     $streaming_res->on_content_received(sub {
         my ( $content ) = @_;

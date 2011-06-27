@@ -13,7 +13,7 @@ my %types = (
     json => \&decode_json,
 );
 
-plan tests => 35 + keys(%types) * 8;
+plan tests => 35 + keys(%types) * 9;
 
 test_host sub {
     my ( $cb ) = @_;
@@ -21,6 +21,7 @@ test_host sub {
     my $res;
     my $revision;
     my $revision2;
+    my $revision3;
 
     $res = $cb->(GET '/changes');
     is $res->code, 401, "Fetching changes with no authorization should result in a 401";
@@ -125,7 +126,10 @@ SKIP: {
     $revision = $res->header('ETag');
 
     $res       = $cb->(DELETE_AUTHD '/blobs/file.txt', Content => 'Even More Test Content', 'If-Match' => $revision);
-    $revision = $res->header('ETag');
+    $revision  = $res->header('ETag');
+
+    $res       = $cb->(PUT_AUTHD '/blobs/file2.txt', Content => 'Test content 2', 'If-Match' => $revision2);
+    $revision3 = $res->header('ETag');
 
     foreach my $type (keys %types) {
         my $deserializer = $types{$type};
@@ -133,18 +137,32 @@ SKIP: {
         my $changes      = $deserializer->($res->content);
         cmp_bag $changes, [
             { name => 'file.txt',  revision => $revision, is_deleted => 1 },
-            { name => 'file2.txt', revision => $revision2 },
-        ], '/changes with no last revision should return all changes';
+            { name => 'file2.txt', revision => $revision3 },
+        ], '/changes with no last revision should return all changes' or diag(explain($changes));
 
         $res     = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $revision2);
         $changes = $deserializer->($res->content);
-        is_deeply $changes, [{ name => 'file.txt', revision => $revision, is_deleted => 1 }], '/changes with a last revision should return changes since that revision';
+        is_deeply $changes, [{
+            name       => 'file.txt',
+            revision   => $revision,
+            is_deleted => 1
+        }, {
+            name     => 'file2.txt',
+            revision => $revision3,
+        }], '/changes with a last revision should return changes since that revision';
+
+        $res = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $revision);
+        $changes = $deserializer->($res->content);
+        is_deeply $changes, [{
+            name     => 'file2.txt',
+            revision => $revision3,
+        }], '/changes with a last revision should return changes since that revision';
 
         $res     = $cb->(GET_AUTHD "/changes.$type?metadata=value", Connection => 'close');
         $changes = $deserializer->($res->content);
         cmp_bag $changes, [
             { name => 'file.txt',  revision => $revision, value => 17, is_deleted => 1 },
-            { name => 'file2.txt', revision => $revision2 },
+            { name => 'file2.txt', revision => $revision3 },
         ], '/changes with a metadata query param should fetch that metadata'
     }
 };

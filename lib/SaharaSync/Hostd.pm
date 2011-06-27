@@ -352,6 +352,7 @@ sub blobs {
                         $res->status(200);
                         $res->content_type('text/plain');
                         $res->body('ok');
+                        $res->header(ETag => $revision);
 
                         if($env->{'sahara.streaming'}) {
                             $metadata->{'is_deleted'} = 1;

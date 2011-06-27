@@ -76,6 +76,8 @@ sub close {
 sub for_mimetype {
     my ( $class, $mime_type, %opts ) = @_;
 
+    $mime_type =~ s/;.*$//;
+
     given($mime_type) {
         when('application/json') {
             require SaharaSync::Stream::Writer::JSON;

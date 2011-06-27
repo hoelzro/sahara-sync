@@ -399,6 +399,10 @@ SQL
 
         $sth->execute($user_id, @$metadata);
         while(my ( $blob, $key, $value ) = $sth->fetchrow_array) {
+            ## horribly inefficent, but working
+            unless(exists $blobs{$blob}) {
+                next;
+            }
             $blobs{$blob}{$key} = $value;
         }
     }

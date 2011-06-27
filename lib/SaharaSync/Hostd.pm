@@ -356,7 +356,7 @@ sub blobs {
 
                         if($env->{'sahara.streaming'}) {
                             $metadata->{'is_deleted'} = 1;
-                            delete $metadata->{'revision'};
+                            $metadata->{'revision'}   = $revision;
                             $self->send_change_to_streams($user, $blob, $metadata);
                         }
                     } else {

@@ -9,7 +9,8 @@ use Test::Sahara ':methods', tests => 15;
 
 $Plack::Test::Impl = 'AnyEvent';
 
-my $revision;
+my $put_revision;
+my $delete_revision;
 my $metadata_present;
 my $reader;
 
@@ -17,43 +18,48 @@ my @objects = (
     sub {
         {
             name     => 'file.txt',
-            revision => $revision,
+            revision => $put_revision,
         }
     },
     sub {
         {
             name       => 'file.txt',
+            revision   => $delete_revision,
             is_deleted => 1,
         }
     },
     sub {
         {
             name     => 'file.txt',
-            revision => $revision,
+            revision => $put_revision,
         }
     },
     sub {
         {
             name       => 'file.txt',
+            revision   => $delete_revision,
             is_deleted => 1,
         }
     },
     sub {
         {
             name       => 'file.txt',
+            revision   => $delete_revision,
             is_deleted => 1,
+            foo        => 18,
         }
     },
     sub {
         {
             name     => 'file.txt', 
-            revision => $revision,
+            revision => $put_revision,
             foo      => 18,
         }
     },
     sub {
         {
             name       => 'file.txt',
+            revision   => $delete_revision,
             is_deleted => 1,
             foo        => 18,
         }
@@ -61,14 +67,14 @@ my @objects = (
     sub {
         {
             name     => 'file2.txt',
-            revision => $revision,
+            revision => $put_revision,
             foo      => 19,
         }
     },
     sub {
         {
             name     => 'file3.txt',
-            revision => $revision,
+            revision => $put_revision,
             foo      => 20,
         }
     },
@@ -92,21 +98,22 @@ sub put_blob {
     my ( $cb, $streaming_res ) = @_;
 
     my $res   = $cb->(PUT_AUTHD '/blobs/file.txt', Content => 'Hello, there!');
-    $revision = $res->header('ETag');
+    $put_revision = $res->header('ETag');
 }
 
 sub delete_blob {
     my ( $cb, $streaming_res ) = @_;
 
-    $cb->(DELETE_AUTHD '/blobs/file.txt', 'If-Match' => $revision);
+    my $res = $cb->(DELETE_AUTHD '/blobs/file.txt', 'If-Match' => $put_revision);
+    $delete_revision = $res->header('ETag');
 }
 
 sub put_metadata_blob {
     my ( $cb, $streaming_res ) = @_;
 
-    my $res   = $cb->(PUT_AUTHD '/blobs/file.txt', Content => 'Hi, there!',
+    my $res = $cb->(PUT_AUTHD '/blobs/file.txt', Content => 'Hi, there!',
         'X-Sahara-Foo' => 18);
-    $revision =  $res->header('ETag');
+    $put_revision = $res->header('ETag');
 }
 
 sub put_metadata_blob2 {
@@ -114,7 +121,7 @@ sub put_metadata_blob2 {
 
     my $res = $cb->(PUT_AUTHD '/blobs/file2.txt', Content => 'Two',
         'X-Sahara-Foo' => 19);
-    $revision = $res->header('ETag');
+    $put_revision = $res->header('ETag');
 }
 
 sub put_metadata_blob3 {
@@ -122,7 +129,7 @@ sub put_metadata_blob3 {
 
     my $res = $cb->(PUT_AUTHD '/blobs/file3.txt', Content => 'Three',
         'X-Sahara-Bar' => 19, 'X-Sahara-Foo' => 20);
-    $revision = $res->header('ETag');
+    $put_revision = $res->header('ETag');
 }
 
 test_host sub {
@@ -204,7 +211,7 @@ test_host sub {
     );
 
     my $res           = $cb->(PUT_AUTHD '/blobs/file1.txt', Content => 'One');
-    my $last_revision = $revision = $res->header('ETag');
+    my $last_revision = $put_revision = $res->header('ETag');
 
     $reader        = create_reader;
     $streaming_res = $cb->(GET_AUTHD '/changes.json?metadata=foo', 'X-Sahara-Last-Sync' => $last_revision);

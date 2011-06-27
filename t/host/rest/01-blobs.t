@@ -4,7 +4,7 @@ use utf8;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::Sahara ':methods', tests => 79;
+use Test::Sahara ':methods', tests => 80;
 
 my $BAD_REVISION = '0' x 64;
 
@@ -104,6 +104,7 @@ test_host sub {
 
     $res = $cb->(DELETE_AUTHD '/blobs/test.txt', 'If-Match' => $last_revision);
     is $res->code, 200, "Deleting a blob with the correct revision should result in a 200";
+    ok $res->header('ETag'), "Revisions should be present for successful DELETEs";
 
     $res = $cb->(GET_AUTHD '/blobs/test.txt');
     is $res->code, 404, "Fetching a blob that has been deleted should result in a 404";

@@ -124,23 +124,26 @@ SKIP: {
     $res      = $cb->(PUT_AUTHD '/blobs/file.txt', Content => 'More Test Content', 'If-Match' => $revision, 'X-Sahara-Value' => 17);
     $revision = $res->header('ETag');
 
+    $res       = $cb->(DELETE_AUTHD '/blobs/file.txt', Content => 'Even More Test Content', 'If-Match' => $revision);
+    $revision = $res->header('ETag');
+
     foreach my $type (keys %types) {
         my $deserializer = $types{$type};
         $res             = $cb->(GET_AUTHD "/changes.$type", Connection => 'close');
         my $changes      = $deserializer->($res->content);
         cmp_bag $changes, [
-            { name => 'file.txt',  revision => $revision },
+            { name => 'file.txt',  revision => $revision, is_deleted => 1 },
             { name => 'file2.txt', revision => $revision2 },
         ], '/changes with no last revision should return all changes';
 
         $res     = $cb->(GET_AUTHD "/changes.$type", Connection => 'close', 'X-Sahara-Last-Sync' => $revision2);
         $changes = $deserializer->($res->content);
-        is_deeply $changes, [{ name => 'file.txt', revision => $revision }], '/changes with a last revision should return changes since that revision';
+        is_deeply $changes, [{ name => 'file.txt', revision => $revision, is_deleted => 1 }], '/changes with a last revision should return changes since that revision';
 
         $res     = $cb->(GET_AUTHD "/changes.$type?metadata=value", Connection => 'close');
         $changes = $deserializer->($res->content);
         cmp_bag $changes, [
-            { name => 'file.txt',  revision => $revision, value => 17 },
+            { name => 'file.txt',  revision => $revision, value => 17, is_deleted => 1 },
             { name => 'file2.txt', revision => $revision2 },
         ], '/changes with a metadata query param should fetch that metadata'
     }

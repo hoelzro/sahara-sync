@@ -245,7 +245,7 @@ sub test_fetch_changed_blobs : Test(13) {
     my $revision;
 
     $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test content'));
-    $store->delete_blob('test', 'file.txt', $revision);
+    my $deleted_revision = $store->delete_blob('test', 'file.txt', $revision);
 
     my $file2_revision = $store->store_blob('test', 'file2.txt', IO::String->new('Test content 2'));
     my $last_revision  = $file2_revision;
@@ -255,11 +255,11 @@ sub test_fetch_changed_blobs : Test(13) {
     @changes = $store->fetch_changed_blobs('test');
     cmp_bag([ map { $_->{'name'} } @changes ], [uniq map { $_->{'name'} } @changes], "fetch_changed_blobs should filter out duplicates");
     ( undef, $metadata ) = $store->fetch_blob('test', 'file2.txt');
-    cmp_bag(\@changes, [{ name => 'file.txt', is_deleted => 1 }, { name => 'file2.txt', revision => $file2_revision }],
+    cmp_bag(\@changes, [{ name => 'file.txt', is_deleted => 1, revision => $deleted_revision }, { name => 'file2.txt', revision => $file2_revision }],
         "The list of all changed blobs should include all blobs for the given user");
 
     @changes = $store->fetch_changed_blobs('test', undef);
-    cmp_bag(\@changes, [{ name => 'file.txt', is_deleted => 1 }, { name => 'file2.txt', revision => $file2_revision}],
+    cmp_bag(\@changes, [{ name => 'file.txt', is_deleted => 1, revision => $deleted_revision }, { name => 'file2.txt', revision => $file2_revision}],
         "fetch_changed_blobs should also allow a manual argument of undef");
 
     @changes = $store->fetch_changed_blobs('test2');
@@ -277,8 +277,9 @@ sub test_fetch_changed_blobs : Test(13) {
 
     @changes = $store->fetch_changed_blobs('test', undef);
     cmp_bag(\@changes, [{
-        name      => 'file.txt',
+        name       => 'file.txt',
         is_deleted => 1,
+        revision   => $deleted_revision,
     }, {
         name     => 'file2.txt',
         revision => $file2_revision,
@@ -287,21 +288,24 @@ sub test_fetch_changed_blobs : Test(13) {
         revision => $revision,
     }], 'The list of changed blobs should include all changes');
 
+
     $last_revision = $revision;
     $revision = $store->delete_blob('test', 'file3.txt', $revision);
     @changes = $store->fetch_changed_blobs('test', $last_revision);
-    cmp_bag(\@changes, [{ name => 'file3.txt', is_deleted => 1 }], 'The list of changed blobs should include deletions');
+    cmp_bag(\@changes, [{ name => 'file3.txt', is_deleted => 1, revision => $revision }], 'The list of changed blobs should include deletions');
 
     @changes = $store->fetch_changed_blobs('test', undef);
     cmp_bag(\@changes, [{
-        name     => 'file.txt', 
+        name       => 'file.txt', 
         is_deleted => 1,
+        revision   => $deleted_revision,
     }, {
         name     => 'file2.txt', 
         revision => $file2_revision,
     }, {
-        name      => 'file3.txt',
+        name       => 'file3.txt',
         is_deleted => 1,
+        revision   => $revision,
     }], 'The list of changed blobs should include deletions');
 
     throws_ok {
@@ -319,10 +323,10 @@ sub test_fetch_changed_blobs : Test(13) {
     $last_revision = $revision;
 
     $revision = $store->store_blob('test', 'file4.txt', IO::String->new('Even more text'));
-    $store->delete_blob('test', 'file4.txt', $revision);
+    $revision = $store->delete_blob('test', 'file4.txt', $revision);
 
     @changes = $store->fetch_changed_blobs('test', $last_revision);
-    cmp_bag(\@changes, [{ name => 'file4.txt', is_deleted => 1 }], 'A blob that is immediately deleted should still appear in the revision list');
+    cmp_bag(\@changes, [{ name => 'file4.txt', is_deleted => 1, revision => $revision }], 'A blob that is immediately deleted should still appear in the revision list');
 }
 
 sub test_strange_blob_names : Test(16) {
@@ -618,7 +622,7 @@ sub test_fetch_changed_blobs_metadata : Test(10) {
         revision => $revision,
     }], 'Requesting non-existing metadata omits those metadata from the results');
 
-    my $revision2    = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { foo => 2, revision => $revision });
+    my $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { foo => 2, revision => $revision });
     my $revision3 = $store->store_blob('test', 'file.txt', IO::String->new('Test text 3'), { foo => 3, revision => $revision2 });
     @changes      = $store->fetch_changed_blobs('test', undef, ['foo']);
     cmp_bag(\@changes, [{
@@ -641,19 +645,23 @@ sub test_fetch_changed_blobs_metadata : Test(10) {
         foo      => 3,
     }], 'Only the latest metadata are returned');
 
-    $store->delete_blob('test', 'file.txt', $revision3);
+    my $deleted_revision = $store->delete_blob('test', 'file.txt', $revision3);
 
     @changes      = $store->fetch_changed_blobs('test', $revision3, ['foo']);
     cmp_bag(\@changes, [{
         name       => 'file.txt',
         is_deleted => 1,
+        revision   => $deleted_revision,
+        foo        => 3,
     }], 'No extra metadata are returned for deleted blobs');
 
     @changes      = $store->fetch_changed_blobs('test', $revision2, ['foo']);
     cmp_bag(\@changes, [{
         name       => 'file.txt',
         is_deleted => 1,
-    }], 'No extra metadata are returned for deleted blobs');
+        revision   => $deleted_revision,
+        foo        => 3,
+    }], 'All requested metadata are returned for deleted blobs');
 }
 
 1;

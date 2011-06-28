@@ -98,6 +98,8 @@ foreach my $method (@methods) {
     };
 }
 
+my @export = (@methods, 'REQUEST');
+
 sub import {
     my ( $class, @args ) = @_;
 
@@ -114,7 +116,7 @@ sub import {
     }
 
     if($options{':methods'}) {
-        foreach my $method (@methods) {
+        foreach my $method (@export) {
             *{$dest . '::' . $method}            = \&{$method};
             *{$dest . '::' . $method . '_AUTHD'} = \&{$method . '_AUTHD'};
         }

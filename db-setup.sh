@@ -5,8 +5,11 @@
 # your MySQL instance has a root user with no password, and your default
 # PostgreSQL user has no password as well.
 
-if [[ "$0" == 'bash' ]]; then
-    echo "Usage: . $0"
+info=$(caller)
+info=${info% *}
+
+if [[ "$info" -eq 0 ]]; then
+    echo -e "\033[31mUsage: . $0\033[0m"
 fi
 
 export TEST_PGDATABASE=sahara-test

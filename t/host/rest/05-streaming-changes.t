@@ -14,16 +14,6 @@ my $delete_revision;
 my $metadata_present;
 my $reader;
 
-sub lazy_hash (&) {
-    my ( $fn ) = @_;
-
-    return sub {
-        return {
-            ($fn->()),
-        }
-    };
-}
-
 my @objects = (
     lazy_hash { name => 'file.txt', revision => $put_revision },
     lazy_hash { name => 'file.txt', revision => $delete_revision, is_deleted => 1 },

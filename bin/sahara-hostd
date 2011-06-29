@@ -21,9 +21,20 @@ use strict;
 use warnings;
 use lib 'lib';
 
+use Getopt::Long;
 use Plack::Runner;
 use Twiggy;
 use SaharaSync::Hostd;
+
+my $config_file;
+
+my $result = GetOptions(
+    'config-file=s' => \$config_file,
+);
+
+unless($result && defined($config_file)) {
+    die "usage: $0 -c [config file]\n";
+}
 
 my $app = SaharaSync::Hostd->new(
     storage => {

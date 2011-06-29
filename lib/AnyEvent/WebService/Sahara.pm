@@ -7,8 +7,13 @@ use warnings;
 
 use AnyEvent::HTTP;
 use Carp qw(croak);
+use Guard qw(guard);
 use MIME::Base64 qw(encode_base64);
+use Scalar::Util qw(weaken);
 use URI;
+use URI::QueryParam;
+
+use SaharaSync::Stream::Reader;
 
 use namespace::clean;
 
@@ -40,9 +45,10 @@ sub new {
     my $password = $options{'password'} || die "You must provide a password to " . __PACKAGE__ . "::new";
 
     return bless {
-        url      => $url,
-        user     => $user,
-        password => $password,
+        url           => $url,
+        user          => $user,
+        password      => $password,
+        change_guards => {},
     }, $class;
 }
 
@@ -51,7 +57,7 @@ sub add_auth {
 
     my $user     = $self->{'user'};
     my $password = $self->{'password'};
-    my $header   = 'Basic ' . encode_base64($user . ':' . $password);
+    my $header   = 'Basic ' . encode_base64($user . ':' . $password, '');
     my $headers  = $meta->{'headers'};
     unless($headers) {
         $headers = $meta->{'headers'} = {};
@@ -62,15 +68,33 @@ sub add_auth {
 
 # calling syntax: $self->do_request($method => @path, $opt_meta, $prepare, $cb)
 sub do_request {
-    my $self     = shift;
-    my $method   = shift;
-    my $cb       = pop;
-    my $prepare  = pop;
-    my $meta     = ref($_[$#_]) eq 'HASH' ? pop : {};
-    my @segments = @_;
+    my ( $self, $method, $segments, $meta, $prepare, $cb );
+
+    if(@_ == 5) {
+        ( $self, $method, $segments, $prepare, $cb, $meta ) = (@_, {});
+    } else {
+        ( $self, $method, $segments, $meta, $prepare, $cb ) = @_;
+    }
+    $segments = [ $segments ] unless ref($segments);
+
+    my $params;
+    if(ref($segments->[$#$segments]) eq 'HASH') {
+        $params = pop @$segments;
+    }
 
     my $url = $self->{'url'}->clone;
-    $url->path_segments($url->path_segments, @segments);
+    $url->path_segments($url->path_segments, @$segments);
+    if($params) {
+        foreach my $k (keys %$params) {
+            my $v = $params->{$k};
+
+            if(ref $v) {
+                $url->query_param($k, @$v);
+            } else {
+                $url->query_param($k, $v);
+            }
+        }
+    }
 
     $self->add_auth($method, $url, $meta);
 
@@ -79,53 +103,180 @@ sub do_request {
     $handler = sub {
         my ( $data, $headers ) = @_;
 
-        $cb->($prepare->($data, $headers));
+        my $status = $headers->{'Status'};
+
+        if($status > 400) {
+            $cb->(undef, $headers->{'Reason'});
+        } elsif($status == 400) {
+            # 400 errors are special, because we overload them
+            # not ideal, I know.
+
+            $cb->(undef, $data);
+        } else {
+            $cb->($prepare->($data, $headers));
+        }
     };
 
-    http_request $method => $url, %$meta, $handler;
+    return http_request $method => $url, %$meta, $handler;
 }
 
 sub capabilities {
     my ( $self, $cb ) = @_;
 
-    $self->do_request(GET => 'capabilities', sub {
+    $self->do_request(HEAD => '', sub {
         my ( $data, $headers ) = @_;
 
-        return { map { $_ => 1 } split/,/, $data };
+        my $capabilities = $headers->{'x-sahara-capabilities'};
+
+        return [ split /\s*,\s*/, $capabilities ];
     }, $cb);
 }
 
 sub get_blob {
     my ( $self, $blob, $cb ) = @_;
 
-    $self->do_request(GET => 'blobs', $blob, sub {
-        my ( $data, $headers ) = @_;
+    my $meta = {
+        want_body_handle => 1,
+    };
 
-        return $data;
+    $self->do_request(GET => ['blobs', $blob], $meta, sub {
+        my ( $h, $headers ) = @_;
+
+        my %metadata;
+
+        my $revision = $headers->{'etag'};
+        if($revision) {
+            $metadata{'revision'} = $revision;
+        }
+
+        foreach my $k (keys %$headers) {
+            my $v = $headers->{$k};
+
+            if($k =~ s/^x-sahara-//i) {
+                $metadata{$k} = $v;
+            }
+        }
+
+        return $h, \%metadata;
     }, $cb);
 }
 
 sub put_blob {
-    my ( $self, $blob, $contents, $cb ) = @_;
+    my ( $self, $blob, $contents, $metadata, $cb ) = @_;
 
-    my $method;
-    my $meta = {};
+    $metadata ||= {};
 
-    if(defined $contents) {
-        $method = 'PUT';
-        $meta->{'body'} = $contents;
-    } else {
-        $method = 'DELETE';
+    my $revision = delete $metadata->{'revision'};
+
+    ## inefficient
+    $contents = do {
+        local $/;
+        <$contents>;
+    };
+
+    my $meta = {
+        body => $contents,
+    };
+
+    if(defined $revision) {
+        my $headers = $meta->{'headers'} = {};
+        $headers->{'If-Match'} = $revision;
     }
 
-    $self->do_request($method => 'blobs', $blob, $meta, sub {
-        return 1; # if a bad status occurs, do_request handles it
+    if(%$metadata) {
+        my $headers = $meta->{'headers'} || {};
+        $meta->{'headers'} = $headers;
+
+        foreach my $k (keys %$metadata) {
+            my $v = $metadata->{$k};
+
+            $k =~ s/\b([a-z])/uc $1/ge;
+
+            $headers->{"X-Sahara-$k"} = $v;
+        }
+    }
+
+    $self->do_request(PUT => ['blobs', $blob], $meta, sub {
+        my ( undef, $headers ) = @_;
+
+        return $headers->{'etag'};
+    }, $cb);
+}
+
+sub delete_blob {
+    my ( $self, $blob, $revision, $cb ) = @_;
+
+    my $meta = {
+        headers => {
+            'If-Match' => $revision,
+        },
+    };
+
+    $self->do_request(DELETE => ['blobs', $blob], $meta, sub {
+        my ( undef, $headers ) = @_;
+
+        return $headers->{'etag'};
     }, $cb);
 }
 
 sub changes {
-    my ( $self, $cb ) = @_;
-    ## should we automatically set up the timer?
+    my ( $self, $since, $metadata, $cb ) = @_;
+
+    my $meta = {
+        want_body_handle => 1,
+        headers => {
+            'X-Sahara-Last-Sync' => $since,
+        },
+    };
+
+    my $url = 'changes';
+    if($metadata && @$metadata) {
+        $url = [ $url, { metadata => $metadata } ];
+    }
+
+    my $h;
+
+    my $guard = $self->do_request(GET => $url, $meta, sub {
+        my $headers;
+        ( $h, $headers ) = @_;
+
+        my $reader = SaharaSync::Stream::Reader->for_mimetype($headers->{'content-type'});
+
+        $reader->on_read_object(sub {
+            my ( undef, $object ) = @_;
+
+            $cb->($object);
+        });
+
+        $h->on_read(sub {
+            my $chunk = $h->rbuf;
+            $h->rbuf = '';
+
+            $reader->feed($chunk);
+        });
+
+        $h->on_eof(sub {
+            $reader->feed(undef);
+            undef $h;
+        });
+    }, sub {
+        my ( $ok, $error ) = @_;
+
+        $cb->(@_) unless $ok;
+    });
+
+    my $guards = $self->{'change_guards'};
+    weaken($guards);
+    $guards->{$guard} = guard {
+        undef $h;
+        undef $guard;
+    };
+
+    if(defined wantarray) {
+        return guard {
+            delete $guards->{$guard} if $guards && $guard;
+        };
+    }
 }
 
 1;

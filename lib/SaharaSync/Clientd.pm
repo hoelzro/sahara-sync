@@ -11,7 +11,7 @@ use File::Path qw(make_path);
 use File::Slurp qw(read_file);
 use File::Spec;
 
-my $UPSTREAM = 'http://localhost:5000';
+my $UPSTREAM = 'http://localhost:5982';
 my $USER     = 'test';
 my $PASSWORD = 'abc123';
 my $SYNC_DIR = '~/Sandbox';

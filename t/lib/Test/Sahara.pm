@@ -84,6 +84,16 @@ sub REQUEST_AUTHD {
     return REQUEST($method, $path, @headers);
 }
 
+sub lazy_hash (&) {
+    my ( $fn ) = @_;
+
+    return sub {
+        return {
+            ($fn->()),
+        }
+    };
+}
+
 my @methods = qw(GET POST PUT DELETE HEAD OPTIONS);
 
 foreach my $method (@methods) {
@@ -97,6 +107,8 @@ foreach my $method (@methods) {
         return REQUEST_AUTHD($method, @_);
     };
 }
+
+my @export = (@methods, 'REQUEST', 'lazy_hash');
 
 sub import {
     my ( $class, @args ) = @_;
@@ -114,7 +126,7 @@ sub import {
     }
 
     if($options{':methods'}) {
-        foreach my $method (@methods) {
+        foreach my $method (@export) {
             *{$dest . '::' . $method}            = \&{$method};
             *{$dest . '::' . $method . '_AUTHD'} = \&{$method . '_AUTHD'};
         }

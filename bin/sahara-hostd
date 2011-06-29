@@ -40,7 +40,7 @@ my $app = SaharaSync::Hostd->new(
     storage => {
         type => 'DBIWithFS',
         dsn  => 'dbi:Pg:database=sahara',
-        fs_storage_path => '/tmp/sahara',
+        storage_path => '/tmp/sahara',
     },
     log => [{
         type      => 'Screen::Color',

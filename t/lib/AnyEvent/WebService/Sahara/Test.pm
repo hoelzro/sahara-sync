@@ -70,9 +70,9 @@ sub create_fresh_app {
 
     SaharaSync::Hostd->new(
         storage => {
-            type            => 'DBIWithFS',
-            dbh             => $dbh,
-            fs_storage_path => $tempdir->dirname,
+            type         => 'DBIWithFS',
+            dbh          => $dbh,
+            storage_path => $tempdir->dirname,
         },
     )->to_app;
 }

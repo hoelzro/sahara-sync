@@ -66,7 +66,7 @@ sub create_impl : Test(setup) {
     $self->reset_db;
     $self->store(SaharaSync::Hostd::Plugin::Store::DBIWithFS->new(
         %args,
-        fs_storage_path => $self->{'tempdir'}->dirname,
+        storage_path => $self->{'tempdir'}->dirname,
     ));
 }
 

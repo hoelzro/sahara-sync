@@ -43,9 +43,9 @@ sub test_host {
 
     my $app = SaharaSync::Hostd->new(
         storage => {
-            type            => 'DBIWithFS',
-            dbh             => $dbh,
-            fs_storage_path => $tempdir->dirname,
+            type         => 'DBIWithFS',
+            dbh          => $dbh,
+            storage_path => $tempdir->dirname,
         },
         log     => [{
             type      => 'Null',

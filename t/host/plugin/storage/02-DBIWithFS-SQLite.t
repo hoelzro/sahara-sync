@@ -10,8 +10,8 @@ use File::Temp;
 use SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 use Test::More;
 
-my $tempfile = File::Temp->new->filename;
-unlink $tempfile;
+my $tempfile = File::Temp->new;
+unlink $tempfile->filename;
 my $schema   = realpath(File::Spec->catfile($FindBin::Bin,
     (File::Spec->updir) x 4, 'schema.sqlite'));
 
@@ -23,7 +23,7 @@ $schema = do {
 };
 close $fh;
 
-my $dsn = "dbi:SQLite:dbname=$tempfile";
+my $dsn = "dbi:SQLite:dbname=" . $tempfile->filename;
 
 sub SKIP_CLASS {
     eval {
@@ -37,7 +37,7 @@ sub SKIP_CLASS {
 sub reset_db {
     my ( $self ) = @_;
 
-    my $first_run = !(-e $tempfile);
+    my $first_run = !(-e $tempfile->filename);
 
     my $dbh = DBI->connect($dsn, '', '', {
         RaiseError                       => 1,

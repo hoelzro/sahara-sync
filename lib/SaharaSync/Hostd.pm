@@ -403,7 +403,7 @@ sub to_app {
             };
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
-            enable 'Sahara::Auth', store => $store;
+            enable 'Sahara::Auth', store => $store, log => $self->log;
             sub {
                 return $self->changes(@_);
             };
@@ -411,7 +411,7 @@ sub to_app {
 
         mount '/blobs' => builder {
             enable 'Options', allowed => [qw/GET HEAD PUT DELETE/];
-            enable 'Sahara::Auth', store => $store;
+            enable 'Sahara::Auth', store => $store, log => $self->log;
             sub {
                 return $self->blobs(@_);
             };

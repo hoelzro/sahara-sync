@@ -34,6 +34,18 @@ has log => (
     required => 1,
 );
 
+has port => (
+    is      => 'ro',
+    isa     => 'Int', ## positive int?
+    default => 5982,
+);
+
+has disable_streaming => (
+    is      => 'ro',
+    isa     => 'Bool',
+    default => 0,
+);
+
 has connections => (
     is       => 'ro',
     isa      => 'HashRef',
@@ -73,6 +85,15 @@ sub BUILDARGS {
     }
 
     $args{'log'} = Log::Dispatch->new(outputs => \@outputs);
+
+    if(my $server_config = delete $args{'server'}) {
+        if(my $port = $server_config->{'port'}) {
+            $args{'port'} = $port;
+        }
+        if(defined(my $disable_streaming = $server_config->{'disable_streaming'})) {
+            $args{'disable_streaming'} = $disable_streaming;
+        }
+    }
 
     return \%args;
 }
@@ -405,7 +426,7 @@ sub to_app {
 
     builder {
         enable 'LogDispatch', logger => $self->log;
-        enable 'Sahara::Streaming';
+        enable 'Sahara::Streaming' unless $self->disable_streaming;
         enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
             from => 'suffix', tolerant => 0, mapping => {
                 json => 'application/json',

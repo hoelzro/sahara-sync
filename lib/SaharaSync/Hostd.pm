@@ -298,11 +298,13 @@ sub blobs {
                 $metadata{$header} = $value;
             }
             my $current_revision = $metadata{'revision'} = $req->header('If-Match');
+            $self->log->info("Updating blob '$blob' for user '$user'");
             my $revision         = eval {
                 $self->storage->store_blob($user, $blob, $req->body, \%metadata);
             };
             if($@) {
                 if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
+                    $self->log->info("Invalid arguments: $@");
                     $res->status(400);
                     $res->content_type('text/plain');
 
@@ -312,10 +314,12 @@ sub blobs {
                         $res->body('revision required for updating a blob');
                     }
                 } else {
+                    $self->log->error("Update error: $@");
                     die;
                 }
             } else {
                 if(defined $revision) {
+                    $self->log->info("Update successful (revision = $revision)");
                     if(defined $current_revision) {
                         $res->status(200);
                     } else {
@@ -332,6 +336,7 @@ sub blobs {
                         $self->send_change_to_streams($user, $blob, $metadata);
                     }
                 } else {
+                    $self->log->info("Update conflict");
                     $res->status(409);
                     $res->content_type('text/plain');
                     $res->body('conflict');
@@ -343,7 +348,10 @@ sub blobs {
 
             my $metadata;
 
+            $self->log->info("Deleting blob '$blob' for user '$user'");
+
             unless(defined $revision) {
+                $self->log->info("No revision provided");
                 $res->status(400);
                 $res->content_type('text/plain');
                 $res->body('revision required');
@@ -356,14 +364,17 @@ sub blobs {
                 };
                 if($@) {
                     if(UNIVERSAL::isa($@, 'SaharaSync::X::NoSuchBlob')) {
+                        $self->log->info("Blob not found");
                         $res->status(404);
                         $res->content_type('text/plain');
                         $res->body('not found');
                     } else {
+                        $self->log->error("Deletion error: $@");
                         die;
                     }
                 } else {
                     if(defined $revision) {
+                        $self->log->info("Deletion successful (revision = $revision)");
                         $res->status(200);
                         $res->content_type('text/plain');
                         $res->body('ok');
@@ -375,6 +386,7 @@ sub blobs {
                             $self->send_change_to_streams($user, $blob, $metadata);
                         }
                     } else {
+                        $self->log->info("Deletion conflict");
                         $res->status(409);
                         $res->content_type('text/plain');
                         $res->body('conflict');

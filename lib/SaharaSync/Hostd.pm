@@ -6,6 +6,7 @@ use Moose;
 use feature 'switch';
 
 use IO::String;
+use Log::Dispatch;
 use Plack::Builder;
 use Plack::Request;
 use Scalar::Util qw(reftype);
@@ -25,6 +26,11 @@ use SaharaSync::X::NoSuchBlob;
 has storage => (
     is       => 'ro',
     does     => 'SaharaSync::Hostd::Plugin::Store',
+    required => 1,
+);
+
+has log => (
+    is       => 'ro',
     required => 1,
 );
 
@@ -58,6 +64,15 @@ sub BUILDARGS {
     $path       .= '.pm';
     require $path;
     $args{'storage'} = $type->new(%$storage);
+
+    my @outputs;
+    my $log = $args{'log'};
+    foreach my $config (@$log) {
+        my $type = delete $config->{'type'};
+        push @outputs, [ $type, %$config ];
+    }
+
+    $args{'log'} = Log::Dispatch->new(outputs => \@outputs);
 
     return \%args;
 }
@@ -283,11 +298,13 @@ sub blobs {
                 $metadata{$header} = $value;
             }
             my $current_revision = $metadata{'revision'} = $req->header('If-Match');
+            $self->log->info("Updating blob '$blob' for user '$user'");
             my $revision         = eval {
                 $self->storage->store_blob($user, $blob, $req->body, \%metadata);
             };
             if($@) {
                 if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
+                    $self->log->info("Invalid arguments: $@");
                     $res->status(400);
                     $res->content_type('text/plain');
 
@@ -297,10 +314,12 @@ sub blobs {
                         $res->body('revision required for updating a blob');
                     }
                 } else {
+                    $self->log->error("Update error: $@");
                     die;
                 }
             } else {
                 if(defined $revision) {
+                    $self->log->info("Update successful (revision = $revision)");
                     if(defined $current_revision) {
                         $res->status(200);
                     } else {
@@ -317,6 +336,7 @@ sub blobs {
                         $self->send_change_to_streams($user, $blob, $metadata);
                     }
                 } else {
+                    $self->log->info("Update conflict");
                     $res->status(409);
                     $res->content_type('text/plain');
                     $res->body('conflict');
@@ -328,7 +348,10 @@ sub blobs {
 
             my $metadata;
 
+            $self->log->info("Deleting blob '$blob' for user '$user'");
+
             unless(defined $revision) {
+                $self->log->info("No revision provided");
                 $res->status(400);
                 $res->content_type('text/plain');
                 $res->body('revision required');
@@ -341,14 +364,17 @@ sub blobs {
                 };
                 if($@) {
                     if(UNIVERSAL::isa($@, 'SaharaSync::X::NoSuchBlob')) {
+                        $self->log->info("Blob not found");
                         $res->status(404);
                         $res->content_type('text/plain');
                         $res->body('not found');
                     } else {
+                        $self->log->error("Deletion error: $@");
                         die;
                     }
                 } else {
                     if(defined $revision) {
+                        $self->log->info("Deletion successful (revision = $revision)");
                         $res->status(200);
                         $res->content_type('text/plain');
                         $res->body('ok');
@@ -360,6 +386,7 @@ sub blobs {
                             $self->send_change_to_streams($user, $blob, $metadata);
                         }
                     } else {
+                        $self->log->info("Deletion conflict");
                         $res->status(409);
                         $res->content_type('text/plain');
                         $res->body('conflict');
@@ -377,6 +404,7 @@ sub to_app {
     my $store = $self->storage;
 
     builder {
+        enable 'LogDispatch', logger => $self->log;
         enable 'Sahara::Streaming';
         enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
             from => 'suffix', tolerant => 0, mapping => {
@@ -387,7 +415,7 @@ sub to_app {
             };
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
-            enable 'Sahara::Auth', store => $store;
+            enable 'Sahara::Auth', store => $store, log => $self->log;
             sub {
                 return $self->changes(@_);
             };
@@ -395,7 +423,7 @@ sub to_app {
 
         mount '/blobs' => builder {
             enable 'Options', allowed => [qw/GET HEAD PUT DELETE/];
-            enable 'Sahara::Auth', store => $store;
+            enable 'Sahara::Auth', store => $store, log => $self->log;
             sub {
                 return $self->blobs(@_);
             };

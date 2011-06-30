@@ -31,10 +31,17 @@ my $app = SaharaSync::Hostd->new(
         dsn  => 'dbi:Pg:database=sahara',
         fs_storage_path => '/tmp/sahara',
     },
-)->to_app;
+    log => [{
+        type      => 'Screen::Color',
+        min_level => 'debug',
+        stderr    => 1,
+        newline   => 1,
+    }],
+);
 
 my $runner = Plack::Runner->new(
     server => 'Twiggy',
 );
 $runner->parse_options(qw/--port 5982/);
-$runner->run($app);
+$app->log->info('Starting host daemon');
+$runner->run($app->to_app);

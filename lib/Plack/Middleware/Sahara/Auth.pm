@@ -18,6 +18,7 @@ sub new {
     }
 
     my $store = delete $options{'store'};
+    my $log   = delete $options{'log'};
 
     my %params = (
         realm           => 'Sahara',
@@ -26,6 +27,7 @@ sub new {
 
             my $info = $store->load_user_info($username);
             return unless $info;
+            $log->info("Logging in as $username");
             return $info->{'password'} eq $password;
         },
         %options,

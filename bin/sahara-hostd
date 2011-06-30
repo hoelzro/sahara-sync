@@ -25,6 +25,7 @@ use Getopt::Long;
 use Plack::Runner;
 use Twiggy;
 use SaharaSync::Hostd;
+use SaharaSync::Hostd::Config;
 
 my $config_file;
 
@@ -36,20 +37,9 @@ unless($result && defined($config_file)) {
     die "usage: $0 -c [config file]\n";
 }
 
-my $hostd = SaharaSync::Hostd->new(
-    storage => {
-        type => 'DBIWithFS',
-        dsn  => 'dbi:Pg:database=sahara',
-        storage_path => '/tmp/sahara',
-    },
-    log => [{
-        type      => 'Screen::Color',
-        min_level => 'debug',
-        stderr    => 1,
-        newline   => 1,
-    }],
-);
-my $app = $hostd->to_app;
+my $config = SaharaSync::Hostd::Config->load_from_file($config_file);
+my $hostd  = SaharaSync::Hostd->new($config);
+my $app    = $hostd->to_app;
 
 my $runner = Plack::Runner->new(
     server => 'Twiggy',

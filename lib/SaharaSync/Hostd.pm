@@ -5,6 +5,7 @@ package SaharaSync::Hostd;
 use Moose;
 use feature 'switch';
 
+use Carp;
 use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
@@ -22,6 +23,8 @@ use UNIVERSAL;
 use SaharaSync::Stream::Writer;
 use SaharaSync::X::InvalidArgs;
 use SaharaSync::X::NoSuchBlob;
+
+use namespace::clean;
 
 has storage => (
     is       => 'ro',
@@ -66,7 +69,19 @@ has git_revision => (
 );
 
 sub BUILDARGS {
-    my ( $class, %args ) = @_;
+    my $class = shift;
+    my %args;
+
+    if(@_ == 1) {
+        my $arg = $_[0];
+        if(ref($arg) eq 'HASH' || ref($arg) eq 'SaharaSync::Hostd::Config') {
+            %args = %$arg;
+        } else {
+            croak "Invalid config object to " . __PACKAGE__ . ": $arg";
+        }
+    } else {
+        %args = @_;
+    }
 
     my $storage = $args{'storage'};
     my $type    = delete $storage->{'type'};

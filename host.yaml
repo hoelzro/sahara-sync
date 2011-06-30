@@ -1,10 +1,10 @@
 storage:
-    plugin: 'DBIWithFS'
+    type: 'DBIWithFS'
     dsn: 'dbi:Pg:dbname=sahara'
-    fs_root: '/tmp/sahara'
+    storage_path: '/tmp/sahara'
 
-authentication:
-    plugin: 'Storage'
-
-logging:
-    to: 'console'
+log:
+  -
+    type: Screen::Color
+    min_level: debug
+    stderr: true

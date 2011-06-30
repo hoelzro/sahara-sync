@@ -47,6 +47,10 @@ sub test_host {
             dbh             => $dbh,
             fs_storage_path => $tempdir->dirname,
         },
+        log     => [{
+            type      => 'Null',
+            min_level => 'debug',
+        }],
     )->to_app;
 
     return Plack::Test::test_psgi $app, $cb;

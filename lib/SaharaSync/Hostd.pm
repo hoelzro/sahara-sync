@@ -392,6 +392,7 @@ sub to_app {
     my $store = $self->storage;
 
     builder {
+        enable 'LogDispatch', logger => $self->log;
         enable 'Sahara::Streaming';
         enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
             from => 'suffix', tolerant => 0, mapping => {

@@ -10,7 +10,7 @@ use SaharaSync::Hostd::Config;
 
 my @params = (
     {
-        throws => qr/Attribute.*storage.*is\s+required/,
+        throws => qr/Attribute.*(log|storage).*is\s+required/,
         name   => 'Cannot build a config object with no parameters',
         params => {},
     },
@@ -22,6 +22,9 @@ my @params = (
                 root => '/tmp/sahara',
                 dsn  => 'dbi:SQLite:dbname=:memory:',
             },
+            log     => [{
+                type => 'Null',
+            }],
         },
     },
     {
@@ -33,6 +36,9 @@ my @params = (
                 root => '/tmp/sahara',
                 dsn  => 'dbi:SQLite:dbname=:memory:',
             },
+            log     => [{
+                type => 'Null',
+            }],
             foo => {},
         },
     },
@@ -75,6 +81,9 @@ print $temp encode_json {
         root => '/tmp/sahara',
         dsn  => 'dbi:SQLite:dbname=:memory:',
     },
+    log     => [{
+        type => 'Null',
+    }],
 };
 close $temp;
 unlink $temp->filename;

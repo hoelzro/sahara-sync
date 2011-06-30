@@ -14,6 +14,12 @@ has storage => (
     required => 1,
 );
 
+has log => (
+    is       => 'ro',
+    isa      => 'ArrayRef',
+    required => 1,
+);
+
 sub load_from_file {
     my ( $class, $filename ) = @_;
 

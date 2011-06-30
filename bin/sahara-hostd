@@ -36,7 +36,7 @@ unless($result && defined($config_file)) {
     die "usage: $0 -c [config file]\n";
 }
 
-my $app = SaharaSync::Hostd->new(
+my $hostd = SaharaSync::Hostd->new(
     storage => {
         type => 'DBIWithFS',
         dsn  => 'dbi:Pg:database=sahara',
@@ -49,10 +49,11 @@ my $app = SaharaSync::Hostd->new(
         newline   => 1,
     }],
 );
+my $app = $hostd->to_app;
 
 my $runner = Plack::Runner->new(
     server => 'Twiggy',
 );
-$runner->parse_options(qw/--port 5982/);
-$app->log->info('Starting host daemon');
-$runner->run($app->to_app);
+$runner->parse_options('--port' => $hostd->port);
+$hostd->log->info('Starting host daemon');
+$runner->run($app);

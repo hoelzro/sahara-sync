@@ -6,6 +6,7 @@ use Moose;
 use feature 'switch';
 
 use IO::String;
+use Log::Dispatch;
 use Plack::Builder;
 use Plack::Request;
 use Scalar::Util qw(reftype);
@@ -25,6 +26,11 @@ use SaharaSync::X::NoSuchBlob;
 has storage => (
     is       => 'ro',
     does     => 'SaharaSync::Hostd::Plugin::Store',
+    required => 1,
+);
+
+has log => (
+    is       => 'ro',
     required => 1,
 );
 
@@ -58,6 +64,15 @@ sub BUILDARGS {
     $path       .= '.pm';
     require $path;
     $args{'storage'} = $type->new(%$storage);
+
+    my @outputs;
+    my $log = $args{'log'};
+    foreach my $config (@$log) {
+        my $type = delete $config->{'type'};
+        push @outputs, [ $type, %$config ];
+    }
+
+    $args{'log'} = Log::Dispatch->new(outputs => \@outputs);
 
     return \%args;
 }

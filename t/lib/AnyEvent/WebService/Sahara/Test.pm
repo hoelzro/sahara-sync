@@ -48,12 +48,11 @@ sub create_client {
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
+    my $app = $self->create_fresh_app;
     $self->server(Test::TCP->new(
         port => $self->port,
         code => sub {
             my ( $port ) = @_;
-
-            my $app = $self->create_fresh_app;
 
             my $server = Plack::Loader->auto(
                 port => $port,

@@ -15,8 +15,12 @@ use Test::More ();
 
 our $VERSION = '0.01';
 
-sub test_host {
-    my ( $cb ) = @_;
+sub port {
+    return 5982;
+}
+
+sub create_fresh_app {
+    my $tempdir = File::Temp->newdir;
 
     my $dsn      = "dbi:SQLite:dbname=:memory:";
     my $dbh      = DBI->connect($dsn, '', '', {
@@ -39,9 +43,7 @@ sub test_host {
     $dbh->do($schema);
     $dbh->do("INSERT INTO users (username, password) VALUES ('test', 'abc123')");
 
-    my $tempdir = File::Temp->newdir;
-
-    my $app = SaharaSync::Hostd->new(
+    SaharaSync::Hostd->new(
         storage => {
             type         => 'DBIWithFS',
             dbh          => $dbh,
@@ -52,8 +54,12 @@ sub test_host {
             min_level => 'debug',
         }],
     )->to_app;
+}
 
-    return Plack::Test::test_psgi $app, $cb;
+sub test_host {
+    my ( $cb ) = @_;
+
+    return Plack::Test::test_psgi create_fresh_app, $cb;
 }
 
 sub REQUEST {
@@ -112,7 +118,7 @@ foreach my $method (@methods) {
     };
 }
 
-my @export = (@methods, 'REQUEST', 'lazy_hash');
+my @export = (@methods, 'REQUEST', 'lazy_hash', 'port', 'create_fresh_app');
 
 sub import {
     my ( $class, @args ) = @_;

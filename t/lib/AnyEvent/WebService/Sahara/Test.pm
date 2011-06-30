@@ -10,15 +10,9 @@ use Test::Sahara ':methods';
 use Test::TCP qw(empty_port);
 
 use AnyEvent::WebService::Sahara;
-use Cwd ();
-use DBI;
-use FindBin;
-use File::Spec ();
-use File::Temp ();
 use IO::String;
 use LWP::UserAgent;
 use Plack::Loader;
-use SaharaSync::Hostd;
 
 my $BAD_REVISION = '0' x 64;
 
@@ -39,42 +33,6 @@ sub server {
     }
 
     return $self->{'server'};
-}
-
-sub port {
-    return 5982;
-}
-
-sub create_fresh_app {
-    my $tempdir = File::Temp->newdir;
-
-    my $dbh = DBI->connect('dbi:SQLite:dbname=:memory:', '', '', {
-        RaiseError                       => 1,
-        PrintError                       => 0,
-        sqlite_allow_multiple_statements => 1,
-    });
-
-    my $schema = Cwd::realpath(File::Spec->catfile($FindBin::Bin,
-        (File::Spec->updir) x 2, 'schema.sqlite'));
-
-    my $fh;
-    open $fh, '<', $schema or die $!;
-    $schema = do {
-        local $/;
-        <$fh>;
-    };
-    close $fh;
-
-    $dbh->do($schema);
-    $dbh->do("INSERT INTO users (username, password) VALUES ('test', 'abc123')");
-
-    SaharaSync::Hostd->new(
-        storage => {
-            type         => 'DBIWithFS',
-            dbh          => $dbh,
-            storage_path => $tempdir->dirname,
-        },
-    )->to_app;
 }
 
 sub create_client {

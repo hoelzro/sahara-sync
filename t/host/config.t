@@ -28,6 +28,29 @@ my @params = (
         },
     },
     {
+        name   => 'Building a config object with a storage and a server parameter should succeed',
+        params => {
+            server => {
+            },
+            storage => {
+                type => 'DBIWithFS',
+                root => '/tmp/sahara',
+                dsn  => 'dbi:SQLite:dbname=:memory:',
+            },
+            log    => [{
+                type => 'Null',
+            }]
+        },
+    },
+    {
+        throws => qr/Attribute.*(log|storage).*is\s+required/,
+        name   => 'Building a config object with just a server parameter should fail',
+        params => {
+            server => {
+            },
+        },
+    },
+    {
         throws => qr/Found unknown attribute/,
         name   => 'Cannot build a config object with an invalid parameter',
         params => {

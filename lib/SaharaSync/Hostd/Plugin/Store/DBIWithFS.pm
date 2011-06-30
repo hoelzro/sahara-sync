@@ -26,7 +26,7 @@ has dbh => (
     required => 1,
 );
 
-has fs_storage_path => (
+has storage_path => (
     is       => 'ro',
     isa      => 'Str',
     required => 1,
@@ -64,7 +64,7 @@ sub _save_blob_to_disk {
     my ( $self, $user, $blob, $revision, $metadata, $src ) = @_;
 
     my $disk_name      = $self->_blob_to_disk_name($blob);
-    my $path           = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
+    my $path           = File::Spec->catfile($self->storage_path, $user, $disk_name);
     my ( undef, $dir ) = File::Spec->splitpath($path);
     my $buf            = '';
     my $n;
@@ -145,7 +145,7 @@ sub remove_user {
     my ( $self, $username ) = @_;
 
     my $dbh = $self->dbh;
-    my $path = File::Spec->catdir($self->fs_storage_path, $username);
+    my $path = File::Spec->catdir($self->storage_path, $username);
 
     remove_tree $path;
 
@@ -204,7 +204,7 @@ SQL
 
     if(defined $blob_id) {
         my $disk_name = $self->_blob_to_disk_name($blob);
-        my $path      = File::Spec->catfile($self->fs_storage_path, $user, $disk_name);
+        my $path      = File::Spec->catfile($self->storage_path, $user, $disk_name);
         my $handle    = IO::File->new($path, 'r');
         unless($handle) {
             croak "Unable to open '$path': $!";

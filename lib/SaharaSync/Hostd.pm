@@ -5,6 +5,7 @@ package SaharaSync::Hostd;
 use Moose;
 use feature 'switch';
 
+use Carp;
 use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
@@ -23,6 +24,8 @@ use SaharaSync::Stream::Writer;
 use SaharaSync::X::InvalidArgs;
 use SaharaSync::X::NoSuchBlob;
 
+use namespace::clean;
+
 has storage => (
     is       => 'ro',
     does     => 'SaharaSync::Hostd::Plugin::Store',
@@ -32,6 +35,18 @@ has storage => (
 has log => (
     is       => 'ro',
     required => 1,
+);
+
+has port => (
+    is      => 'ro',
+    isa     => 'Int', ## positive int?
+    default => 5982,
+);
+
+has disable_streaming => (
+    is      => 'ro',
+    isa     => 'Bool',
+    default => 0,
 );
 
 has connections => (
@@ -54,7 +69,19 @@ has git_revision => (
 );
 
 sub BUILDARGS {
-    my ( $class, %args ) = @_;
+    my $class = shift;
+    my %args;
+
+    if(@_ == 1) {
+        my $arg = $_[0];
+        if(ref($arg) eq 'HASH' || ref($arg) eq 'SaharaSync::Hostd::Config') {
+            %args = %$arg;
+        } else {
+            croak "Invalid config object to " . __PACKAGE__ . ": $arg";
+        }
+    } else {
+        %args = @_;
+    }
 
     my $storage = $args{'storage'};
     my $type    = delete $storage->{'type'};
@@ -73,6 +100,15 @@ sub BUILDARGS {
     }
 
     $args{'log'} = Log::Dispatch->new(outputs => \@outputs);
+
+    if(my $server_config = delete $args{'server'}) {
+        if(my $port = $server_config->{'port'}) {
+            $args{'port'} = $port;
+        }
+        if(defined(my $disable_streaming = $server_config->{'disable_streaming'})) {
+            $args{'disable_streaming'} = $disable_streaming;
+        }
+    }
 
     return \%args;
 }
@@ -405,7 +441,7 @@ sub to_app {
 
     builder {
         enable 'LogDispatch', logger => $self->log;
-        enable 'Sahara::Streaming';
+        enable 'Sahara::Streaming' unless $self->disable_streaming;
         enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
             from => 'suffix', tolerant => 0, mapping => {
                 json => 'application/json',

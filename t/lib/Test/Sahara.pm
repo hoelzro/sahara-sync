@@ -9,51 +9,99 @@ use File::Spec ();
 use File::Temp ();
 use HTTP::Request ();
 use MIME::Base64 ();
+use Plack::Builder;
 use Plack::Test ();
 use SaharaSync::Hostd ();
 use Test::More ();
 
+use namespace::clean;
+
 our $VERSION = '0.01';
+
+sub port {
+    return 5982;
+}
+
+sub create_fresh_app {
+    my ( undef, %options ) = @_;
+
+    my $hostd;
+    my $app;
+
+    unless($options{'storage'}) {
+        $options{'storage'} = {};
+    }
+    unless($options{'storage'}{'type'}) {
+        $options{'storage'}{'type'} = 'DBIWithFS';
+
+        my $dsn      = "dbi:SQLite:dbname=:memory:";
+        my $dbh      = DBI->connect($dsn, '', '', {
+            RaiseError                       => 1,
+            PrintError                       => 0,
+            sqlite_allow_multiple_statements => 1,
+        });
+
+        $options{'storage'}{'dbh'} = $dbh;
+
+        # this assumes Test::Sahara stays locked up under t/lib...
+        my $schema = Cwd::realpath(File::Spec->catfile($INC{'Test/Sahara.pm'},
+            (File::Spec->updir) x 4, 'schema.sqlite'));
+
+        my $fh;
+        open $fh, '<', $schema or die $!;
+        $schema = do {
+            local $/;
+            <$fh>;
+        };
+        close $fh;
+
+        $dbh->do($schema);
+    }
+    unless($options{'log'}) {
+        $options{'log'} = [{
+            type      => 'Null',
+            min_level => 'debug',
+        }];
+    }
+
+    if($options{'storage'}{'type'} eq 'DBIWithFS' &&
+       !defined($options{'storage'}{'storage_path'})) {
+
+        my $tempdir = File::Temp->newdir;
+        $options{'storage'}{'storage_path'} = $tempdir->dirname;
+
+        $hostd = SaharaSync::Hostd->new(%options);
+
+        $app = builder {
+            # dummy middleware to keep a reference to $tempdir
+            enable sub {
+                my ( $app ) = @_;
+
+                ( undef ) = $tempdir;
+
+                return sub {
+                    my ( $env ) = @_;
+
+                    return $app->($env);
+                };
+            };
+
+            $hostd->to_app;
+        };
+    } else {
+        $hostd = SaharaSync::Hostd->new(%options);
+        $app   = $hostd->to_app;
+    }
+    
+    $hostd->storage->create_user('test', 'abc123');
+
+    return $app;
+}
 
 sub test_host {
     my ( $cb ) = @_;
 
-    my $dsn      = "dbi:SQLite:dbname=:memory:";
-    my $dbh      = DBI->connect($dsn, '', '', {
-        RaiseError                       => 1,
-        PrintError                       => 0,
-        sqlite_allow_multiple_statements => 1,
-    });
-
-    my $schema = Cwd::realpath(File::Spec->catfile($INC{'Test/Sahara.pm'},
-        (File::Spec->updir) x 4, 'schema.sqlite'));
-
-    my $fh;
-    open $fh, '<', $schema or die $!;
-    $schema = do {
-        local $/;
-        <$fh>;
-    };
-    close $fh;
-
-    $dbh->do($schema);
-    $dbh->do("INSERT INTO users (username, password) VALUES ('test', 'abc123')");
-
-    my $tempdir = File::Temp->newdir;
-
-    my $app = SaharaSync::Hostd->new(
-        storage => {
-            type            => 'DBIWithFS',
-            dbh             => $dbh,
-            fs_storage_path => $tempdir->dirname,
-        },
-        log     => [{
-            type      => 'Null',
-            min_level => 'debug',
-        }],
-    )->to_app;
-
-    return Plack::Test::test_psgi $app, $cb;
+    return Plack::Test::test_psgi create_fresh_app, $cb;
 }
 
 sub REQUEST {
@@ -112,7 +160,7 @@ foreach my $method (@methods) {
     };
 }
 
-my @export = (@methods, 'REQUEST', 'lazy_hash');
+my @export = (@methods, 'REQUEST', 'lazy_hash', 'port', 'create_fresh_app');
 
 sub import {
     my ( $class, @args ) = @_;

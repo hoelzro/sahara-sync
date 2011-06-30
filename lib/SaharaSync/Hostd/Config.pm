@@ -8,6 +8,11 @@ use Config::Any;
 
 use namespace::clean -except => 'meta';
 
+has server => (
+    is  => 'ro',
+    isa => 'HashRef',
+);
+
 has storage => (
     is       => 'ro',
     isa      => 'HashRef',

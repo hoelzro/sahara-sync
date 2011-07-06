@@ -4,7 +4,7 @@ use Moose;
 
 with 'SaharaSync::Stream::Reader';
 
-use JSON::Streaming::Reader;
+use JSON::Streaming::Reader 0.05;
 use SaharaSync::X::BadStream;
 
 use namespace::clean -except => 'meta';

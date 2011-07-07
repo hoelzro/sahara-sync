@@ -28,6 +28,6 @@ CREATE TABLE metadata (
     blob_id    INTEGER      NOT NULL REFERENCES blobs(blob_id) ON DELETE CASCADE,
     meta_key   VARCHAR(255) NOT NULL,
     meta_value VARCHAR(255) NOT NULL
-);
+) ENGINE=InnoDB;
 
 CREATE INDEX blob_revision_idx ON revision_log(blob_revision);

@@ -7,7 +7,10 @@ use Test::More;
 
 sub required_params {
     return {
-        log     => [{ type => 'Null' }],
+        log     => [
+            [{ type => 'Null' }],
+            { type => 'Null' },
+        ],
         storage => {
             type => 'DBIWithFS',
             root => '/tmp/sahara',
@@ -19,7 +22,12 @@ sub required_params {
 sub optional_params {
     return {
         server => {
-            value   => {},
+            values  => [
+                {},
+                { port => 5983 },
+                { disable_streaming => 1 },
+                { port => 5983, disable_streaming => 1 },
+            ],
             default => {},
         },
     };

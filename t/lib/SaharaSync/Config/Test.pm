@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use parent 'Test::Class';
 
+use Test::Deep::NoTest qw(cmp_details deep_diag);
 use Test::More;
 use Test::Exception;
 
@@ -50,13 +51,44 @@ sub required_permutations {
     return @permutations;
 }
 
+sub check_params {
+    my ( $self, $config, $params ) = @_;
+
+    my $tb = $self->builder;
+
+    unless($config) {
+        $tb->fail("config is not defined!");
+        return;
+    }
+
+    my $optional = $self->optional_params;
+    foreach my $k (keys %$optional) {
+        next if exists $params->{$k};
+
+        my $v = $optional->{$k}{'default'};
+        $params->{$k} = $v;
+    }
+    my @diag;
+    foreach my $k (keys %$params) {
+        my $got      = $config->$k();
+        my $expected = $params->{$k};
+
+        my ( $ok, $stack ) = cmp_details($got, $expected);
+
+        unless($ok) {
+            push @diag, "attribute '$k' doesn't match: " . deep_diag($stack);
+        }
+    }
+    return $tb->ok(!@diag) || diag(join("\n", map { "  $_" } @diag));
+}
+
 sub test_use_ok :Test(startup => 1) {
     my ( $self ) = @_;
 
     use_ok($self->config_class);
 }
 
-sub test_empty_params : Test {
+sub test_empty_params : Test(2) {
     my ( $self ) = @_;
 
     my $required = $self->required_params;
@@ -67,9 +99,12 @@ sub test_empty_params : Test {
             $self->config_class->new({});
         } qr/Attribute.*($re).*is\s+required/, 'Cannot build a config object with no parameters';
     } else {
+        my $config;
         lives_ok {
-            $self->config_class->new({});
+            $config = $self->config_class->new({});
         } 'Building a config object with no parameters should succeed';
+
+        $self->check_params($config, {});
     }
 }
 
@@ -83,12 +118,15 @@ sub test_required_params_only : Test {
         return "$class has no required params";
     } else {
         subtest 'Testing required parameters' => sub {
-            plan tests => scalar(@required);
+            plan tests => @required * 2;
 
             foreach my $params (@required) {
+                my $config;
                 lives_ok {
-                    $class->new($params);
+                    $config = $class->new($params);
                 } "Building a config object with only required params should succeed";
+
+                $self->check_params($config, $params);
             }
         };
     }
@@ -145,16 +183,18 @@ sub test_individual_optional_params : Test {
         }
 
         subtest 'Testing optional params' => sub {
-            plan tests => $count;
+            plan tests => $count * 2;
 
             foreach my $k (%$optional) {
                 my $values = $optional->{$k}{'values'};
                 foreach my $v (@$values) {
                     my %params = ( %required, $k => $v );
 
+                    my $config;
                     lives_ok {
-                        $class->new(\%params);
+                        $config = $class->new(\%params);
                     } "Building a config object with a $k parameter should succeed";
+                    $self->check_params($config, \%params);
                 }
             }
         };

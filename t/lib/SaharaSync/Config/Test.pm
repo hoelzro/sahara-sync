@@ -21,6 +21,12 @@ sub config_class {
     die "config_class needs to be implemented in SaharaSync::Config::Test subclasses!\n";
 }
 
+sub test_use_ok :Test(startup => 1) {
+    my ( $self ) = @_;
+
+    use_ok($self->config_class);
+}
+
 sub test_empty_params : Test {
     my ( $self ) = @_;
 

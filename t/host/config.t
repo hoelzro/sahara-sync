@@ -4,7 +4,6 @@ use parent 'SaharaSync::Config::Test';
 
 use Test::Exception;
 use Test::More;
-use SaharaSync::Hostd::Config;
 
 sub required_params {
     return {

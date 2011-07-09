@@ -240,13 +240,14 @@ sub runtests {
 
     my @proxy_classes;
 
+    my $file    = __FILE__;
+
     foreach my $test_class (@test_classes) {
         my $config_class = $test_class->config_class;
         my $formats      = $test_class->file_formats;
 
         foreach my $ext (keys %$formats) {
             my $method  = $formats->{$ext};
-            my $file    = __FILE__;
             my $line_no = __LINE__ + 3; # the actual start is 3 lines down
             my $ok = eval <<PERL;
 #line $line_no '$file'
@@ -292,6 +293,45 @@ PERL
             }
             push @proxy_classes, $test_class . '::Proxy::' . $ext;
         }
+
+        my $line_no = __LINE__ + 3;
+        my $ok      = eval <<PERL;
+#line $line_no '$file'
+package ${test_class}::Proxy::ExpandHashRef;
+
+use strict;
+use warnings;
+use parent -norequire, '$test_class';
+
+sub config_class {
+    return '${config_class}::Proxy::ExpandHashRef';
+}
+
+package ${config_class}::Proxy::ExpandHashRef;
+
+use strict;
+use warnings;
+use parent '$config_class';
+
+sub new {
+    my ( \$class, \%params );
+
+    if(\@_ == 2) {
+        \$class  = shift;
+        \%params = \%{ \$_[0] };
+    } else {
+        ( \$class, \%params ) = \@_;
+    }
+
+    return ${config_class}->new(\%params);
+}
+
+1;
+PERL
+        unless($ok) {
+            die "PERL EVALUATION FAILED! THE DEVELOPER F'ED UP! ($@)";
+        }
+        push @proxy_classes, $test_class . '::Proxy::ExpandHashRef';
     }
     Test::Class->runtests(@test_classes, @proxy_classes);
 }

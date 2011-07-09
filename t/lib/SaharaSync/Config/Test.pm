@@ -329,6 +329,36 @@ sub test_all_optional :Test {
     }
 }
 
+sub test_all_optional_missing_one_required : Test {
+    my ( $self ) = @_;
+
+    my @req_names = keys %{ $self->required_params };
+    my @required  = $self->required_permutations;
+    my @optional  = $self->optional_permutations;
+    my $class     = $self->config_class;
+
+    unless(@optional) {
+        return "$class has no optional parameters";
+    } else {
+        subtest 'Testing all optional parameters except for one required param' => sub {
+            plan tests => @req_names * @required * @optional;
+
+            foreach my $req (@required) {
+                foreach my $opt (@optional) {
+                    foreach my $name (@req_names) {
+                        my %params = ( %$req, %$opt );
+                        delete $params{$name};
+
+                        throws_ok {
+                            $class->new(\%params);
+                        } qr/Attribute.*($name).*is\s+required/, "Missing any required arguments should fail";
+                    }
+                }
+            }
+        };
+    }
+}
+
 sub test_nonexistent_file :Test :File {
     my ( $self ) = @_;
 

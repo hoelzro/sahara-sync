@@ -97,6 +97,21 @@ sub optional_permutations {
     return @permutations;
 }
 
+sub simple_required {
+    my ( $self ) = @_;
+
+    my %required = %{ $self->required_params };
+
+    for my $k (keys %required) {
+        my $v = $required{$k};
+        if(ref($v) eq 'ARRAY') {
+            $required{$k} = $v->[0];
+        }
+    }
+
+    return \%required;
+}
+
 sub check_params {
     my ( $self, $config, $params ) = @_;
 
@@ -203,16 +218,9 @@ sub test_missing_required_param : Test {
 sub test_individual_optional_params : Test {
     my ( $self ) = @_;
 
-    my %required = %{ $self->required_params };
+    my $required = $self->simple_required;
     my $optional = $self->optional_params;
     my $class    = $self->config_class;
-
-    foreach my $k (keys %required) {
-        my $v = $required{$k};
-        if(ref($v) eq 'ARRAY') {
-            $required{$k} = $v->[0];
-        }
-    }
 
     unless(%$optional) {
         return "$class has no optional params";
@@ -229,7 +237,7 @@ sub test_individual_optional_params : Test {
             foreach my $k (%$optional) {
                 my $values = $optional->{$k}{'values'};
                 foreach my $v (@$values) {
-                    my %params = ( %required, $k => $v );
+                    my %params = ( %$required, $k => $v );
 
                     my $config;
                     lives_ok {
@@ -245,23 +253,16 @@ sub test_individual_optional_params : Test {
 sub test_unknown_param : Test {
     my ( $self ) = @_;
 
-    my %required = %{ $self->required_params };
+    my $required = $self->simple_required;
     my $optional = $self->optional_params;
     my $class    = $self->config_class;
 
-    for my $k (keys %required) {
-        my $v = $required{$k};
-        if(ref($v) eq 'ARRAY') {
-            $required{$k} = $v->[0];
-        }
-    }
-
-    my %good_params = map { $_ => 1 } (keys %required, keys %$optional);
+    my %good_params = map { $_ => 1 } (keys %$required, keys %$optional);
     my $bad_param   = 'aaaaaa';
     $bad_param++ while exists $good_params{$bad_param};
 
     my %params = (
-        %required,
+        %$required,
         $bad_param => 1,
     );
 
@@ -273,16 +274,9 @@ sub test_unknown_param : Test {
 sub test_bad_params : Test {
     my ( $self ) = @_;
 
-    my %required   = %{ $self->required_params };
+    my $required   = $self->simple_required;
     my $bad_params = $self->bad_params;
     my $class      = $self->config_class;
-
-    for my $k (keys %required) {
-        my $v = $required{$k};
-        if(ref($v) eq 'ARRAY') {
-            $required{$k} = $v->[0];
-        }
-    }
 
     if(@$bad_params) {
         subtest 'Testing bad parameters' => sub {
@@ -290,7 +284,7 @@ sub test_bad_params : Test {
 
             for(my $i = 0; $i < @$bad_params; $i += 2) {
                 my ( $k, $v ) = @{$bad_params}[$i, $i + 1];
-                my %params = ( %required, $k => $v );
+                my %params = ( %$required, $k => $v );
 
                 throws_ok {
                     $class->new(\%params);
@@ -362,18 +356,11 @@ sub test_all_optional_missing_one_required : Test {
 sub test_nonexistent_file :Test :File {
     my ( $self ) = @_;
 
-    my %required = %{ $self->required_params };
+    my $required = $self->simple_required;
     my $class    = $self->config_class;
 
-    for my $k (keys %required) {
-        my $v = $required{$k};
-        if(ref($v) eq 'ARRAY') {
-            $required{$k} = $v->[0];
-        }
-    }
-
     my $temp = File::Temp->new(SUFFIX => '.json');
-    print $temp JSON::encode_json(\%required);
+    print $temp JSON::encode_json($required);
     close $temp;
     unlink $temp->filename;
     throws_ok {
@@ -384,18 +371,11 @@ sub test_nonexistent_file :Test :File {
 sub test_bad_permissions :Test :File {
     my ( $self ) = @_;
 
-    my %required = %{ $self->required_params };
+    my $required = $self->simple_required;
     my $class    = $self->config_class;
 
-    for my $k (keys %required) {
-        my $v = $required{$k};
-        if(ref($v) eq 'ARRAY') {
-            $required{$k} = $v->[0];
-        }
-    }
-
     my $temp = File::Temp->new(SUFFIX => '.json');
-    print $temp JSON::encode_json(\%required);
+    print $temp JSON::encode_json($required);
     close $temp;
     chmod 0000, $temp->filename;
     throws_ok {

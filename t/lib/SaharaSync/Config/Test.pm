@@ -134,11 +134,20 @@ sub check_params {
         my $got      = $config->$k();
         my $expected = $params->{$k};
 
-        my ( $ok, $stack ) = cmp_details($got, $expected);
+        if(my $comparator = $self->can('compare_' . $k)) {
+            my ( $ok, $diag ) = $self->$comparator($got, $expected);
 
-        unless($ok) {
-            push @diag, "attribute '$k' doesn't match: " . deep_diag($stack);
+            unless($ok) {
+                push @diag, "attribute '$k' doesn't match: $diag";
+            }
+        } else {
+            my ( $ok, $stack ) = cmp_details($got, $expected);
+
+            unless($ok) {
+                push @diag, "attribute '$k' doesn't match: " . deep_diag($stack);
+            }
         }
+
     }
     return $tb->ok(!@diag) || diag(join("\n", map { "  $_" } @diag));
 }

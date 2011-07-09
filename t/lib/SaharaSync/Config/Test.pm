@@ -450,6 +450,9 @@ PERL
     $run_file_tests = 1;
     Test::Class->runtests(@test_classes);
     $run_file_tests = 0;
+    unless(Test::Class->builder->is_passing) {
+        Test::Class->builder->BAIL_OUT('Tests for config failed; not running transparent tests');
+    }
 
     Test::Class->runtests(@proxy_classes);
 }

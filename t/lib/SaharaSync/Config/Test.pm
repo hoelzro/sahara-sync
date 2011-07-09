@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use parent 'Test::Class';
 
+require File::Temp;
 require JSON;
 
 use Test::Deep::NoTest qw(cmp_details deep_diag);
@@ -241,6 +242,63 @@ sub test_unknown_param : Test {
     } qr/Found unknown attribute/, "Cannot build a config object with an invalid parameter";
 }
 
+sub test_nonexistent_file :Test :File {
+    my ( $self ) = @_;
+
+    my %required = %{ $self->required_params };
+    my $class    = $self->config_class;
+
+    for my $k (keys %required) {
+        my $v = $required{$k};
+        if(ref($v) eq 'ARRAY') {
+            $required{$k} = $v->[0];
+        }
+    }
+
+    my $temp = File::Temp->new(SUFFIX => '.json');
+    print $temp JSON::encode_json(\%required);
+    close $temp;
+    unlink $temp->filename;
+    throws_ok {
+        $class->new_from_file($temp->filename);
+    } qr/Unable to read/, "Loading a non-existent file should fail";
+}
+
+sub test_bad_permissions :Test :File {
+    my ( $self ) = @_;
+
+    my %required = %{ $self->required_params };
+    my $class    = $self->config_class;
+
+    for my $k (keys %required) {
+        my $v = $required{$k};
+        if(ref($v) eq 'ARRAY') {
+            $required{$k} = $v->[0];
+        }
+    }
+
+    my $temp = File::Temp->new(SUFFIX => '.json');
+    print $temp JSON::encode_json(\%required);
+    close $temp;
+    chmod 0000, $temp->filename;
+    throws_ok {
+        $class->new_from_file($temp->filename);
+    } qr/Unable to read/, "Loading a non-existent file should fail";
+}
+
+sub test_bad_content :Test :File {
+    my ( $self ) = @_;
+
+    my $class = $self->config_class;
+
+    my $temp = File::Temp->new(SUFFIX => '.json');
+    print $temp "random text!!!\n";
+    close $temp;
+    throws_ok {
+        $class->new_from_file($temp->filename);
+    } qr/Error parsing/, "Loading a non-existent file should fail";
+}
+
 sub runtests {
     my ( $class ) = @_;
 
@@ -275,8 +333,6 @@ package ${config_class}::Proxy::${ext};
 use strict;
 use warnings;
 use parent '$config_class';
-
-use File::Temp ();
 
 sub new {
     my ( \$class, \%params );

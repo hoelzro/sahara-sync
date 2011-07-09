@@ -47,4 +47,10 @@ sub file_formats {
     }
 }
 
+sub bad_params {
+    return [
+        server => { foo => 1 },
+    ];
+}
+
 __PACKAGE__->runtests;

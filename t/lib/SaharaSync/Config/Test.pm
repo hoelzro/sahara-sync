@@ -40,6 +40,10 @@ sub file_formats {
     };
 }
 
+sub bad_params {
+    die "bad_params needs to be implemented in SaharaSync::Config::Test subclasses!\n";
+}
+
 sub _required_perms_helper {
     my ( $required, $results, $current, @keys ) = @_;
 
@@ -240,6 +244,38 @@ sub test_unknown_param : Test {
     throws_ok {
         $class->new(\%params);
     } qr/Found unknown attribute/, "Cannot build a config object with an invalid parameter";
+}
+
+sub test_bad_params : Test {
+    my ( $self ) = @_;
+
+    my %required   = %{ $self->required_params };
+    my $bad_params = $self->bad_params;
+    my $class      = $self->config_class;
+
+    for my $k (keys %required) {
+        my $v = $required{$k};
+        if(ref($v) eq 'ARRAY') {
+            $required{$k} = $v->[0];
+        }
+    }
+
+    if(@$bad_params) {
+        subtest 'Testing bad parameters' => sub {
+            plan tests => @$bad_params / 2;
+
+            for(my $i = 0; $i < @$bad_params; $i += 2) {
+                my ( $k, $v ) = @{$bad_params}[$i, $i + 1];
+                my %params = ( %required, $k => $v );
+
+                throws_ok {
+                    $class->new(\%params);
+                } qr/Validation failed/;
+            }
+        };
+    } else {
+        return "$class has no bad parameter values";
+    }
 }
 
 sub test_nonexistent_file :Test :File {

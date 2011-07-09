@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use parent 'Test::Class';
 
+require JSON;
+
 use Test::Deep::NoTest qw(cmp_details deep_diag);
 use Test::More;
 use Test::Exception;
@@ -20,6 +22,12 @@ sub optional_params {
 
 sub config_class {
     die "config_class needs to be implemented in SaharaSync::Config::Test subclasses!\n";
+}
+
+sub file_formats {
+    return {
+        json => 'JSON::encode_json',
+    };
 }
 
 sub _required_perms_helper {
@@ -230,30 +238,35 @@ sub runtests {
     my @test_classes = Test::Class->_test_classes;
     @test_classes = grep { $_ ne __PACKAGE__ && $_->isa(__PACKAGE__) } @test_classes;
 
+    my @proxy_classes;
+
     foreach my $test_class (@test_classes) {
         my $config_class = $test_class->config_class;
-        my $file    = __FILE__;
-        my $line_no = __LINE__ + 3; # the actual start is 3 lines down
-        my $ok = eval <<PERL;
+        my $formats      = $test_class->file_formats;
+
+        foreach my $ext (keys %$formats) {
+            my $method  = $formats->{$ext};
+            my $file    = __FILE__;
+            my $line_no = __LINE__ + 3; # the actual start is 3 lines down
+            my $ok = eval <<PERL;
 #line $line_no '$file'
-package ${test_class}::Proxy;
+package ${test_class}::Proxy::${ext};
 
 use strict;
 use warnings;
 use parent -norequire, '$test_class';
 
 sub config_class {
-    return '${config_class}::Proxy';
+    return '${config_class}::Proxy::${ext}';
 }
 
-package ${config_class}::Proxy;
+package ${config_class}::Proxy::${ext};
 
 use strict;
 use warnings;
 use parent '$config_class';
 
 use File::Temp ();
-use JSON ();
 
 sub new {
     my ( \$class, \%params );
@@ -265,8 +278,8 @@ sub new {
         ( \$class, \%params ) = \@_;
     }
 
-    my \$temp = File::Temp->new(SUFFIX => '.json');
-    print \$temp JSON::encode_json(\\\%params);
+    my \$temp = File::Temp->new(SUFFIX => '.${ext}');
+    print \$temp ${method}(\\\%params);
     close \$temp;
 
     return ${config_class}->new_from_file(\$temp->filename);
@@ -274,11 +287,13 @@ sub new {
 
 1;
 PERL
-        unless($ok) {
-            die "PERL EVALUATION FAILED! THE DEVELOPER F'ED UP! ($@)";
+            unless($ok) {
+                die "PERL EVALUATION FAILED! THE DEVELOPER F'ED UP! ($@)";
+            }
+            push @proxy_classes, $test_class . '::Proxy::' . $ext;
         }
     }
-    Test::Class->runtests(map { $_, $_ . '::Proxy' } @test_classes);
+    Test::Class->runtests(@test_classes, @proxy_classes);
 }
 
 1;

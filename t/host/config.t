@@ -5,6 +5,9 @@ use parent 'SaharaSync::Config::Test';
 use Test::Exception;
 use Test::More;
 
+require JSON;
+require YAML;
+
 sub required_params {
     return {
         log     => [
@@ -35,6 +38,13 @@ sub optional_params {
 
 sub config_class {
     return 'SaharaSync::Hostd::Config';
+}
+
+sub file_formats {
+    return {
+        json => 'JSON::encode_json',
+        yaml => 'YAML::Dump',
+    }
 }
 
 __PACKAGE__->runtests;

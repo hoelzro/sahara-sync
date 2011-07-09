@@ -302,6 +302,33 @@ sub test_bad_params : Test {
     }
 }
 
+sub test_all_optional :Test {
+    my ( $self ) = @_;
+
+    my @required = $self->required_permutations;
+    my @optional = $self->optional_permutations;
+    my $class    = $self->config_class;
+
+    unless(@optional) {
+        return "$class has no optional parameters";
+    } else {
+        subtest 'Testing all optional parameters' => sub {
+            plan tests => 2 * @required * @optional;
+
+            foreach my $req (@required) {
+                foreach my $opt (@optional) {
+                    my %params = ( %$req, %$opt );
+                    my $config;
+                    lives_ok {
+                        $config = $class->new(\%params);
+                    } "Creating a config object will all optionals should succeed";
+                    $self->check_params($config, \%params);
+                }
+            }
+        };
+    }
+}
+
 sub test_nonexistent_file :Test :File {
     my ( $self ) = @_;
 

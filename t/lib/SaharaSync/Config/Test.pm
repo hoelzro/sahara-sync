@@ -79,7 +79,7 @@ sub check_params {
     my $tb = $self->builder;
 
     unless($config) {
-        $tb->fail("config is not defined!");
+        $tb->ok(0, "config is not defined!");
         return;
     }
 

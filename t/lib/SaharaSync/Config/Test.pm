@@ -73,6 +73,30 @@ sub required_permutations {
     return @permutations;
 }
 
+sub _optional_perms_helper {
+    my ( $optional, $results, $current, @keys ) = @_;
+
+    if(@keys) {
+        my $key    = shift @keys;
+        my $values = $optional->{$key}{'values'};
+
+        foreach my $value (@$values) {
+            _optional_perms_helper($optional, $results, { %$current, $key => $value }, @keys);
+        }
+    } else {
+        push @$results, $current;
+    }
+}
+
+sub optional_permutations {
+    my ( $self ) = @_;
+
+    my $optional = $self->optional_params;
+    my @permutations;
+    _optional_perms_helper($optional, \@permutations, {}, keys %$optional);
+    return @permutations;
+}
+
 sub check_params {
     my ( $self, $config, $params ) = @_;
 

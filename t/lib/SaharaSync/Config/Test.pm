@@ -82,12 +82,6 @@ sub check_params {
     return $tb->ok(!@diag) || diag(join("\n", map { "  $_" } @diag));
 }
 
-sub test_use_ok :Test(startup => 1) {
-    my ( $self ) = @_;
-
-    use_ok($self->config_class);
-}
-
 sub test_empty_params : Test(2) {
     my ( $self ) = @_;
 
@@ -227,6 +221,63 @@ sub test_unknown_param : Test {
     throws_ok {
         $class->new(\%params);
     } qr/Found unknown attribute/, "Cannot build a config object with an invalid parameter";
+}
+
+sub runtests {
+    my ( $class ) = @_;
+
+    my @test_classes = Test::Class->_test_classes;
+    @test_classes = grep { $_ ne __PACKAGE__ && $_->isa(__PACKAGE__) } @test_classes;
+
+    foreach my $test_class (@test_classes) {
+        my $config_class = $test_class->config_class;
+        my $file    = __FILE__;
+        my $line_no = __LINE__ + 3; # the actual start is 3 lines down
+        my $ok = eval <<PERL;
+#line $line_no '$file'
+package ${test_class}::Proxy;
+
+use strict;
+use warnings;
+use parent -norequire, '$test_class';
+
+sub config_class {
+    return '${config_class}::Proxy';
+}
+
+package ${config_class}::Proxy;
+
+use strict;
+use warnings;
+use parent '$config_class';
+
+use File::Temp ();
+use JSON ();
+
+sub new {
+    my ( \$class, \%params );
+
+    if(\@_ == 2) {
+        \$class  = shift;
+        \%params = \%{ \$_[0] };
+    } else {
+        ( \$class, \%params ) = \@_;
+    }
+
+    my \$temp = File::Temp->new(SUFFIX => '.json');
+    print \$temp JSON::encode_json(\\\%params);
+    close \$temp;
+
+    return ${config_class}->new_from_file(\$temp->filename);
+}
+
+1;
+PERL
+        unless($ok) {
+            die "PERL EVALUATION FAILED! THE DEVELOPER F'ED UP! ($@)";
+        }
+    }
+    Test::Class->runtests(map { $_, $_ . '::Proxy' } @test_classes);
 }
 
 1;

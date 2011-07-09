@@ -12,6 +12,15 @@ use Test::Exception;
 
 __PACKAGE__->SKIP_CLASS(1);
 
+my %file_tests;
+my $run_file_tests;
+
+sub File : ATTR(CODE) {
+    my ( $package, $symbol ) = @_;
+
+    $file_tests{$package . '::' . *{$symbol}{NAME}} = 1;
+}
+
 sub required_params {
     die "required_params needs to be implemented in SaharaSync::Config::Test subclasses!\n";
 }
@@ -333,7 +342,30 @@ PERL
         }
         push @proxy_classes, $test_class . '::Proxy::ExpandHashRef';
     }
-    Test::Class->runtests(@test_classes, @proxy_classes);
+    my $num_tests = 0;
+
+    $run_file_tests = 1;
+    foreach my $class (@test_classes) {
+        $num_tests += $class->expected_tests;
+    }
+    $run_file_tests = 0;
+    foreach my $class(@proxy_classes) {
+        $num_tests += $class->expected_tests;
+    }
+
+    plan tests => $num_tests;
+
+    $run_file_tests = 1;
+    Test::Class->runtests(@test_classes);
+    $run_file_tests = 0;
+
+    Test::Class->runtests(@proxy_classes);
 }
 
+__PACKAGE__->add_filter(sub {
+    my ( $class, $method ) = @_;
+
+    return 1 if $run_file_tests;
+    return !$file_tests{$class . '::' . $method};
+});
 1;

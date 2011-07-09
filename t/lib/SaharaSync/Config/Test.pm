@@ -92,6 +92,7 @@ sub test_empty_params : Test(2) {
         throws_ok {
             $self->config_class->new({});
         } qr/Attribute.*($re).*is\s+required/, 'Cannot build a config object with no parameters';
+        pass;
     } else {
         my $config;
         lives_ok {

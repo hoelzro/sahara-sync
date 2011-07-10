@@ -19,6 +19,11 @@ use namespace::clean;
 
 my $DEFAULT_SCHEME = 'http';
 
+# override has to ensure consistency among different operating systems
+my %reasons = (
+    595 => 'Connection refused',
+);
+
 sub new {
     my ( $class, %options ) = @_;
 
@@ -106,7 +111,9 @@ sub do_request {
         my $status = $headers->{'Status'};
 
         if($status > 400) {
-            $cb->(undef, $headers->{'Reason'});
+            my $reason = $headers->{'Reason'};
+            $reason = $reasons{$status} if $status > 590 && exists $reasons{$status};
+            $cb->(undef, $reason);
         } elsif($status == 400) {
             # 400 errors are special, because we overload them
             # not ideal, I know.

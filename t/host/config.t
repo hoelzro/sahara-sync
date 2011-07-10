@@ -1,122 +1,130 @@
 use strict;
 use warnings;
+use parent 'SaharaSync::Config::Test';
 
+use Test::Deep::NoTest qw(cmp_details deep_diag);
 use Test::Exception;
 use Test::More;
 
-use File::Temp;
-use JSON qw(encode_json);
-use SaharaSync::Hostd::Config;
+require JSON;
+require YAML;
 
-my @params = (
-    {
-        throws => qr/Attribute.*(log|storage).*is\s+required/,
-        name   => 'Cannot build a config object with no parameters',
-        params => {},
-    },
-    {
-        name   => 'Building a config object with a storage parameter should succeed',
-        params => {
-            storage => {
-                type => 'DBIWithFS',
-                root => '/tmp/sahara',
-                dsn  => 'dbi:SQLite:dbname=:memory:',
-            },
-            log     => [{
-                type => 'Null',
-            }],
+sub required_params {
+    return {
+        log     => [
+            [{ type => 'Null' }],
+            { type => 'Null' },
+        ],
+        storage => {
+            type => 'DBIWithFS',
+            root => '/tmp/sahara',
+            dsn  => 'dbi:SQLite:dbname=:memory:',
         },
-    },
-    {
-        name   => 'Building a config object with a storage and a server parameter should succeed',
-        params => {
-            server => {
-            },
-            storage => {
-                type => 'DBIWithFS',
-                root => '/tmp/sahara',
-                dsn  => 'dbi:SQLite:dbname=:memory:',
-            },
-            log    => [{
-                type => 'Null',
-            }]
+    };
+}
+
+sub optional_params {
+    return {
+        server => {
+            values  => [
+                {},
+                { port => 5983 },
+                { port => 0 },
+                { port => 65535 },
+                { disable_streaming => 1 },
+                { disable_streaming => 0 },
+                { disable_streaming => undef },
+                { port => 5983, disable_streaming => 1 },
+            ],
+            default => {},
         },
-    },
-    {
-        throws => qr/Attribute.*(log|storage).*is\s+required/,
-        name   => 'Building a config object with just a server parameter should fail',
-        params => {
-            server => {
-            },
-        },
-    },
-    {
-        throws => qr/Found unknown attribute/,
-        name   => 'Cannot build a config object with an invalid parameter',
-        params => {
-            storage => {
-                type => 'DBIWithFS',
-                root => '/tmp/sahara',
-                dsn  => 'dbi:SQLite:dbname=:memory:',
-            },
-            log     => [{
-                type => 'Null',
-            }],
-            foo => {},
-        },
-    },
-);
+    };
+}
 
-plan tests => @params * 2 + 2;
+sub config_class {
+    return 'SaharaSync::Hostd::Config';
+}
 
-foreach my $param (@params) {
-    my ( $throws, $name, $params ) = @{$param}{qw/throws name params/};
-
-    if(defined $throws) {
-        throws_ok {
-            SaharaSync::Hostd::Config->new(%$params);
-        } $throws, $name;
-    } else {
-        lives_ok {
-            SaharaSync::Hostd::Config->new(%$params);
-        } $name;
-    }
-
-    my $temp = File::Temp->new(SUFFIX => '.json');
-    print $temp encode_json($params);
-    close $temp;
-
-    if(defined $throws) {
-        throws_ok {
-            SaharaSync::Hostd::Config->load_from_file($temp->filename);
-        } $throws, $name;
-    } else {
-        lives_ok {
-            SaharaSync::Hostd::Config->load_from_file($temp->filename);
-        } $name;
+sub file_formats {
+    return {
+        json => 'JSON::encode_json',
+        yaml => 'YAML::Dump',
     }
 }
 
-my $temp = File::Temp->new(SUFFIX => '.json');
-print $temp encode_json {
-    storage => {
-        type => 'DBIWithFS',
-        root => '/tmp/sahara',
-        dsn  => 'dbi:SQLite:dbname=:memory:',
-    },
-    log     => [{
-        type => 'Null',
-    }],
-};
-close $temp;
-unlink $temp->filename;
-throws_ok {
-    SaharaSync::Hostd::Config->load_from_file($temp->filename);
-} qr/Unable to read/, "Loading a non-existent file should fail";
+sub bad_params {
+    return [
+        server  => { foo => 1 },
+        server  => { port => -1 },
+        server  => { port => 65536 },
+        server  => { disable_streaming => 2 },
+        server  => { disable_streaming => -1 },
+        server  => { disable_streaming => 'foo' },
+        log     => {},
+        log     => [{}],
+        log     => 1,
+        storage => {},
+        storage => 1,
+    ];
+}
 
-$temp = File::Temp->new(SUFFIX => '.json');
-print $temp "random text!!!\n";
-close $temp;
-throws_ok {
-    SaharaSync::Hostd::Config->load_from_file($temp->filename);
-} qr/Error parsing/, "Loading a non-existent file should fail";
+sub compare_log {
+    my ( $self, $got, $expected ) = @_;
+
+    unless(ref($expected) eq 'ARRAY') {
+        $expected = [ $expected ];
+    }
+
+    my ( $ok, $stack ) = cmp_details($got, $expected);
+    unless($ok) {
+        $stack = deep_diag($stack);
+    }
+    return ( $ok, $stack );
+}
+
+sub test_yaml_bools :Test(2) :File {
+    my ( $self ) = @_;
+
+    my $class = $self->config_class;
+    my $temp  = File::Temp->new(SUFFIX => '.yaml');
+    print $temp <<YAML;
+---
+
+log:
+ -
+   type: Null
+storage:
+  type: DBIWithFS
+  root: /tmp/sahara
+  dsn: 'dbi:SQLite:dbname=:memory:'
+server:
+  disable_streaming: true
+YAML
+    close $temp;
+
+    lives_ok {
+        $class->new_from_file($temp->filename);
+    } "The YAML value 'true' should work fine";
+
+    $temp  = File::Temp->new(SUFFIX => '.yaml');
+    print $temp <<YAML;
+---
+
+log:
+ -
+   type: Null
+storage:
+  type: DBIWithFS
+  root: /tmp/sahara
+  dsn: 'dbi:SQLite:dbname=:memory:'
+server:
+  disable_streaming: false
+YAML
+    close $temp;
+
+    lives_ok {
+        $class->new_from_file($temp->filename);
+    } "The YAML value 'false' should work fine";
+}
+
+__PACKAGE__->runtests;

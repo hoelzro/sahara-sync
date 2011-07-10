@@ -2,30 +2,55 @@ package SaharaSync::Hostd::Config;
 
 use Moose;
 use MooseX::StrictConstructor;
+use MooseX::Types -declare => [qw/ContainsType LogConfigs PortNumber/];
+use MooseX::Types::Moose qw(ArrayRef Bool HashRef Int);
+use MooseX::Types::Structured qw(Dict Optional);
 
 use Carp qw(croak);
 use Config::Any;
 
 use namespace::clean -except => 'meta';
 
+subtype PortNumber,
+    as Int,
+    where { $_ >= 0 && $_ < 2 ** 16 },
+    message { "Invalid port number" };
+
+subtype ContainsType,
+    as HashRef,
+    where { exists $_->{'type'} },
+    message { "Must contain 'type' key" };
+
+subtype LogConfigs,
+    as ArrayRef[ContainsType];
+
+coerce LogConfigs,
+    from ContainsType,
+    via { [ $_ ] };
+
 has server => (
-    is  => 'ro',
-    isa => 'HashRef',
+    is      => 'ro',
+    isa     => Dict[
+        port              => Optional[PortNumber],
+        disable_streaming => Optional[Bool],
+    ],
+    default => sub { {} },
 );
 
 has storage => (
     is       => 'ro',
-    isa      => 'HashRef',
+    isa      => ContainsType,
     required => 1,
 );
 
 has log => (
     is       => 'ro',
-    isa      => 'ArrayRef',
+    isa      => LogConfigs,
+    coerce   => 1,
     required => 1,
 );
 
-sub load_from_file {
+sub new_from_file {
     my ( $class, $filename ) = @_;
 
     unless(-r $filename) {

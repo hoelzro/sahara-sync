@@ -297,7 +297,7 @@ sub test_bad_params : Test {
 
                 throws_ok {
                     $class->new(\%params);
-                } qr/Validation failed/;
+                } qr/does not pass the type constraint/;
             }
         };
     } else {

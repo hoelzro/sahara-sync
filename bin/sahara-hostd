@@ -37,7 +37,7 @@ unless($result && defined($config_file)) {
     die "usage: $0 -c [config file]\n";
 }
 
-my $config = SaharaSync::Hostd::Config->load_from_file($config_file);
+my $config = SaharaSync::Hostd::Config->new_from_file($config_file);
 my $hostd  = SaharaSync::Hostd->new($config);
 my $app    = $hostd->to_app;
 

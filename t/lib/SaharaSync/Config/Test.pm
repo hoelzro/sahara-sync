@@ -135,7 +135,7 @@ sub check_params {
         my $expected = $params->{$k};
 
         if(my $comparator = $self->can('compare_' . $k)) {
-            my ( $ok, $diag ) = $self->$comparator($got, $expected);
+            my ( $ok, $diag ) = $self->$comparator($config, $got, $expected);
 
             unless($ok) {
                 push @diag, "attribute '$k' doesn't match: $diag";

@@ -69,7 +69,7 @@ sub bad_params {
 }
 
 sub compare_log {
-    my ( $self, $got, $expected ) = @_;
+    my ( $self, undef, $got, $expected ) = @_;
 
     unless(ref($expected) eq 'ARRAY') {
         $expected = [ $expected ];

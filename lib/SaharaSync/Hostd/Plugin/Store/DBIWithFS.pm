@@ -70,7 +70,7 @@ sub _save_blob_to_disk {
     my $n;
 
     make_path $dir;
-    my $digest = Digest::SHA->new(256);
+    my $digest = Digest::SHA->new(1);
     $digest->add($blob);
     $digest->add($revision);
     if(defined $src) {

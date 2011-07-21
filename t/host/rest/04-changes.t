@@ -7,7 +7,7 @@ use Test::JSON;
 
 use JSON qw(decode_json);
 
-my $BAD_REVISON = '0' x 64;
+my $BAD_REVISON = '0' x 40;
 
 my %types = (
     json => \&decode_json,

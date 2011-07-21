@@ -19,7 +19,7 @@ __PACKAGE__->SKIP_CLASS(1);
 
 our $VERSION = '0.01';
 
-my $BAD_REVISION = '0' x 64;
+my $BAD_REVISION = '0' x 40;
 
 sub new {
     my ( $class, %args ) = @_;

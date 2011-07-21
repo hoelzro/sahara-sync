@@ -6,7 +6,7 @@ use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
 use Test::Sahara ':methods', tests => 80;
 
-my $BAD_REVISION = '0' x 64;
+my $BAD_REVISION = '0' x 40;
 
 sub metadata_ok {
     my ( $res, $expected, $name ) = @_;

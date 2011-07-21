@@ -14,7 +14,7 @@ use IO::String;
 use LWP::UserAgent;
 use Plack::Loader;
 
-my $BAD_REVISION = '0' x 64;
+my $BAD_REVISION = '0' x 40;
 
 sub client {
     my $self = shift;

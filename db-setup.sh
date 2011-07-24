@@ -19,10 +19,7 @@ export TEST_MYDATABASE=sahara
 
 dropdb $TEST_PGDATABASE
 createdb $TEST_PGDATABASE
-dropdb sahara
-createdb sahara
 
-psql -f schema.psql sahara
 psql -f schema.psql $TEST_PGDATABASE
 
 mysql -h $TEST_MYHOST -u $TEST_MYUSER <<SQL

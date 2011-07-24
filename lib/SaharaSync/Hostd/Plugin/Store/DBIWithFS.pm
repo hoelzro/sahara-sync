@@ -48,12 +48,17 @@ sub BUILDARGS {
     my $password = delete $args{'password'} || '';
 
     if(defined $dsn) {
-        $args{'dbh'} = DBI->connect($dsn, $username, $password);
+        $args{'dbh'} = DBI->connect($dsn, $username, $password, {
+            pg_server_prepare    => 1,
+            pg_prepare_now       => 1,
+            mysql_server_prepare => 1,
+        });
     }
     
     my $dbh = $args{'dbh'};
     if($dbh->{'Driver'}{'Name'} eq 'SQLite') {
         $dbh->do('PRAGMA foreign_keys = ON');
+        $dbh->do('PRAGMA journal_mode = WAL');
         if($ENV{'TAP_VERSION'}) { # silly optimization for testing
             $dbh->do('PRAGMA synchronous = OFF');
         }

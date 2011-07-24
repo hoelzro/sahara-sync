@@ -73,10 +73,10 @@ sub _build_statements {
     my $dbh = $self->dbh;
 
     my %statements = (
-        get_user_id         => 'SELECT user_id FROM users WHERE username = ?',
+        get_user_id         => 'SELECT user_id FROM users WHERE username = ? LIMIT 1',
         insert_user         => 'INSERT INTO users (username, password) VALUES (?, ?)',
         remove_user         => 'DELETE FROM users WHERE username = ?',
-        get_password        => 'SELECT password FROM users WHERE username = ?',
+        get_password        => 'SELECT password FROM users WHERE username = ? LIMIT 1',
         fetch_info_for_blob => <<SQL,
 SELECT u.username IS NOT NULL, b.blob_id, b.revision
 FROM users AS u
@@ -85,12 +85,14 @@ ON  b.user_id   = u.user_id
 AND b.blob_name = ?
 AND b.is_deleted = 0
 WHERE u.username = ?
+LIMIT 1
 SQL
         metadata_for_blob      => 'SELECT meta_key, meta_value FROM metadata WHERE blob_id = ?',
         revision_info_for_blob => <<SQL,
 SELECT is_deleted, blob_id, revision FROM blobs
 WHERE user_id   = ?
 AND   blob_name = ?
+LIMIT 1
 SQL
         update_revision => <<SQL,
 UPDATE blobs
@@ -107,6 +109,7 @@ SELECT blob_id, revision FROM blobs
 WHERE user_id    = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
+LIMIT 1
 SQL
         mark_blob_deleted => <<SQL,
 UPDATE blobs
@@ -125,6 +128,7 @@ INNER JOIN blobs AS b
 ON b.blob_id = r.blob_id
 WHERE b.user_id       = ?
 AND   r.blob_revision = ?
+LIMIT 1
 SQL
         get_latest_revs => <<SQL,
 SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r

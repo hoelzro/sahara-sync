@@ -13,6 +13,13 @@ sub new {
     return $self;
 }
 
+sub cancel {
+    my ( $self ) = @_;
+
+    my ( $temp_name ) = ${*$self}{'temp_name'};
+    unlink $temp_name or warn $!;
+}
+
 sub close {
     my ( $self ) = @_;
 

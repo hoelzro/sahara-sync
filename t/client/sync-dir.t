@@ -296,7 +296,7 @@ sub test_preservation :Test(2) {
     };
 }
 
-sub test_on_change_guard :Test(3) {
+sub test_on_change_guard :Test(4) {
     my ( $self ) = @_;
 
     my $fh;
@@ -336,6 +336,23 @@ sub test_on_change_guard :Test(3) {
     undef $guard;
 
     open $fh, '>', 'baz';
+    print $fh "hello\n";
+    close $fh;
+
+    $self->expect_changes([]);
+
+    $guard = $self->fs->on_change(sub {
+        my ( @events ) = @_;
+
+        foreach my $event (@events) {
+            my $path = File::Spec->abs2rel($event->{'path'}, $self->fs->root);
+            push @{ $self->{'seen_events'} }, $path;
+        }
+    });
+
+    $self->fs(undef);
+
+    open $fh, '>', 'quux';
     print $fh "hello\n";
     close $fh;
 

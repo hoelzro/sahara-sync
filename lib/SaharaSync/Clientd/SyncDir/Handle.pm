@@ -1,4 +1,4 @@
-package SaharaSync::Clientd::Filesystem::Handle;
+package SaharaSync::Clientd::SyncDir::Handle;
 
 use strict;
 use warnings;

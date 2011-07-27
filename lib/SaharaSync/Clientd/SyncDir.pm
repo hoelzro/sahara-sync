@@ -1,4 +1,4 @@
-package SaharaSync::Clientd::Filesystem;
+package SaharaSync::Clientd::SyncDir;
 
 use Moose;
 
@@ -8,7 +8,7 @@ use File::Find;
 use File::Spec;
 use File::Temp;
 use Linux::Inotify2;
-use SaharaSync::Clientd::Filesystem::Handle;
+use SaharaSync::Clientd::SyncDir::Handle;
 
 use namespace::clean -except => 'meta';
 
@@ -193,7 +193,7 @@ sub open_write_handle {
     ## do some more checks?
 
     my $file = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
-    return SaharaSync::Clientd::Filesystem::Handle->new($file, $old_mode,
+    return SaharaSync::Clientd::SyncDir::Handle->new($file, $old_mode,
         $current_path);
 }
 

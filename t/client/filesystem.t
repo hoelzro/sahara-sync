@@ -7,7 +7,7 @@ use AnyEvent;
 use Cwd;
 use File::Path qw(make_path);
 use File::Temp;
-use SaharaSync::Clientd::Filesystem;
+use SaharaSync::Clientd::SyncDir;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
 use Test::More;
 
@@ -30,7 +30,7 @@ sub setup :Test(setup) {
     my ( $self ) = @_;
 
     $self->{'temp'} = File::Temp->newdir;
-    $self->fs(SaharaSync::Clientd::Filesystem->create_filesystem(
+    $self->fs(SaharaSync::Clientd::SyncDir->create_filesystem(
         root => $self->{'temp'}->dirname,
     ));
     chdir $self->{'temp'}->dirname;

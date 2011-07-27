@@ -4,11 +4,13 @@ use Moose;
 
 use autodie qw(chmod opendir);
 use AnyEvent;
+use Guard qw(guard);
 use File::Find;
 use File::Spec;
 use File::Temp;
 use Linux::Inotify2;
 use SaharaSync::Clientd::SyncDir::Handle;
+use Scalar::Util qw(weaken);
 
 use namespace::clean -except => 'meta';
 
@@ -16,6 +18,12 @@ has root => (
     is       => 'ro',
     isa      => 'Str',
     required => 1,
+);
+
+has change_guards => (
+    is       => 'ro',
+    init_arg => undef,
+    default  => sub { [] },
 );
 
 sub BUILD {
@@ -63,6 +71,10 @@ sub _debug_event {
 
 sub on_change {
     my ( $self, $callback ) = @_;
+
+    return unless defined(wantarray);
+
+    weaken $self;
 
     my $mask = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
     my $root = $self->root;
@@ -170,11 +182,22 @@ sub on_change {
 
     ## verify that $overlay_watcher is defined?
 
-    return AnyEvent->io(
+    my $io = AnyEvent->io(
         fh   => $n->fileno,
         poll => 'r',
         cb   => sub { $n->poll },
     );
+
+    push @{ $self->change_guards }, $io;
+    weaken $io;
+
+    return guard {
+        return unless $self; # $self is a weak reference, so check first
+
+        @{ $self->change_guards } = grep {
+            $_ != $io
+        } @{ $self->change_guards };
+    };
 }
 
 sub open_write_handle {

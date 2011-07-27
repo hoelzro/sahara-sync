@@ -342,4 +342,15 @@ sub test_on_change_guard :Test(3) {
     $self->expect_changes([]);
 }
 
+sub test_handle_cancel :Test(2) {
+    my ( $self ) = @_;
+
+    my $h = $self->fs->open_write_handle('foo.txt');
+    $h->write("Hey you guys");
+    $h->cancel;
+
+    $self->expect_changes([]);
+    ok(! -f "foo.txt");
+}
+
 __PACKAGE__->runtests;

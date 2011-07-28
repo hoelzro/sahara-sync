@@ -1,13 +1,12 @@
-upstream: 'http://localhost:5000'
+upstream: 'http://localhost:5982'
 sync_dir: '~/Sandbox'
-user: 'test'
+username: 'test'
 password: 'abc123'
 
-logging:
-    to: 'console'
-
-plugins:
-    -
-      name: 'Encrypt::OpenPGP'
-      key: 'A48611AA'
-      prompt_for_password: true
+log:
+  -
+    type: 'Screen::Color'
+    stderr: 1
+    min_level: info
+    newline: true
+    # option to allow a fallback logger in case on fails to load

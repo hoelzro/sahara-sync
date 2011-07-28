@@ -21,13 +21,9 @@ use strict;
 use warnings;
 use lib 'lib';
 
-use Plack::Runner;
-use Twiggy;
 use SaharaSync::Clientd;
+use SaharaSync::Clientd::Config;
 
-my $app    = SaharaSync::Clientd->to_app;
-my $runner = Plack::Runner->new(
-    server => 'Twiggy',
-);
-$runner->parse_options(qw|--listen /tmp/sahara.sock|);
-$runner->run($app);
+my $config  = SaharaSync::Clientd::Config->new_with_options;
+my $clientd = SaharaSync::Clientd->new($config);
+$clientd->run;

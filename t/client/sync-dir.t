@@ -30,7 +30,7 @@ sub setup :Test(setup) {
     my ( $self ) = @_;
 
     $self->{'temp'} = File::Temp->newdir;
-    $self->fs(SaharaSync::Clientd::SyncDir->create_filesystem(
+    $self->fs(SaharaSync::Clientd::SyncDir->create_syncdir(
         root => $self->{'temp'}->dirname,
     ));
     chdir $self->{'temp'}->dirname;

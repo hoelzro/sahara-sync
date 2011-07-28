@@ -220,7 +220,7 @@ sub open_write_handle {
         $current_path);
 }
 
-sub create_filesystem {
+sub create_syncdir {
     my ( $class, %args ) = @_;
 
     return $class->new(%args);

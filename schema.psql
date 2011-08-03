@@ -1,5 +1,7 @@
 -- vim:ft=pgsql
 
+SET client_min_messages = WARNING;
+
 BEGIN TRANSACTION;
 
 CREATE TABLE users (

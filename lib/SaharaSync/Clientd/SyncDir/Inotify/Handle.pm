@@ -1,4 +1,4 @@
-package SaharaSync::Clientd::SyncDir::Handle;
+package SaharaSync::Clientd::SyncDir::Inotify::Handle;
 
 use strict;
 use warnings;

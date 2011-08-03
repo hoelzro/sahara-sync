@@ -370,4 +370,12 @@ sub test_handle_cancel :Test(2) {
     ok(! -f "foo.txt");
 }
 
-__PACKAGE__->runtests;
+my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
+    root => File::Temp->newdir->dirname,
+);
+
+if(defined $sd) {
+    __PACKAGE__->runtests;
+} else {
+    plan skip_all => 'No sync dir implemention exists for this OS';
+}

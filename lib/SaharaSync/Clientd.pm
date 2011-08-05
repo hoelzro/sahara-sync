@@ -188,31 +188,36 @@ sub handle_upstream_change {
         return;
     }
 
-    my $blob = $change->{'name'};
+    my $blob       = $change->{'name'};
+    my $is_deleted = $change->{'is_deleted'};
 
-    $self->ws_client->get_blob($blob, sub {
-        my ( $h, $metadata ) = @_;
+    if($is_deleted) {
+        $self->sd->unlink($blob);
+    } else {
+        $self->ws_client->get_blob($blob, sub {
+            my ( $h, $metadata ) = @_;
 
-        ## handle error
+            ## handle error
 
-        my $w = $self->sd->open_write_handle($blob);
+            my $w = $self->sd->open_write_handle($blob);
 
-        $h->on_read(sub {
-            my $buffer = $h->rbuf;
-            $h->rbuf = '';
+            $h->on_read(sub {
+                my $buffer = $h->rbuf;
+                $h->rbuf = '';
 
-            $w->write($buffer);
+                $w->write($buffer);
+            });
+
+            $h->on_error(sub {
+                ## do something
+            });
+
+            $h->on_eof(sub {
+                $w->close;
+                undef $h;
+            });
         });
-
-        $h->on_error(sub {
-            ## do something
-        });
-
-        $h->on_eof(sub {
-            $w->close;
-            undef $h;
-        });
-    });
+    }
 
     ## if the change is one that we made (ex. a local file changed, and we
     ## sent the update), ignore it

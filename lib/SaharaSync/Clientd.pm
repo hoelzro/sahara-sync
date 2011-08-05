@@ -122,7 +122,7 @@ sub _get_revision_for_blob {
 }
 
 sub _put_revision_for_blob {
-    my ( $self, $blob, $revision ) = @_;
+    my ( $self, $blob, $revision, $is_deleted ) = @_;
 }
 
 sub handle_fs_change {
@@ -157,7 +157,7 @@ sub handle_fs_change {
 
                     if(defined $revision) {
                         $self->log->info("Successfully updated $blob; new revision is $revision");
-                        $self->_put_revision_for_blob($blob, $revision);
+                        $self->_put_revision_for_blob($blob, $revision, 0);
                     } else {
                         $self->log->warning("Updating $blob failed: $error");
                     }
@@ -171,10 +171,10 @@ sub handle_fs_change {
 
                 if(defined $revision) {
                     $self->log->info("Successfully deleted $blob; new revision is $revision");
-                    $self->_put_revision_for_blob($blob, $revision);
+                    $self->_put_revision_for_blob($blob, $revision, 1);
                 } else {
                     $self->log->warning("Deleting $blob failed: $error");
-                }
+               }
             });
         }
     }

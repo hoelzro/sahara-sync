@@ -11,13 +11,13 @@ use SaharaSync::Clientd::SyncDir;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
 use Test::More;
 
-sub fs {
+sub sd {
     my $self = shift;
 
     if(@_) {
-        $self->{'fs'} = shift;
+        $self->{'sd'} = shift;
     }
-    return $self->{'fs'};
+    return $self->{'sd'};
 }
 
 sub startup :Test(startup) {
@@ -30,17 +30,17 @@ sub setup :Test(setup) {
     my ( $self ) = @_;
 
     $self->{'temp'} = File::Temp->newdir;
-    $self->fs(SaharaSync::Clientd::SyncDir->create_syncdir(
+    $self->sd(SaharaSync::Clientd::SyncDir->create_syncdir(
         root => $self->{'temp'}->dirname,
     ));
     chdir $self->{'temp'}->dirname;
 
     $self->{'seen_events'} = [];
-    $self->{'watch_guard'} = $self->fs->on_change(sub {
+    $self->{'watch_guard'} = $self->sd->on_change(sub {
         my ( @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->fs->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
@@ -87,8 +87,8 @@ sub expect_changes {
 sub test_self_changes :Test(3) {
     my ( $self ) = @_;
 
-    my $fs = $self->fs;
-    my $h  = $fs->open_write_handle('foo.txt');
+    my $sd = $self->sd;
+    my $h  = $sd->open_write_handle('foo.txt');
     $h->write("Hello, World!\n");
     $h->close;
 
@@ -107,7 +107,7 @@ sub test_self_changes :Test(3) {
     print $fh  "Bar\n";
     close $fh;
 
-    $h = $fs->open_write_handle('baz.txt');
+    $h = $sd->open_write_handle('baz.txt');
     $h->write("Baz\n");
     $h->close;
 
@@ -187,8 +187,8 @@ sub test_file_changes :Test(4) {
 sub test_moves : Test(6) {
     my ( $self ) = @_;
 
-    my $fs = $self->fs;
-    my $h  = $fs->open_write_handle('foo.txt');
+    my $sd = $self->sd;
+    my $h  = $sd->open_write_handle('foo.txt');
     $h->write('Foo');
     $h->close;
 
@@ -198,7 +198,7 @@ sub test_moves : Test(6) {
     # as a delete + create; we may change that later
     $self->expect_changes(['foo.txt', 'bar.txt']);
 
-    $h = $fs->open_write_handle('baz.txt');
+    $h = $sd->open_write_handle('baz.txt');
     $h->write('Baz');
     $h->close;
 
@@ -255,10 +255,10 @@ sub test_file_write :Test(2) {
 sub test_preservation :Test(2) {
     my ( $self ) = @_;
 
-    my $fs;
+    my $sd;
     my $h;
 
-    $fs = $self->fs;
+    $sd = $self->sd;
 
     open $h, '>', 'foo.txt';
     print $h "Test text\n";
@@ -281,7 +281,7 @@ sub test_preservation :Test(2) {
         foreach my $perm (@test_perms) {
             chmod $perm, 'foo.txt';
 
-            $h = $fs->open_write_handle('foo.txt');
+            $h = $sd->open_write_handle('foo.txt');
             $h->write("Test text 2\n");
             $h->close;
 
@@ -303,11 +303,11 @@ sub test_on_change_guard :Test(4) {
 
     $self->{'watch_guard'} = undef;
 
-    $self->fs->on_change(sub {
+    $self->sd->on_change(sub {
         my ( @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->fs->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
@@ -318,11 +318,11 @@ sub test_on_change_guard :Test(4) {
 
     $self->expect_changes([]);
 
-    my $guard = $self->fs->on_change(sub {
+    my $guard = $self->sd->on_change(sub {
         my ( @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->fs->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
@@ -341,16 +341,16 @@ sub test_on_change_guard :Test(4) {
 
     $self->expect_changes([]);
 
-    $guard = $self->fs->on_change(sub {
+    $guard = $self->sd->on_change(sub {
         my ( @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->fs->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
 
-    $self->fs(undef);
+    $self->sd(undef);
 
     open $fh, '>', 'quux';
     print $fh "hello\n";
@@ -362,7 +362,7 @@ sub test_on_change_guard :Test(4) {
 sub test_handle_cancel :Test(2) {
     my ( $self ) = @_;
 
-    my $h = $self->fs->open_write_handle('foo.txt');
+    my $h = $self->sd->open_write_handle('foo.txt');
     $h->write("Hey you guys");
     $h->cancel;
 

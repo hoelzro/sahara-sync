@@ -9,6 +9,7 @@ use File::Find;
 use File::Spec;
 use File::Temp;
 use Linux::Inotify2;
+use List::MoreUtils qw(any);
 use SaharaSync::Clientd::SyncDir::Inotify::Handle;
 use Scalar::Util qw(weaken);
 
@@ -81,7 +82,8 @@ sub on_change {
     my $n    = Linux::Inotify2->new || die $!;
 
     my $overlay_watcher;
-    my %pending_moves;
+    my %pending_updates;
+    my @pending_deletes;
 
     my $wrapper;
     $wrapper = sub {
@@ -129,6 +131,10 @@ sub on_change {
             return;
         }
 
+        my $event = {
+            path => $path,
+        };
+
         if($e->IN_Q_OVERFLOW) {
             ## OH SHIT
         }
@@ -138,20 +144,31 @@ sub on_change {
             if($e->IN_MOVED_FROM) {
                 my $w = $e->w;
                 if($w == $overlay_watcher) {
-                    $pending_moves{$cookie} = 1;
-                    return; # further processing comes later
+                    $pending_updates{$cookie} = 1;
+                } else {
+                    push @pending_deletes, [ $cookie, $event ];
                 }
+                return; # further processing comes later
             } else { # IN_MOVED_TO
-                if(delete $pending_moves{$cookie}) {
+                if(delete $pending_updates{$cookie}) {
                     return; # we ignore events we generate ourselves
                 } else {
+                    my $w = $e->w;
+
+                    if($w == $overlay_watcher) {
+                        @pending_deletes = grep {
+                            $_->[0] ne $cookie
+                        } @pending_deletes;
+                        return;
+                    } elsif(any { $_->[0] eq $cookie } @pending_deletes) {
+                        push @pending_deletes, [ $cookie, $event ];
+                        return;
+                    }
                     ## handle like a close_write
                 }
             }
         }
-        $callback->({
-            path => $path,
-        });
+        $callback->($event);
     };
 
     $n->watch($root, $mask, $wrapper);
@@ -164,7 +181,7 @@ sub on_change {
         if($file eq '.saharasync') {
             $file = File::Spec->catdir($root, $file);
             ## special wrapper for .saharasync?
-            $overlay_watcher = $n->watch($file, IN_MOVED_FROM, $wrapper);
+            $overlay_watcher = $n->watch($file, IN_MOVE, $wrapper);
         } else {
             $file = File::Spec->catdir($root, $file);
             next unless -d $file;
@@ -185,7 +202,14 @@ sub on_change {
     my $io = AnyEvent->io(
         fh   => $n->fileno,
         poll => 'r',
-        cb   => sub { $n->poll },
+        cb   => sub {
+            $n->poll;
+            ## the naming of this var sucks
+            foreach my $info (@pending_deletes) {
+                $callback->($info->[1]);
+            }
+            @pending_deletes = ();
+        },
     );
 
     push @{ $self->change_guards }, $io;
@@ -218,6 +242,16 @@ sub open_write_handle {
     my $file = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     return SaharaSync::Clientd::SyncDir::Inotify::Handle->new($file, $old_mode,
         $current_path);
+}
+
+sub unlink {
+    my ( $self, $blob_name ) = @_;
+
+    my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
+    close $tempfile;
+    my $path = File::Spec->catfile($self->root, $blob_name);
+    rename $path, $tempfile->filename or die $!;
+    unlink $tempfile->filename;
 }
 
 __PACKAGE__->meta->make_immutable;

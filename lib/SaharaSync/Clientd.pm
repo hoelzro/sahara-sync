@@ -205,7 +205,8 @@ sub handle_upstream_change {
     my $is_deleted = $change->{'is_deleted'};
 
     if($is_deleted) {
-        $self->sd->unlink($blob);
+        my $path = File::Spec->catfile($self->sync_dir, $blob);
+        $self->sd->unlink($blob) if -f $path;
     } else {
         $self->ws_client->get_blob($blob, sub {
             my ( $h, $metadata ) = @_;

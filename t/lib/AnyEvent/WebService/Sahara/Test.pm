@@ -57,6 +57,10 @@ sub expected_capabilities {
     return ['streaming'];
 }
 
+sub client_poll_time {
+    return 15;
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
@@ -882,7 +886,7 @@ sub test_cancel_changes : Test(10) {
     $revision = $res->header('ETag');
 
     my $timer = AnyEvent->timer(
-        after => 0.5,
+        after => $self->client_poll_time + 5,
         cb    => sub {
             $cond->send;
         },

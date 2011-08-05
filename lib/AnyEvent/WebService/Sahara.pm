@@ -8,6 +8,7 @@ use warnings;
 use AnyEvent::HTTP;
 use Carp qw(croak);
 use Guard qw(guard);
+use List::MoreUtils qw(any);
 use MIME::Base64 qw(encode_base64);
 use Scalar::Util qw(weaken);
 use URI;
@@ -226,7 +227,7 @@ sub delete_blob {
     }, $cb);
 }
 
-sub changes {
+sub _streaming_changes {
     my ( $self, $since, $metadata, $cb ) = @_;
 
     my $meta = {
@@ -283,6 +284,39 @@ sub changes {
         return guard {
             delete $guards->{$guard} if $guards && $guard;
         };
+    }
+}
+
+sub _non_streaming_changes {
+    my ( $self, $since, $metadata, $cb ) = @_;
+
+}
+
+sub changes {
+    my ( $self, $since, $metadata, $cb ) = @_;
+
+    my $cond = AnyEvent->condvar;
+    my $caps;
+    my $error;
+
+    $self->capabilities(sub {
+        ( $caps, $error ) = @_;
+
+        $cond->send;
+    });
+
+    ## synchronous code alert!
+    $cond->recv;
+
+    unless($caps) {
+        $cb->(undef, $error);
+        return;
+    }
+
+    if(any { $_ eq 'streaming' } @$caps) {
+        return $self->_streaming_changes($since, $metadata, $cb);
+    } else {
+        return $self->_non_streaming_changes($since, $metadata, $cb);
     }
 }
 

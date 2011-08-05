@@ -370,6 +370,24 @@ sub test_handle_cancel :Test(2) {
     ok(! -f "foo.txt");
 }
 
+sub test_delete_file :Test(3) {
+    my ( $self ) = @_;
+
+    my $sd = $self->sd;
+    my $fh;
+
+    open $fh, '>', 'foo.txt';
+    print $fh, "hello\n";
+    close $fh;
+
+    $self->expect_changes(['foo.txt']);
+
+    $sd->unlink('foo.txt');
+
+    $self->expect_changes([]);
+    ok ! -e 'foo.txt';
+}
+
 my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
     root => File::Temp->newdir->dirname,
 );

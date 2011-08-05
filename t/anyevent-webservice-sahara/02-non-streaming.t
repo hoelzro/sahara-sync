@@ -10,4 +10,8 @@ sub create_fresh_app {
     );
 }
 
+sub expected_capabilities {
+    return [];
+}
+
 Test::Class->runtests;

@@ -25,15 +25,25 @@ sub port {
 sub create_fresh_client {
     my ( $self, $sync_dir ) = @_;
 
+    my $log_config = {
+        type => 'Null',
+    };
+
+    if($ENV{'TEST_CLIENTD_DEBUG'}) {
+        $log_config = {
+            type    => 'Screen',
+            newline => 1,
+            stderr  => 1,
+        };
+    }
+    $log_config->{'min_level'} = 'debug';
+
     my $config = SaharaSync::Clientd::Config->new(
         upstream => 'http://localhost:' . $self->port,
         sync_dir => $sync_dir->dirname,
         username => 'test',
         password => 'abc123',
-        log      => {
-            type      => 'Null',
-            min_level => 'debug',
-        },
+        log      => $log_config,
     );
 
     # this is easier than managing the client process ourselves

@@ -5,7 +5,6 @@ package SaharaSync::Clientd;
 
 use Moose;
 use autodie qw(mkdir);
-use AnyEvent::Filesys::Notify;
 use AnyEvent::WebService::Sahara;
 use Carp qw(croak);
 use File::Path qw(make_path);

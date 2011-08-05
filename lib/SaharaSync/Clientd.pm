@@ -57,6 +57,11 @@ has log => (
     is => 'ro',
 );
 
+has current_revisions => (
+    is      => 'ro',
+    default => sub { {} },
+);
+
 ## make sure we handle SIGINT, SIGTERM
 
 my $client;
@@ -117,12 +122,20 @@ sub _get_last_sync {
 sub _get_revision_for_blob {
     my ( $self, $blob ) = @_;
 
-    ## if a blob was deleted, don't return anything!
+    my $current_revisions = $self->current_revisions;
+
+    if(my $info = $current_revisions->{$blob}) {
+        return $info->[1] if $info->[0];
+    }
     return;
 }
 
 sub _put_revision_for_blob {
     my ( $self, $blob, $revision, $is_deleted ) = @_;
+
+    my $current_revisions = $self->current_revisions;
+
+    $current_revisions->{$blob} = [ !$is_deleted, $revision ];
 }
 
 sub handle_fs_change {

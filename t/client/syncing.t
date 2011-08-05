@@ -13,6 +13,7 @@ use Plack::Loader;
 use Test::More;
 use Test::Sahara ();
 use Test::TCP;
+use Try::Tiny;
 
 sub catchup {
     sleep 2;
@@ -60,7 +61,11 @@ sub create_fresh_client {
 
             my $daemon = SaharaSync::Clientd->new($config);
 
-            $daemon->run;
+            try {
+                $daemon->run;
+            } catch {
+                fail "ERROR: $_";
+            }
         },
     );
 }

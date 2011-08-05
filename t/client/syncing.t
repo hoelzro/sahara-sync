@@ -126,4 +126,43 @@ sub test_create_file :Test(5) {
     is $contents, "Hello!\n";
 }
 
+sub test_delete_file :Test(7) {
+    my ( $self ) = @_;
+
+    my $temp1  = $self->{'temp1'};
+    my $temp2  = $self->{'temp2'};
+    # this bit might be a little too specific to the inotify implementation...
+    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+
+    is_deeply(\@files1, []);
+    is_deeply(\@files2, []);
+
+    my $fh;
+
+    open $fh, '>', File::Spec->catfile($temp1, 'foo.txt');
+    print $fh "Hello!\n";
+    close $fh;
+
+    $self->catchup;
+
+    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply(\@files1, ['foo.txt']);
+    is_deeply(\@files2, ['foo.txt']);
+
+    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $contents, "Hello!\n";
+
+    unlink File::Spec->catfile($temp1, 'foo.txt');
+
+    $self->catchup;
+
+    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+
+    is_deeply(\@files1, []);
+    is_deeply(\@files2, []);
+}
+
 __PACKAGE__->runtests;

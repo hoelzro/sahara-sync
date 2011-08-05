@@ -53,6 +53,10 @@ sub port {
     return Test::Sahara->port;
 }
 
+sub expected_capabilities {
+    return ['streaming'];
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
@@ -163,7 +167,7 @@ sub test_bad_credentials : Test(18) {
 
         $client->capabilities(sub {
             my ( $capabilities ) = @_;
-            is_deeply($capabilities, ['streaming'], "Capabilities should be fetchable with bad auth");
+            is_deeply($capabilities, $self->expected_capabilities, "Capabilities should be fetchable with bad auth");
             $cond->send;
         });
 
@@ -224,7 +228,7 @@ sub test_capabilities : Test {
 
     $client->capabilities(sub {
         my ( $capabilities ) = @_;
-        is_deeply($capabilities, ['streaming'], "Streaming capabilities should be present");
+        is_deeply($capabilities, $self->expected_capabilities, "Streaming capabilities should be present");
         $cond->send;
     });
 

@@ -45,6 +45,14 @@ sub create_client {
     );
 }
 
+sub create_fresh_app {
+    return Test::Sahara->create_fresh_app;
+}
+
+sub port {
+    return Test::Sahara->port;
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 

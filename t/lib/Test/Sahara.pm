@@ -159,7 +159,7 @@ foreach my $method (@methods) {
     };
 }
 
-my @export = (@methods, 'REQUEST', 'lazy_hash', 'port', 'create_fresh_app');
+my @export = (@methods, 'REQUEST', 'lazy_hash');
 
 sub import {
     my ( $class, @args ) = @_;

@@ -62,6 +62,16 @@ has current_revisions => (
     default => sub { {} },
 );
 
+has inflight_operations => (
+    is      => 'ro',
+    default => sub { {} },
+);
+
+has delayed_operations => (
+    is      => 'ro',
+    default => sub { [] },
+);
+
 ## make sure we handle SIGINT, SIGTERM
 
 my $client;
@@ -113,6 +123,23 @@ sub _build_ws_client {
     );
 }
 
+sub _run_delayed_operations {
+    my ( $self, $blob, $revision ) = @_;
+
+    delete $self->inflight_operations->{$blob};
+
+    my $delayed = $self->delayed_operations;
+
+    foreach my $operation (@$delayed) {
+        next if $operation->{'name'} eq $blob &&
+                $operation->{'revision'} eq $revision;
+
+        $self->handle_upstream_change($operation);
+    }
+
+    @$delayed = ();
+}
+
 sub _get_last_sync {
     my ( $self ) = @_;
 
@@ -140,6 +167,8 @@ sub _put_revision_for_blob {
 
 sub handle_fs_change {
     my ( $self, @events ) = @_;
+
+    my $operations = $self->inflight_operations;
 
     foreach my $event (@events) {
         ## if $event is just a metadata (ex. permissions) change, do something
@@ -171,6 +200,7 @@ sub handle_fs_change {
                     if(defined $revision) {
                         $self->log->info("Successfully updated $blob; new revision is $revision");
                         $self->_put_revision_for_blob($blob, $revision, 0);
+                        $self->_run_delayed_operations($blob, $revision);
                     } else {
                         $self->log->warning("Updating $blob failed: $error");
                     }
@@ -185,11 +215,14 @@ sub handle_fs_change {
                 if(defined $revision) {
                     $self->log->info("Successfully deleted $blob; new revision is $revision");
                     $self->_put_revision_for_blob($blob, $revision, 1);
+                    $self->_run_delayed_operations($blob, $revision);
                 } else {
                     $self->log->warning("Deleting $blob failed: $error");
                }
             });
         }
+
+        $operations->{$blob} = 1;
     }
 }
 
@@ -204,9 +237,13 @@ sub handle_upstream_change {
     my $blob       = $change->{'name'};
     my $is_deleted = $change->{'is_deleted'};
 
+    if($self->inflight_operations->{$blob}) {
+        push @{ $self->delayed_operations }, $change;
+        return;
+    }
+
     if($is_deleted) {
-        my $path = File::Spec->catfile($self->sync_dir, $blob);
-        $self->sd->unlink($blob) if -f $path;
+        $self->sd->unlink($blob);
     } else {
         $self->ws_client->get_blob($blob, sub {
             my ( $h, $metadata ) = @_;
@@ -232,9 +269,6 @@ sub handle_upstream_change {
             });
         });
     }
-
-    ## if the change is one that we made (ex. a local file changed, and we
-    ## sent the update), ignore it
 
     ## lock the file
     ## make sure it hasn't changed on the local machine since our latest revision

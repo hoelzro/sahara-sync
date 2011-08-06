@@ -290,6 +290,57 @@ sub _streaming_changes {
 sub _non_streaming_changes {
     my ( $self, $since, $metadata, $cb ) = @_;
 
+    my $meta = {
+        headers => {
+            'X-Sahara-Last-Sync' => $since,
+        },
+    };
+
+    my $url = 'changes';
+    if($metadata && @$metadata) {
+        $url = [ $url, { metadata => $metadata } ];
+    }
+
+    weaken($self);
+    my $guard = AnyEvent->timer(
+        interval => 15, ## hello, magic!
+        cb       => sub {
+            ## if we get an error...what should happen?  should we keep
+            ## throwing requests out there?
+
+            ## just because the timer is expired doesn't mean this is...
+            $self->do_request(GET => $url, $meta, sub {
+                my ( $body, $headers ) = @_;
+
+                my $reader = SaharaSync::Stream::Reader->for_mimetype($headers->{'content-type'});
+
+                $reader->on_read_object(sub {
+                    my ( undef, $object ) = @_;
+
+                    $cb->($object);
+                });
+
+                $reader->feed($body);
+                $reader->feed(undef);
+            }, sub {
+                my ( $ok, $error ) = @_;
+
+                $cb->(@_) unless $ok;
+            });
+        },
+    );
+
+    my $guards = $self->{'change_guards'};
+    weaken($guards);
+    $guards->{$guard} = guard {
+        undef $guard;
+    };
+
+    if(defined wantarray) {
+        return guard {
+            delete $guards->{$guard} if $guards && $guard;
+        };
+    }
 }
 
 sub changes {

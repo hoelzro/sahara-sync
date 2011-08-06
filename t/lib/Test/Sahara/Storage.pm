@@ -710,6 +710,75 @@ sub test_changes_since_deletion : Test {
     }], "You should be able to get changes since a deletion");
 }
 
+## code duplication!
+sub permutations {
+    my ( $value, @rest ) = @_;
+
+    if(@rest) {
+        my @perms = permutations(@rest);
+        my @retval;
+
+        foreach my $perm (@perms) {
+            for(my $i = 0; $i <= @$perm; $i++) {
+                my @copy = @$perm;
+                splice @copy, $i, 0, $value;
+                push @retval, \@copy;
+            }
+        }
+        return @retval;
+    } else {
+        return ( [ $value ] );
+    }
+}
+
+sub factorial {
+    my ( $n ) = @_;
+
+    my $fact = 1;
+
+    $fact *= $n-- while $n;
+
+    return $fact;
+}
+
+sub test_change_ordering : Test {
+    my ( $self ) = @_;
+
+    my @names = (
+        'file.txt',
+        'file1.txt',
+        'file2.txt',
+    );
+
+    subtest '' => sub {
+        plan tests => factorial(scalar @names);
+
+        foreach my $perm (permutations @names) {
+            my @revisions;
+
+            $self->create_impl;
+            my $store = $self->store;
+
+
+            foreach my $blob (@$perm) {
+                push @revisions, $store->store_blob('test', $blob,
+                    IO::String->new("In $blob"));
+            }
+
+            my @changes = $store->fetch_changed_blobs('test', undef);
+
+            my @expected = map {
+                {
+                    name     => $perm->[$_],
+                    revision => $revisions[$_],
+                }
+            } (0..$#revisions);
+
+            is_deeply(\@changes, \@expected);
+        }
+    };
+}
+
 1;
 
 __END__

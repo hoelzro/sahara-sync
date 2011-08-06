@@ -901,4 +901,97 @@ sub test_cancel_changes : Test(10) {
     is $seen_change3, 0;
 }
 
+sub test_own_changes_invisible : Test(8) {
+    my ( $self ) = @_;
+
+    my $cond;
+    my $timer;
+    my @client1_changes;
+    my @client2_changes;
+    my $client1 = $self->create_client;
+    my $client2 = $self->create_client;
+    my $revision1;
+    my $revision2;
+
+    $client1->changes(undef, [], sub {
+        my ( $change ) = @_;
+
+        push @client1_changes, $change;
+    });
+
+    $client2->changes(undef, [], sub {
+        my ( $change ) = @_;
+
+        push @client2_changes, $change;
+    });
+
+    $cond  = AnyEvent->condvar;
+    $timer = AnyEvent->timer(
+        after    => $self->client_poll_time + 5,
+        interval => $self->client_poll_time + 5,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $client1->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
+        ( $revision1 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, []);
+    is_deeply(\@client2_changes, [{
+        name     => 'file.txt',
+        revision => $revision1,
+    }]);
+
+    @client1_changes = @client2_changes = ();
+    $cond = AnyEvent->condvar;
+
+    $client2->put_blob('file2.txt', IO::String->new('Test content 2'), {}, sub {
+        ( $revision2 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, [{
+        name     => 'file2.txt',
+        revision => $revision2,
+    }]);
+    is_deeply(\@client2_changes, []);
+
+    @client1_changes = @client2_changes = ();
+    $cond = AnyEvent->condvar;
+
+    $client1->delete_blob('file2.txt', $revision2, sub {
+        ( $revision2 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, []);
+    is_deeply(\@client2_changes, [{
+        name       => 'file2.txt',
+        revision   => $revision2,
+        is_deleted => 1,
+    }]);
+
+    @client1_changes = @client2_changes = ();
+    $cond = AnyEvent->condvar;
+
+    $client2->delete_blob('file.txt', $revision1, sub {
+        ( $revision1 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, [{
+        name       => 'file.txt',
+        revision   => $revision1,
+        is_deleted => 1,
+    }]);
+    is_deeply(\@client2_changes, []);
+}
+
 __PACKAGE__->SKIP_CLASS(1);

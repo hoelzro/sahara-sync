@@ -136,12 +136,14 @@ INNER JOIN blobs AS b
 ON  r.blob_id = b.blob_id
 WHERE b.user_id     = ?
 AND   r.revision_id > ?
+ORDER BY r.revision_id DESC
 SQL
         get_all_revs => <<SQL,
 SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON r.blob_id = b.blob_id
 WHERE b.user_id = ?
+ORDER BY r.revision_id DESC
 SQL
     );
 
@@ -417,8 +419,10 @@ sub fetch_changed_blobs {
     }
 
     my %blobs;
+    my @blob_names;
 
     while(my ( $is_deleted, $blob, $revision ) = $sth->fetchrow_array) {
+        push @blob_names, $blob unless exists $blobs{$blob};
         $blobs{$blob} = {
             name     => $blob,
             revision => $revision,
@@ -448,8 +452,7 @@ SQL
         }
     }
 
-
-    return values %blobs;
+    return map { $blobs{$_} } reverse @blob_names;
 }
 
 1;

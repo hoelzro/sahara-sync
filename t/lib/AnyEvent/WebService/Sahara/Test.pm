@@ -39,9 +39,10 @@ sub create_client {
     my ( $self ) = @_;
 
     return AnyEvent::WebService::Sahara->new(
-        url      => 'http://localhost:' . $self->port,
-        user     => 'test',
-        password => 'abc123',
+        url           => 'http://localhost:' . $self->port,
+        user          => 'test',
+        password      => 'abc123',
+        poll_interval => $self->client_poll_time,
     );
 }
 
@@ -58,7 +59,7 @@ sub expected_capabilities {
 }
 
 sub client_poll_time {
-    return 15;
+    return 1;
 }
 
 sub setup : Test(setup) {

@@ -751,7 +751,7 @@ sub test_change_ordering : Test {
     );
 
     subtest '' => sub {
-        plan tests => factorial(scalar @names);
+        plan tests => factorial(scalar @names) * 2;
 
         foreach my $perm (permutations @names) {
             my @revisions;
@@ -765,14 +765,28 @@ sub test_change_ordering : Test {
                     IO::String->new("In $blob"));
             }
 
-            my @changes = $store->fetch_changed_blobs('test', undef);
+            my @changes;
+            my @expected;
 
-            my @expected = map {
+            @changes = $store->fetch_changed_blobs('test', undef);
+
+            @expected = map {
                 {
                     name     => $perm->[$_],
                     revision => $revisions[$_],
                 }
             } (0..$#revisions);
+
+            is_deeply(\@changes, \@expected);
+
+            @changes = $store->fetch_changed_blobs('test', $revisions[0]);
+
+            @expected = map {
+                {
+                    name     => $perm->[$_],
+                    revision => $revisions[$_],
+                }
+            } (1..$#revisions);
 
             is_deeply(\@changes, \@expected);
         }

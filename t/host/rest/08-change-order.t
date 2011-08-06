@@ -41,27 +41,42 @@ my @names = (
     'file2.txt',
 );
 
-plan tests => factorial(scalar @names);
+plan tests => factorial(scalar @names) * 2;
 
 foreach my $perm (permutations @names) {
     test_host sub {
         my ( $cb ) = @_;
 
         my @revisions;
+        my $res;
+        my $changes;
+        my @expected;
 
         foreach my $blob (@$perm) {
             my $res = $cb->(PUT_AUTHD "/blobs/$blob", Content => "In $blob!");
             push @revisions, $res->header('ETag');
         }
 
-        my $res     = $cb->(GET_AUTHD '/changes.json', Connection => 'close');
-        my $changes = decode_json($res->content);
-        my @expected = map {
+        $res      = $cb->(GET_AUTHD '/changes.json', Connection => 'close');
+        $changes  = decode_json($res->content);
+        @expected = map {
             {
                 name     => $perm->[$_],
                 revision => $revisions[$_],
             }
         } (0..$#revisions);
+
+        is_deeply($changes, \@expected);
+
+        $res = $cb->(GET_AUTHD '/changes.json', Connection => 'close',
+            'X-Sahara-Last-Sync' => $revisions[0]);
+        $changes  = decode_json($res->content);
+        @expected = map {
+            {
+                name     => $perm->[$_],
+                revision => $revisions[$_],
+            }
+        } (1..$#revisions);
 
         is_deeply($changes, \@expected);
     };

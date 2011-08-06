@@ -317,6 +317,8 @@ sub _non_streaming_changes {
                 $reader->on_read_object(sub {
                     my ( undef, $object ) = @_;
 
+                    $meta->{'headers'}{'X-Sahara-Last-Sync'} = $object->{'revision'};
+
                     $cb->($object);
                 });
 

@@ -296,17 +296,17 @@ sub _non_streaming_changes {
         },
     };
 
-    my $url = 'changes';
-    if($metadata && @$metadata) {
-        $url = [ $url, { metadata => $metadata } ];
-    }
-
     weaken($self);
     my $guard = AnyEvent->timer(
         interval => 15, ## hello, magic!
         cb       => sub {
             ## if we get an error...what should happen?  should we keep
             ## throwing requests out there?
+
+            my $url = 'changes';
+            if($metadata && @$metadata) {
+                $url = [ $url, { metadata => $metadata } ];
+            }
 
             ## just because the timer is expired doesn't mean this is...
             $self->do_request(GET => $url, $meta, sub {

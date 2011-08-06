@@ -47,13 +47,15 @@ sub new {
         }
         $url = URI->new("$scheme://$host:$port");
     }
-    my $user     = $options{'user'}     || die "You must provide a user to " . __PACKAGE__ . "::new";
-    my $password = $options{'password'} || die "You must provide a password to " . __PACKAGE__ . "::new";
+    my $user          = $options{'user'}          || die "You must provide a user to " . __PACKAGE__ . "::new";
+    my $password      = $options{'password'}      || die "You must provide a password to " . __PACKAGE__ . "::new";
+    my $poll_interval = $options{'poll_interval'} || 15;
 
     return bless {
         url           => $url,
         user          => $user,
         password      => $password,
+        poll_interval => $poll_interval,
         change_guards => {},
     }, $class;
 }
@@ -298,7 +300,7 @@ sub _non_streaming_changes {
 
     weaken($self);
     my $guard = AnyEvent->timer(
-        interval => 15, ## hello, magic!
+        interval => $self->{'poll_interval'}, ## hello, magic!
         cb       => sub {
             ## if we get an error...what should happen?  should we keep
             ## throwing requests out there?

@@ -72,6 +72,10 @@ sub create_fresh_client {
     );
 }
 
+sub create_fresh_app {
+    return Test::Sahara->create_fresh_app;
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
@@ -84,7 +88,7 @@ sub setup : Test(setup) {
                 port => $port,
                 host => '127.0.0.1',
             );
-            $server->run(Test::Sahara->create_fresh_app);
+            $server->run($self->create_fresh_app);
         },
     );
 

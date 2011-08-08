@@ -52,12 +52,72 @@ sub new {
     my $poll_interval = $options{'poll_interval'} || 15;
 
     return bless {
-        url           => $url,
-        user          => $user,
-        password      => $password,
-        poll_interval => $poll_interval,
-        change_guards => {},
+        url              => $url,
+        user             => $user,
+        password         => $password,
+        poll_interval    => $poll_interval,
+        change_guards    => {},
+        inflight_changes => {},
+        delayed_changes  => {},
+        expected_changes => {},
     }, $class;
+}
+
+sub expect_change {
+    my ( $self, $change ) = @_;
+
+    my $name                           = $change->{'name'};
+    $self->{'expected_changes'}{$name} = $change; ## what if $expected_changes->{$name} exists?
+}
+
+sub expecting_change {
+    my ( $self, $change ) = @_;
+
+    my $name = $change->{'name'};
+    if(my $expected_change = delete $self->{'expected_changes'}{$name}) {
+        if($expected_change->{'revision'} eq $change->{'revision'}) {
+            return 1;
+        }
+    }
+    return;
+}
+
+sub delay_change {
+    my ( $self, $cb, $change ) = @_;
+
+    my $name    = $change->{'name'};
+    my $changes = $self->{'delayed_changes'};
+    unless($changes->{$name}) {
+        $changes->{$name} = [];
+    }
+    $changes = $changes->{$name};
+    ## weaken
+    push @$changes, [ $cb, $change ];
+}
+
+## delayed changes + change guards
+sub run_delayed_changes {
+    my ( $self, $name ) = @_;
+
+    delete $self->{'inflight_changes'}{$name};
+    my $changes = delete $self->{'delayed_changes'}{$name};
+    return unless $changes;
+    foreach my $pair (@$changes) {
+        my ( $cb, $change ) = @$pair;
+        $self->_handle_change($cb, $change);
+    }
+}
+
+sub mark_in_flight {
+    my ( $self, $name ) = @_;
+
+    $self->{'inflight_changes'}{$name} = 1;
+}
+
+sub update_is_in_flight {
+    my ( $self, $name ) = @_;
+
+    return $self->{'inflight_changes'}{$name};
 }
 
 sub add_auth {
@@ -209,8 +269,19 @@ sub put_blob {
     $self->do_request(PUT => ['blobs', $blob], $meta, sub {
         my ( undef, $headers ) = @_;
 
-        return $headers->{'etag'};
+        my $revision = $headers->{'etag'};
+
+        $self->expect_change({
+            name     => $blob,
+            revision => $revision,
+        });
+
+        $self->run_delayed_changes($blob);
+
+        return $revision;
     }, $cb);
+
+    $self->mark_in_flight($blob);
 }
 
 sub delete_blob {
@@ -225,8 +296,34 @@ sub delete_blob {
     $self->do_request(DELETE => ['blobs', $blob], $meta, sub {
         my ( undef, $headers ) = @_;
 
-        return $headers->{'etag'};
+        my $revision = $headers->{'etag'};
+
+        $self->expect_change({
+            name     => $blob,
+            revision => $revision,
+        });
+
+        $self->run_delayed_changes($blob);
+
+        return $revision;
     }, $cb);
+    $self->mark_in_flight($blob);
+}
+
+sub _handle_change {
+    my ( $self, $cb, $change ) = @_;
+
+    my $name = $change->{'name'};
+
+    if($self->update_is_in_flight($name)) {
+        $self->delay_change($cb, $change);
+        return;
+    }
+    if($self->expecting_change($change)) {
+        return;
+    }
+
+    $cb->($change);
 }
 
 sub _streaming_changes {
@@ -246,6 +343,7 @@ sub _streaming_changes {
 
     my $h;
 
+    weaken($self);
     my $guard = $self->do_request(GET => $url, $meta, sub {
         my $headers;
         ( $h, $headers ) = @_;
@@ -255,7 +353,7 @@ sub _streaming_changes {
         $reader->on_read_object(sub {
             my ( undef, $object ) = @_;
 
-            $cb->($object);
+            $self->_handle_change($cb, $object);
         });
 
         $h->on_read(sub {
@@ -319,9 +417,10 @@ sub _non_streaming_changes {
                 $reader->on_read_object(sub {
                     my ( undef, $object ) = @_;
 
+                    ## ???
                     $meta->{'headers'}{'X-Sahara-Last-Sync'} = $object->{'revision'};
 
-                    $cb->($object);
+                    $self->_handle_change($cb, $object);
                 });
 
                 $reader->feed($body);

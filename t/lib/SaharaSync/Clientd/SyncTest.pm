@@ -6,7 +6,7 @@ use autodie qw(open);
 use parent 'Test::Class';
 
 use AnyEvent::Socket qw(tcp_server);
-use File::Slurp qw(read_dir read_file);
+use File::Slurp qw(read_dir read_file write_file);
 use File::Spec;
 use File::Temp;
 use SaharaSync::Clientd;
@@ -120,11 +120,7 @@ sub test_create_file :Test(5) {
     is_deeply(\@files1, []);
     is_deeply(\@files2, []);
 
-    my $fh;
-
-    open $fh, '>', File::Spec->catfile($temp1, 'foo.txt');
-    print $fh "Hello!\n";
-    close $fh;
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello!\n");
 
     $self->catchup;
 
@@ -149,11 +145,7 @@ sub test_delete_file :Test(7) {
     is_deeply(\@files1, []);
     is_deeply(\@files2, []);
 
-    my $fh;
-
-    open $fh, '>', File::Spec->catfile($temp1, 'foo.txt');
-    print $fh "Hello!\n";
-    close $fh;
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello!\n");
 
     $self->catchup;
 

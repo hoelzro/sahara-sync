@@ -12,7 +12,6 @@ use MIME::Base64 ();
 use Plack::Builder;
 use Plack::Test ();
 use SaharaSync::Hostd ();
-use Test::More ();
 
 use namespace::clean;
 
@@ -173,9 +172,6 @@ sub import {
     no strict 'refs';
 
     *{$dest . '::test_host'} = \&test_host;
-    foreach my $sym (@Test::More::EXPORT) {
-        *{$dest . '::' . $sym} = \&{'Test::More::' . $sym};
-    }
 
     if($options{':methods'}) {
         foreach my $method (@export) {
@@ -183,8 +179,6 @@ sub import {
             *{$dest . '::' . $method . '_AUTHD'} = \&{$method . '_AUTHD'};
         }
     }
-
-    Test::More::plan @args if @args;
 }
 
 1;

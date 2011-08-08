@@ -3,7 +3,8 @@ use warnings;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::Sahara ':methods', tests => 3;
+use Test::More tests => 3;
+use Test::Sahara ':methods';
 
 sub metadata_ok {
     my ( $res, $expected, $name ) = @_;

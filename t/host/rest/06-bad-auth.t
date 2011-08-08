@@ -3,7 +3,8 @@ use warnings;
 
 use MIME::Base64 ();
 
-use Test::Sahara ':methods', tests => 4;
+use Test::More tests => 4;
+use Test::Sahara ':methods';
 
 sub generate_authorization {
     my ( undef, $username, $password ) = @_;

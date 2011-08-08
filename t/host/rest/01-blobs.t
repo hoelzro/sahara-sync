@@ -4,7 +4,8 @@ use utf8;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::Sahara ':methods', tests => 80;
+use Test::More tests => 80;
+use Test::Sahara ':methods';
 
 my $BAD_REVISION = '0' x 40;
 

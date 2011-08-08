@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 use Test::Deep;
+use Test::More;
 use Test::Sahara ':methods';
 use Test::JSON;
 

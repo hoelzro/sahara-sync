@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 use Test::Deep;
+use Test::More;
 use Test::Sahara ':methods';
 
 my @http_methods = qw(HEAD GET PUT POST DELETE);

@@ -1,7 +1,8 @@
 use strict;
 use warnings;
 
-use Test::Sahara ':methods', tests => 3;
+use Test::More tests => 3;
+use Test::Sahara ':methods';
 
 test_host sub {
     my ( $cb ) = @_;

@@ -5,7 +5,8 @@ use JSON qw(decode_json);
 use SaharaSync::Stream::Reader;
 
 use Test::Deep;
-use Test::Sahara ':methods', tests => 16;
+use Test::More tests => 16;
+use Test::Sahara ':methods';
 
 $Plack::Test::Impl = 'AnyEvent';
 

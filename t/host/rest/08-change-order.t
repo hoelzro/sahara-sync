@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 
+use Test::More;
 use Test::Sahara ':methods';
 
 use JSON qw(decode_json);

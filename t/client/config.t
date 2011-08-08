@@ -111,6 +111,15 @@ sub optional_params {
                 }];
             },
         },
+
+        poll_interval => {
+            values  => [
+                1,
+                10,
+                6.5
+            ],
+            default => 15,
+        },
     };
 }
 
@@ -127,16 +136,18 @@ sub file_formats {
 
 sub bad_params {
     return [
-        upstream => 'hey!',
-        upstream => 1,
-        upstream => {},
-        upstream => { port => 5982, scheme => 'http' },
-        upstream => { host => 'localhost', scheme => 'xmpp' },
-        upstream => { host => 'localhost', port => -1 },
-        upstream => { host => 'localhost', port => 65536 },
-        upstream => { host => 'localhost', foo => 1 },
-        log      => [{}],
-        log      => {},
+        upstream      => 'hey!',
+        upstream      => 1,
+        upstream      => {},
+        upstream      => { port => 5982, scheme => 'http' },
+        upstream      => { host => 'localhost', scheme => 'xmpp' },
+        upstream      => { host => 'localhost', port => -1 },
+        upstream      => { host => 'localhost', port => 65536 },
+        upstream      => { host => 'localhost', foo => 1 },
+        log           => [{}],
+        log           => {},
+        poll_interval => 0,
+        poll_interval => -1,
     ];
 }
 

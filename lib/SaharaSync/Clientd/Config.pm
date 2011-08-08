@@ -2,8 +2,8 @@ package SaharaSync::Clientd::Config;
 
 use Moose;
 use Moose::Util::TypeConstraints;
-use MooseX::Types -declare => [qw/ContainsType ExpandDir ExpandFile LogConfigs SaharaUri/];
-use MooseX::Types::Moose qw(ArrayRef HashRef Str);
+use MooseX::Types -declare => [qw/ContainsType ExpandDir ExpandFile LogConfigs SaharaUri PollInterval/];
+use MooseX::Types::Moose qw(ArrayRef HashRef Num Str);
 use MooseX::Types::Path::Class qw(Dir File);
 use MooseX::Types::Structured;
 use MooseX::Types::URI qw(Uri);
@@ -70,6 +70,11 @@ coerce SaharaUri,
 
         return URI->new(sprintf("%s://%s:%d", @{$_}{qw/scheme host port/}));
     };
+
+subtype PollInterval,
+    as Num,
+    where { $_ > 0 },
+    message { "Poll interval must be greater than zero" };
 
 has home_dir => (
     is      => 'ro',
@@ -150,6 +155,13 @@ has log => (
         }]
     },
     coerce    => 1,
+    metaclass => 'NoGetopt',
+);
+
+has poll_interval => (
+    is        => 'ro',
+    isa       => PollInterval,
+    default   => 15,
     metaclass => 'NoGetopt',
 );
 

@@ -42,11 +42,12 @@ sub create_fresh_client {
     $log_config->{'min_level'} = 'debug';
 
     my $config = SaharaSync::Clientd::Config->new(
-        upstream => 'http://localhost:' . $self->port,
-        sync_dir => $sync_dir->dirname,
-        username => 'test',
-        password => 'abc123',
-        log      => $log_config,
+        upstream      => 'http://localhost:' . $self->port,
+        sync_dir      => $sync_dir->dirname,
+        username      => 'test',
+        password      => 'abc123',
+        log           => $log_config,
+        poll_interval => $self->client_poll_interval,
     );
 
     # this is easier than managing the client process ourselves

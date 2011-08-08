@@ -56,6 +56,11 @@ has log => (
     is => 'ro',
 );
 
+has poll_interval => (
+    is       => 'ro',
+    required => 1,
+);
+
 has current_revisions => (
     is      => 'ro',
     default => sub { {} },
@@ -116,9 +121,10 @@ sub _build_ws_client {
     my ( $self ) = @_;
 
     return AnyEvent::WebService::Sahara->new(
-        url      => $self->upstream,
-        user     => $self->username,
-        password => $self->password,
+        url           => $self->upstream,
+        user          => $self->username,
+        password      => $self->password,
+        poll_interval => $self->poll_interval,
     );
 }
 

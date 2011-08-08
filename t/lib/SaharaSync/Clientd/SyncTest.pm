@@ -17,8 +17,14 @@ use Test::Sahara ();
 use Test::TCP;
 use Try::Tiny;
 
+sub client_poll_interval {
+    return 1;
+}
+
 sub catchup {
-    sleep 2;
+    my ( $self ) = @_;
+
+    sleep $self->client_poll_interval + 1;
 }
 
 sub port {

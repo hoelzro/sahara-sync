@@ -213,4 +213,105 @@ sub test_update_file :Test(8) {
     is($contents, "Hello 2\n");
 }
 
+sub test_preexisting_files :Test(5) {
+    my ( $self ) = @_;
+
+    my $temp1  = $self->{'temp1'};
+    my $temp2  = $self->{'temp2'};
+
+    $self->{'client1'} = $self->{'client2'} = undef;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, World!");
+
+    $self->catchup;
+
+    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+
+    is_deeply(\@files1, ['foo.txt']);
+    is_deeply(\@files2, []);
+
+    $self->{'client1'} = $self->create_fresh_client($temp1);
+    $self->{'client2'} = $self->create_fresh_client($temp2);
+
+    $self->catchup;
+
+    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+
+    is_deeply(\@files1, ['foo.txt']);
+    is_deeply(\@files2, ['foo.txt']);
+
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Hello, World!";
+}
+
+sub test_offline_update :Test(4) {
+    my ( $self ) = @_;
+
+    my $temp1  = $self->{'temp1'};
+    my $temp2  = $self->{'temp2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, World!");
+
+    $self->catchup;
+
+    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+
+    is_deeply(\@files1, ['foo.txt']);
+    is_deeply(\@files2, ['foo.txt']);
+
+    $self->{'client1'} = $self->{'client2'} = undef;
+
+    $self->catchup;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, again");
+
+    $self->catchup;
+
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Hello, World!";
+
+    $self->{'client1'} = $self->create_fresh_client($temp1);
+    $self->{'client2'} = $self->create_fresh_client($temp2);
+
+    $self->catchup;
+
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Hello, again";
+}
+
+sub test_revision_persistence :Test(4) {
+    my ( $self ) = @_;
+
+    my $temp1  = $self->{'temp1'};
+    my $temp2  = $self->{'temp2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, World!");
+
+    $self->catchup;
+
+    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
+    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
+
+    is_deeply(\@files1, ['foo.txt']);
+    is_deeply(\@files2, ['foo.txt']);
+
+    $self->{'client1'} = $self->create_fresh_client($temp1);
+    $self->{'client2'} = $self->create_fresh_client($temp2);
+
+    $self->catchup;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, again");
+
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Hello, World!";
+
+    $self->catchup;
+
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Hello, again";
+}
+
 1;

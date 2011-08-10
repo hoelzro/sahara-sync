@@ -20,6 +20,26 @@ sub sd {
     return $self->{'sd'};
 }
 
+sub create_sync_dir {
+    my ( $self ) = @_;
+
+    my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
+        root => $self->{'temp'}->dirname,
+    );
+
+    $self->{'seen_events'} = [];
+    $self->{'watch_guard'} = $sd->on_change(sub {
+        my ( @events ) = @_;
+
+        foreach my $event (@events) {
+            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
+            push @{ $self->{'seen_events'} }, $path;
+        }
+    });
+
+    return $sd;
+}
+
 sub startup :Test(startup) {
     my ( $self ) = @_;
 
@@ -30,20 +50,8 @@ sub setup :Test(setup) {
     my ( $self ) = @_;
 
     $self->{'temp'} = File::Temp->newdir;
-    $self->sd(SaharaSync::Clientd::SyncDir->create_syncdir(
-        root => $self->{'temp'}->dirname,
-    ));
     chdir $self->{'temp'}->dirname;
-
-    $self->{'seen_events'} = [];
-    $self->{'watch_guard'} = $self->sd->on_change(sub {
-        my ( @events ) = @_;
-
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
-    });
+    $self->sd($self->create_sync_dir);
 }
 
 sub teardown :Test(teardown) {

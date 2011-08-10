@@ -6,6 +6,7 @@ use parent 'Test::Class';
 use AnyEvent;
 use Cwd;
 use File::Path qw(make_path);
+use File::Slurp qw(write_file);
 use File::Temp;
 use SaharaSync::Clientd::SyncDir;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
@@ -394,6 +395,36 @@ sub test_delete_file :Test(3) {
 
     $self->expect_changes([]);
     ok ! -e 'foo.txt';
+}
+
+sub test_preexisting_files :Test {
+    my ( $self ) = @_;
+
+    $self->sd(undef);
+
+    write_file 'foo.txt', "Hello from foo";
+    write_file 'bar.txt', "Hello from bar";
+    write_file 'baz.txt', "Hello from baz";
+
+    $self->sd($self->create_sync_dir);
+
+    $self->expect_changes(['foo.txt', 'bar.txt', 'baz.txt']);
+}
+
+sub test_offline_update :Test(2) {
+    my ( $self ) = @_;
+
+    write_file 'foo.txt', "Hello";
+
+    $self->expect_changes(['foo.txt']);
+
+    $self->sd(undef);
+
+    write_file 'foo.txt', "Hello, again";
+
+    $self->sd($self->create_sync_dir);
+
+    $self->expect_changes(['foo.txt']);
 }
 
 my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(

@@ -7,6 +7,7 @@ use Moose;
 use autodie qw(mkdir);
 use AnyEvent::WebService::Sahara;
 use Carp qw(croak);
+use DBI;
 use File::Path qw(make_path);
 use File::Slurp qw(read_file);
 use File::Spec;
@@ -61,11 +62,6 @@ has poll_interval => (
     required => 1,
 );
 
-has current_revisions => (
-    is      => 'ro',
-    default => sub { {} },
-);
-
 has inflight_operations => (
     is      => 'ro',
     default => sub { {} },
@@ -74,6 +70,12 @@ has inflight_operations => (
 has delayed_operations => (
     is      => 'ro',
     default => sub { [] },
+);
+
+has dbh => (
+    is      => 'ro',
+    lazy    => 1,
+    builder => '_build_dbh',
 );
 
 ## make sure we handle SIGINT, SIGTERM
@@ -128,6 +130,31 @@ sub _build_ws_client {
     );
 }
 
+sub _build_dbh {
+    my ( $self ) = @_;
+
+    my $db_path = File::Spec->catfile($self->sync_dir, '.saharasync', 'blobs.db');
+    my $dbh     = DBI->connect('dbi:SQLite:dbname=' . $db_path, '', '', {
+        PrintError => 0,
+        RaiseError => 1,
+    });
+
+    $self->_init_db($dbh);
+    return $dbh;
+}
+
+sub _init_db {
+    my ( $self, $dbh ) = @_;
+
+    $dbh->do(<<SQL);
+CREATE TABLE IF NOT EXISTS local_revisions (
+    filename   TEXT    NOT NULL UNIQUE,
+    revision   TEXT    NOT NULL,
+    is_deleted INTEGER NOT NULL
+)
+SQL
+}
+
 sub _run_delayed_operations {
     my ( $self, $blob, $revision ) = @_;
 
@@ -154,10 +181,11 @@ sub _get_last_sync {
 sub _get_revision_for_blob {
     my ( $self, $blob ) = @_;
 
-    my $current_revisions = $self->current_revisions;
+    my $sth = $self->dbh->prepare('SELECT revision from local_revisions WHERE filename = ? AND is_deleted = 0 LIMIT 1');
+    $sth->execute($blob);
 
-    if(my $info = $current_revisions->{$blob}) {
-        return $info->[1] if $info->[0];
+    if(my ( $revision ) = $sth->fetchrow_array) {
+        return $revision;
     }
     return;
 }
@@ -165,9 +193,8 @@ sub _get_revision_for_blob {
 sub _put_revision_for_blob {
     my ( $self, $blob, $revision, $is_deleted ) = @_;
 
-    my $current_revisions = $self->current_revisions;
-
-    $current_revisions->{$blob} = [ !$is_deleted, $revision ];
+    $self->dbh->do('INSERT OR REPLACE INTO local_revisions VALUES (?, ?, ?)',
+        undef, $blob, $revision, $is_deleted);
 }
 
 sub handle_fs_change {
@@ -290,6 +317,8 @@ sub run {
     my ( $self ) = @_;
 
     mkdir $self->sync_dir unless -d $self->sync_dir;
+    my $private_path = File::Spec->catfile($self->sync_dir, '.saharasync');
+    mkdir $private_path unless -d $private_path;
 
     my $last_revision = $self->_get_last_sync;
 

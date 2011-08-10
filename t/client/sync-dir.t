@@ -385,6 +385,20 @@ sub test_offline_update :Test(2) {
     $self->expect_changes(['foo.txt']);
 }
 
+sub test_offline_static :Test(2) {
+    my ( $self ) = @_;
+
+    write_file 'foo.txt', "Hello";
+
+    $self->expect_changes(['foo.txt']);
+
+    $self->sd(undef);
+
+    $self->sd($self->create_sync_dir);
+
+    $self->expect_changes([]);
+}
+
 my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
     root => File::Temp->newdir->dirname,
 );

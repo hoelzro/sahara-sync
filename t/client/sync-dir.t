@@ -6,7 +6,7 @@ use parent 'Test::Class';
 use AnyEvent;
 use Cwd;
 use File::Path qw(make_path);
-use File::Slurp qw(write_file);
+use File::Slurp qw(append_file read_file write_file);
 use File::Temp;
 use SaharaSync::Clientd::SyncDir;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
@@ -102,19 +102,11 @@ sub test_self_changes :Test(3) {
     $h->close;
 
     $self->expect_changes([]);
-    my $fh;
-    open $fh, '<', 'foo.txt';
-    my $contents = do {
-        local $/;
-        <$fh>;
-    };
-    close $fh;
+    my $contents = read_file 'foo.txt';
 
     is $contents, "Hello, World!\n";
 
-    open $fh, '>', 'bar.txt';
-    print $fh  "Bar\n";
-    close $fh;
+    write_file 'bar.txt', "Bar\n";
 
     $h = $sd->open_write_handle('baz.txt');
     $h->write("Baz\n");
@@ -129,24 +121,17 @@ sub test_create_dir :Test(4) {
     mkdir 'foo';
 
     $self->expect_changes([]);
-    my $fh;
-    open $fh, '>', 'foo/bar.txt';
-    print $fh "In foo/bar.txt!\n";
-    close $fh;
+    write_file 'foo/bar.txt', "In foo/bar.txt!\n";
 
     $self->expect_changes(['foo/bar.txt']);
 
     mkdir 'bar';
-    open $fh, '>', 'bar/foo.txt';
-    print $fh "In bar/foo.txt!\n";
-    close $fh;
+    write_file 'bar/foo.txt', "In bar/foo.txt!\n";
 
     $self->expect_changes(['bar/foo.txt']);
 
     make_path('baz/foo/bar/quux/zen');
-    open $fh, '>', 'baz/foo/bar/quux/zen/test.txt';
-    print $fh "In a file with a lot of parent directories!\n";
-    close $fh;
+    write_file 'baz/foo/bar/quux/zen/test.txt',"In a file with a lot of parent directories!\n";
 
     $self->expect_changes(['baz/foo/bar/quux/zen/test.txt']);
 }
@@ -155,9 +140,7 @@ sub test_attribute_changes :Test(2) {
     my ( $self ) = @_;
 
     my $fh;
-    open $fh, '>', 'foo.txt';
-    print $fh "hello\n";
-    close $fh;
+    write_file 'foo.txt', "hello\n";
 
     $self->expect_changes(['foo.txt']);
 
@@ -169,22 +152,15 @@ sub test_attribute_changes :Test(2) {
 sub test_file_changes :Test(4) {
     my ( $self ) = @_;
 
-    my $fh;
-    open $fh, '>', 'foo.txt';
-    print $fh "Hello, World!\n";
-    close $fh;
+    write_file 'foo.txt', "Hello, World!\n";
 
     $self->expect_changes(['foo.txt']);
 
-    open $fh, '>', 'foo.txt';
-    print $fh "Hello, again\n";
-    close $fh;
+    write_file 'foo.txt', "Hello, again\n";
 
     $self->expect_changes(['foo.txt']);
 
-    open $fh, '>>', 'foo.txt';
-    print $fh "Hello, once more\n";
-    close $fh;
+    append_file 'foo.txt', "Hello once more\n";
 
     $self->expect_changes(['foo.txt']);
 
@@ -216,17 +192,13 @@ sub test_moves : Test(6) {
     $self->expect_changes(['bar.txt', 'baz.txt']);
 
     my $external_dir = File::Temp->newdir;
-    open $h, '>', File::Spec->catfile($external_dir, 'foo.txt');
-    print $h "External Foo\n";
-    close $h;
+    write_file(File::Spec->catfile($external_dir, 'foo.txt'), "External Foo\n");
 
     rename File::Spec->catfile($external_dir, 'foo.txt'), 'foo.txt';
 
     $self->expect_changes(['foo.txt']);
 
-    open $h, '>', File::Spec->catfile($external_dir, 'baz.txt');
-    print $h "External Bar\n";
-    close $h;
+    write_file(File::Spec->catfile($external_dir, 'baz.txt'), "External Baz\n");
 
     rename File::Spec->catfile($external_dir, 'baz.txt'), 'baz.txt';
 
@@ -236,9 +208,7 @@ sub test_moves : Test(6) {
 
     $self->expect_changes(['baz.txt']);
 
-    open $h, '>', File::Spec->catfile($external_dir, 'foo.txt');
-    print $h "I will be replaced\n";
-    close $h;
+    write_file(File::Spec->catfile($external_dir, 'foo.txt'), "I will be replaced\n");
 
     rename 'foo.txt', File::Spec->catfile($external_dir, 'foo.txt');
 
@@ -269,9 +239,7 @@ sub test_preservation :Test(2) {
 
     $sd = $self->sd;
 
-    open $h, '>', 'foo.txt';
-    print $h "Test text\n";
-    close $h;
+    write_file 'foo.txt', "Test text\n";
 
     $self->expect_changes(['foo.txt']);
 
@@ -321,9 +289,7 @@ sub test_on_change_guard :Test(4) {
         }
     });
 
-    open $fh, '>', 'foo';
-    print $fh "hello\n";
-    close $fh;
+    write_file 'foo', "hello\n";
 
     $self->expect_changes([]);
 
@@ -336,17 +302,13 @@ sub test_on_change_guard :Test(4) {
         }
     });
 
-    open $fh, '>', 'bar';
-    print $fh "hello\n";
-    close $fh;
+    write_file 'bar', "hello\n";
 
     $self->expect_changes(['bar']);
 
     undef $guard;
 
-    open $fh, '>', 'baz';
-    print $fh "hello\n";
-    close $fh;
+    write_file 'baz', "hello\n";
 
     $self->expect_changes([]);
 
@@ -361,9 +323,7 @@ sub test_on_change_guard :Test(4) {
 
     $self->sd(undef);
 
-    open $fh, '>', 'quux';
-    print $fh "hello\n";
-    close $fh;
+    write_file 'quux', "hello\n";
 
     $self->expect_changes([]);
 }
@@ -385,9 +345,7 @@ sub test_delete_file :Test(3) {
     my $sd = $self->sd;
     my $fh;
 
-    open $fh, '>', 'foo.txt';
-    print $fh, "hello\n";
-    close $fh;
+    write_file 'foo.txt', "hello\n";
 
     $self->expect_changes(['foo.txt']);
 

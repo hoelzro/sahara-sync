@@ -314,4 +314,27 @@ sub test_revision_persistence :Test(4) {
     is $content, "Hello, again";
 }
 
+sub test_update_on_nonorigin :Test(2) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "In foo");
+
+    $self->catchup;
+
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+
+    is $content, "In foo";
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Second update to foo");
+
+    $self->catchup;
+
+    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+
+    is $content, "Second update to foo";
+}
+
 1;

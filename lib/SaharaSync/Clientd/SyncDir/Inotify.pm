@@ -4,6 +4,8 @@ use Moose;
 
 use autodie qw(chmod opendir);
 use AnyEvent;
+use DBI;
+use Digest::SHA;
 use Guard qw(guard);
 use File::Find;
 use File::Spec;
@@ -27,6 +29,12 @@ has change_guards => (
     default  => sub { [] },
 );
 
+has dbh => (
+    is      => 'ro',
+    lazy    => 1,
+    builder => '_build_dbh',
+);
+
 sub BUILD {
     my ( $self ) = @_;
 
@@ -37,6 +45,62 @@ sub _overlay {
     my ( $self ) = @_;
 
     return File::Spec->catdir($self->root, '.saharasync');
+}
+
+sub _init_db {
+    my ( $self, $dbh ) = @_;
+
+    $dbh->do(<<SQL);
+CREATE TABLE IF NOT EXISTS file_stats (
+    path     TEXT NOT NULL UNIQUE,
+    checksum TEXT NOT NULL
+)
+SQL
+}
+
+sub _build_dbh {
+    my ( $self ) = @_;
+
+    my $path = File::Spec->catfile($self->_overlay, 'events.db');
+    my $dbh  = DBI->connect('dbi:SQLite:dbname=' . $path, '', '', {
+        PrintError => 0,
+        RaiseError => 1,
+    });
+
+    $self->_init_db($dbh);
+
+    return $dbh;
+}
+
+sub _file_has_changed {
+    my ( $self, $file ) = @_;
+
+    my $dbh = $self->dbh;
+    my $sth = $dbh->prepare('SELECT checksum FROM file_stats WHERE path = ?');
+
+    $sth->execute($file);
+
+    if(my ( $checksum ) = $sth->fetchrow_array) {
+        return 1; ## for now
+    }
+
+    return 1;
+}
+
+sub _update_file_stats {
+    my ( $self, $fullpath, $file ) = @_;
+
+    my $dbh = $self->dbh;
+
+    if(-f $fullpath) {
+        my $digest = Digest::SHA->new(1);
+        $digest->addfile($fullpath);
+
+        $dbh->do('INSERT OR REPLACE INTO file_stats (path, checksum) VALUES (?, ?)', undef,
+            $file, $digest->hexdigest);
+    } else {
+        $dbh->do('DELETE FROM file_stats WHERE path = ?', undef, $file);
+    }
 }
 
 sub create_fake_event {
@@ -80,6 +144,19 @@ sub on_change {
     my $mask = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
     my $root = $self->root;
     my $n    = Linux::Inotify2->new || die $!;
+
+    my $orig_callback = $callback;
+
+    $callback = sub {
+        my ( $event ) = @_;
+
+        my $fullpath = $event->{'path'};
+        my $file     = File::Spec->abs2rel($fullpath, $root);
+
+        $self->_update_file_stats($fullpath, $file);
+
+        goto &$orig_callback;
+    };
 
     my $overlay_watcher;
     my %pending_updates;
@@ -160,7 +237,7 @@ sub on_change {
                             $_->[0] ne $cookie
                         } @pending_deletes;
                         return;
-                    } elsif(any { $_->[0] eq $cookie } @pending_deletes) {
+                    } elsif(any { $_->[0] eq $cookie } @pending_deletes) { ## couldn't you just execute them here?
                         push @pending_deletes, [ $cookie, $event ];
                         return;
                     }
@@ -171,7 +248,7 @@ sub on_change {
         $callback->($event);
     };
 
-    $n->watch($root, $mask, $wrapper);
+    my $watcher = $n->watch($root, $mask, $wrapper);
     my $dir;
     opendir $dir, $root or die $!;
     while(my $file = readdir $dir) {
@@ -183,15 +260,23 @@ sub on_change {
             ## special wrapper for .saharasync?
             $overlay_watcher = $n->watch($file, IN_MOVE, $wrapper);
         } else {
-            $file = File::Spec->catdir($root, $file);
-            next unless -d $file;
+            my $path = File::Spec->catdir($root, $file);
+            if(-d $path) {
+                ## no_chdir!
+                find(sub {
+                    return unless -d;
 
-            ## no_chdir!
-            find(sub {
-                return unless -d;
-
-                $n->watch($_, $mask, $wrapper);
-            }, $file);
+                    $n->watch($_, $mask, $wrapper);
+                }, $path);
+            } else {
+                if($self->_file_has_changed($file)) {
+                    ## we'll have the checksum calculated here; we should
+                    ## make use of it
+                    $callback->({
+                        path => $path,
+                    });
+                }
+            }
         }
     }
 

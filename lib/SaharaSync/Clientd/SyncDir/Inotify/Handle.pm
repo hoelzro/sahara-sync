@@ -4,12 +4,14 @@ use strict;
 use warnings;
 use parent 'IO::Handle';
 
+use File::Spec;
+
 sub new {
-    my ( $class, $tempfile, $mode, $destination ) = @_;
+    my ( $class, $sync_dir, $tempfile, $mode, $destination ) = @_;
 
     my $self = IO::Handle::new_from_fd($class, fileno($tempfile), 'w');
-    @{*$self}{qw/temp_name mode real_name/} =
-        ( $tempfile->filename, $mode, $destination );
+    @{*$self}{qw/temp_name mode real_name sync_dir/} =
+        ( $tempfile->filename, $mode, $destination, $sync_dir );
     return $self;
 }
 
@@ -23,11 +25,14 @@ sub cancel {
 sub close {
     my ( $self ) = @_;
 
-    my ( $temp_name, $mode, $real_name ) = @{*$self}{qw/temp_name mode real_name/};
+    my ( $temp_name, $mode, $real_name, $sync_dir ) = @{*$self}{qw/temp_name mode real_name sync_dir/};
 
     my $retval = IO::Handle::close($self);
     chmod $mode, $temp_name or die $! if defined $mode;
     rename $temp_name, $real_name or die $!;
+
+    my $file = File::Spec->abs2rel($real_name, $sync_dir->root);
+    $sync_dir->_update_file_stats($real_name, $file);
 
     return $retval;
 }

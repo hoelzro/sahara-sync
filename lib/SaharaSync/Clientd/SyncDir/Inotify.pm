@@ -329,7 +329,7 @@ sub open_write_handle {
     ## do some more checks?
 
     my $file = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
-    return SaharaSync::Clientd::SyncDir::Inotify::Handle->new($file, $old_mode,
+    return SaharaSync::Clientd::SyncDir::Inotify::Handle->new($self, $file, $old_mode,
         $current_path);
 }
 
@@ -341,6 +341,7 @@ sub unlink {
     my $path = File::Spec->catfile($self->root, $blob_name);
     rename $path, $tempfile->filename or die $!;
     unlink $tempfile->filename;
+    $self->_update_file_stats($path, $blob_name);
 }
 
 __PACKAGE__->meta->make_immutable;

@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 use File::Slurp qw(append_file read_file write_file);
 use File::Temp;
 use SaharaSync::Clientd::SyncDir;
-use Test::Deep::NoTest qw(cmp_details deep_diag);
+use Test::Deep::NoTest qw(bag cmp_details deep_diag);
 use Test::More;
 
 sub sd {
@@ -68,7 +68,7 @@ sub timeout {
 }
 
 sub expect_changes {
-    my ( $self, $expected, $name ) = @_;
+    my ( $self, $expected, $as_bag, $name ) = @_;
 
     my $tb = $self->builder;
 
@@ -83,6 +83,10 @@ sub expect_changes {
 
     my $got = $self->{'seen_events'};
     $self->{'seen_events'} = [];
+
+    if($as_bag) {
+        $expected = bag(@$expected);
+    }
 
     my ( $ok, $stack ) = cmp_details($got, $expected);
 

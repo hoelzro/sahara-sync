@@ -268,6 +268,7 @@ sub handle_upstream_change {
 
     my $blob       = $change->{'name'};
     my $is_deleted = $change->{'is_deleted'};
+    my $revision   = $change->{'revision'};
 
     if($self->inflight_operations->{$blob}) {
         push @{ $self->delayed_operations }, $change;
@@ -298,6 +299,8 @@ sub handle_upstream_change {
             $h->on_eof(sub {
                 $w->close;
                 undef $h;
+
+                $self->_put_revision_for_blob($blob, $revision, $is_deleted ? 1 : 0);
             });
         });
     }

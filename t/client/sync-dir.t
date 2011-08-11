@@ -370,7 +370,7 @@ sub test_preexisting_files :Test {
 
     $self->sd($self->create_sync_dir);
 
-    $self->expect_changes(['foo.txt', 'bar.txt', 'baz.txt']);
+    $self->expect_changes(['foo.txt', 'bar.txt', 'baz.txt'], 1);
 }
 
 sub test_offline_update :Test(2) {

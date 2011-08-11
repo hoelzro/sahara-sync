@@ -27,6 +27,7 @@ sub create_sync_dir {
     my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
         root => $self->{'temp'}->dirname,
     );
+    $self->sd($sd);
 
     $self->{'seen_events'} = [];
     $self->{'watch_guard'} = $sd->on_change(sub {
@@ -52,7 +53,7 @@ sub setup :Test(setup) {
 
     $self->{'temp'} = File::Temp->newdir;
     chdir $self->{'temp'}->dirname;
-    $self->sd($self->create_sync_dir);
+    $self->create_sync_dir;
 }
 
 sub teardown :Test(teardown) {
@@ -368,7 +369,7 @@ sub test_preexisting_files :Test {
     write_file 'bar.txt', "Hello from bar";
     write_file 'baz.txt', "Hello from baz";
 
-    $self->sd($self->create_sync_dir);
+    $self->create_sync_dir;
 
     $self->expect_changes(['foo.txt', 'bar.txt', 'baz.txt'], 1);
 }
@@ -384,7 +385,7 @@ sub test_offline_update :Test(2) {
 
     write_file 'foo.txt', "Hello, again";
 
-    $self->sd($self->create_sync_dir);
+    $self->create_sync_dir;
 
     $self->expect_changes(['foo.txt']);
 }
@@ -398,7 +399,7 @@ sub test_offline_static :Test(2) {
 
     $self->sd(undef);
 
-    $self->sd($self->create_sync_dir);
+    $self->create_sync_dir;
 
     $self->expect_changes([]);
 }

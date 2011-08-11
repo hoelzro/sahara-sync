@@ -298,6 +298,8 @@ sub test_on_change_guard :Test(4) {
 
     $self->expect_changes([]);
 
+    unlink 'foo';
+
     my $guard = $self->sd->on_change(sub {
         my ( @events ) = @_;
 
@@ -316,6 +318,9 @@ sub test_on_change_guard :Test(4) {
     write_file 'baz', "hello\n";
 
     $self->expect_changes([]);
+
+    unlink 'bar';
+    unlink 'baz';
 
     $guard = $self->sd->on_change(sub {
         my ( @events ) = @_;

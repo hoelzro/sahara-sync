@@ -73,7 +73,7 @@ sub _build_dbh {
 }
 
 sub _file_has_changed {
-    my ( $self, $file ) = @_;
+    my ( $self, $file, $fullpath ) = @_;
 
     my $dbh = $self->dbh;
     my $sth = $dbh->prepare('SELECT checksum FROM file_stats WHERE path = ?');
@@ -81,7 +81,11 @@ sub _file_has_changed {
     $sth->execute($file);
 
     if(my ( $checksum ) = $sth->fetchrow_array) {
-        return 1; ## for now
+        ## this comparison could be far more efficient
+        my $digest = Digest::SHA->new(1);
+        $digest->addfile($fullpath);
+
+        return $checksum ne $digest->hexdigest;
     }
 
     return 1;
@@ -269,7 +273,7 @@ sub on_change {
                     $n->watch($_, $mask, $wrapper);
                 }, $path);
             } else {
-                if($self->_file_has_changed($file)) {
+                if($self->_file_has_changed($file, $path)) {
                     ## we'll have the checksum calculated here; we should
                     ## make use of it
                     $callback->({

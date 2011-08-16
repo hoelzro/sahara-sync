@@ -397,8 +397,9 @@ sub _non_streaming_changes {
     };
 
     weaken($self);
-    my $guard = AnyEvent->timer(
-        interval => $self->{'poll_interval'}, ## hello, magic!
+    my $req_guard;
+    my $timer_guard = AnyEvent->timer(
+        interval => $self->{'poll_interval'},
         cb       => sub {
             ## if we get an error...what should happen?  should we keep
             ## throwing requests out there?
@@ -409,7 +410,7 @@ sub _non_streaming_changes {
             }
 
             ## just because the timer is expired doesn't mean this is...
-            $self->do_request(GET => $url, $meta, sub {
+            $req_guard = $self->do_request(GET => $url, $meta, sub {
                 my ( $body, $headers ) = @_;
 
                 my $reader = SaharaSync::Stream::Reader->for_mimetype($headers->{'content-type'});
@@ -435,13 +436,14 @@ sub _non_streaming_changes {
 
     my $guards = $self->{'change_guards'};
     weaken($guards);
-    $guards->{$guard} = guard {
-        undef $guard;
+    $guards->{$timer_guard} = guard {
+        undef $timer_guard;
+        undef $req_guard;
     };
 
     if(defined wantarray) {
         return guard {
-            delete $guards->{$guard} if $guards && $guard;
+            delete $guards->{$timer_guard} if $guards && $timer_guard;
         };
     }
 }

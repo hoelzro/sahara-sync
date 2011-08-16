@@ -8,6 +8,7 @@ use warnings;
 use AnyEvent::HTTP;
 use Carp qw(croak);
 use Guard qw(guard);
+use List::MoreUtils qw(any);
 use MIME::Base64 qw(encode_base64);
 use Scalar::Util qw(weaken);
 use URI;
@@ -46,15 +47,77 @@ sub new {
         }
         $url = URI->new("$scheme://$host:$port");
     }
-    my $user     = $options{'user'}     || die "You must provide a user to " . __PACKAGE__ . "::new";
-    my $password = $options{'password'} || die "You must provide a password to " . __PACKAGE__ . "::new";
+    my $user          = $options{'user'}          || die "You must provide a user to " . __PACKAGE__ . "::new";
+    my $password      = $options{'password'}      || die "You must provide a password to " . __PACKAGE__ . "::new";
+    my $poll_interval = $options{'poll_interval'} || 15;
 
     return bless {
-        url           => $url,
-        user          => $user,
-        password      => $password,
-        change_guards => {},
+        url              => $url,
+        user             => $user,
+        password         => $password,
+        poll_interval    => $poll_interval,
+        change_guards    => {},
+        inflight_changes => {},
+        delayed_changes  => {},
+        expected_changes => {},
     }, $class;
+}
+
+sub expect_change {
+    my ( $self, $change ) = @_;
+
+    my $name                           = $change->{'name'};
+    $self->{'expected_changes'}{$name} = $change; ## what if $expected_changes->{$name} exists?
+}
+
+sub expecting_change {
+    my ( $self, $change ) = @_;
+
+    my $name = $change->{'name'};
+    if(my $expected_change = delete $self->{'expected_changes'}{$name}) {
+        if($expected_change->{'revision'} eq $change->{'revision'}) {
+            return 1;
+        }
+    }
+    return;
+}
+
+sub delay_change {
+    my ( $self, $cb, $change ) = @_;
+
+    my $name    = $change->{'name'};
+    my $changes = $self->{'delayed_changes'};
+    unless($changes->{$name}) {
+        $changes->{$name} = [];
+    }
+    $changes = $changes->{$name};
+    ## weaken
+    push @$changes, [ $cb, $change ];
+}
+
+## delayed changes + change guards
+sub run_delayed_changes {
+    my ( $self, $name ) = @_;
+
+    delete $self->{'inflight_changes'}{$name};
+    my $changes = delete $self->{'delayed_changes'}{$name};
+    return unless $changes;
+    foreach my $pair (@$changes) {
+        my ( $cb, $change ) = @$pair;
+        $self->_handle_change($cb, $change);
+    }
+}
+
+sub mark_in_flight {
+    my ( $self, $name ) = @_;
+
+    $self->{'inflight_changes'}{$name} = 1;
+}
+
+sub update_is_in_flight {
+    my ( $self, $name ) = @_;
+
+    return $self->{'inflight_changes'}{$name};
 }
 
 sub add_auth {
@@ -206,8 +269,19 @@ sub put_blob {
     $self->do_request(PUT => ['blobs', $blob], $meta, sub {
         my ( undef, $headers ) = @_;
 
-        return $headers->{'etag'};
+        my $revision = $headers->{'etag'};
+
+        $self->expect_change({
+            name     => $blob,
+            revision => $revision,
+        });
+
+        $self->run_delayed_changes($blob);
+
+        return $revision;
     }, $cb);
+
+    $self->mark_in_flight($blob);
 }
 
 sub delete_blob {
@@ -222,11 +296,37 @@ sub delete_blob {
     $self->do_request(DELETE => ['blobs', $blob], $meta, sub {
         my ( undef, $headers ) = @_;
 
-        return $headers->{'etag'};
+        my $revision = $headers->{'etag'};
+
+        $self->expect_change({
+            name     => $blob,
+            revision => $revision,
+        });
+
+        $self->run_delayed_changes($blob);
+
+        return $revision;
     }, $cb);
+    $self->mark_in_flight($blob);
 }
 
-sub changes {
+sub _handle_change {
+    my ( $self, $cb, $change ) = @_;
+
+    my $name = $change->{'name'};
+
+    if($self->update_is_in_flight($name)) {
+        $self->delay_change($cb, $change);
+        return;
+    }
+    if($self->expecting_change($change)) {
+        return;
+    }
+
+    $cb->($change);
+}
+
+sub _streaming_changes {
     my ( $self, $since, $metadata, $cb ) = @_;
 
     my $meta = {
@@ -243,6 +343,7 @@ sub changes {
 
     my $h;
 
+    weaken($self);
     my $guard = $self->do_request(GET => $url, $meta, sub {
         my $headers;
         ( $h, $headers ) = @_;
@@ -252,7 +353,7 @@ sub changes {
         $reader->on_read_object(sub {
             my ( undef, $object ) = @_;
 
-            $cb->($object);
+            $self->_handle_change($cb, $object);
         });
 
         $h->on_read(sub {
@@ -283,6 +384,93 @@ sub changes {
         return guard {
             delete $guards->{$guard} if $guards && $guard;
         };
+    }
+}
+
+sub _non_streaming_changes {
+    my ( $self, $since, $metadata, $cb ) = @_;
+
+    my $meta = {
+        headers => {
+            'X-Sahara-Last-Sync' => $since,
+        },
+    };
+
+    weaken($self);
+    my $guard = AnyEvent->timer(
+        interval => $self->{'poll_interval'}, ## hello, magic!
+        cb       => sub {
+            ## if we get an error...what should happen?  should we keep
+            ## throwing requests out there?
+
+            my $url = 'changes';
+            if($metadata && @$metadata) {
+                $url = [ $url, { metadata => $metadata } ];
+            }
+
+            ## just because the timer is expired doesn't mean this is...
+            $self->do_request(GET => $url, $meta, sub {
+                my ( $body, $headers ) = @_;
+
+                my $reader = SaharaSync::Stream::Reader->for_mimetype($headers->{'content-type'});
+
+                $reader->on_read_object(sub {
+                    my ( undef, $object ) = @_;
+
+                    ## ???
+                    $meta->{'headers'}{'X-Sahara-Last-Sync'} = $object->{'revision'};
+
+                    $self->_handle_change($cb, $object);
+                });
+
+                $reader->feed($body);
+                $reader->feed(undef);
+            }, sub {
+                my ( $ok, $error ) = @_;
+
+                $cb->(@_) unless $ok;
+            });
+        },
+    );
+
+    my $guards = $self->{'change_guards'};
+    weaken($guards);
+    $guards->{$guard} = guard {
+        undef $guard;
+    };
+
+    if(defined wantarray) {
+        return guard {
+            delete $guards->{$guard} if $guards && $guard;
+        };
+    }
+}
+
+sub changes {
+    my ( $self, $since, $metadata, $cb ) = @_;
+
+    my $cond = AnyEvent->condvar;
+    my $caps;
+    my $error;
+
+    $self->capabilities(sub {
+        ( $caps, $error ) = @_;
+
+        $cond->send;
+    });
+
+    ## synchronous code alert!
+    $cond->recv;
+
+    unless($caps) {
+        $cb->(undef, $error);
+        return;
+    }
+
+    if(any { $_ eq 'streaming' } @$caps) {
+        return $self->_streaming_changes($since, $metadata, $cb);
+    } else {
+        return $self->_non_streaming_changes($since, $metadata, $cb);
     }
 }
 

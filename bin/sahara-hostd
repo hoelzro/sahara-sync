@@ -43,6 +43,7 @@ my $app    = $hostd->to_app;
 
 my $runner = Plack::Runner->new(
     server => 'Twiggy',
+    env    => 'deployment',
 );
 $runner->parse_options('--port' => $hostd->port);
 $hostd->log->info('Starting host daemon');

@@ -135,7 +135,7 @@ sub check_params {
         my $expected = $params->{$k};
 
         if(my $comparator = $self->can('compare_' . $k)) {
-            my ( $ok, $diag ) = $self->$comparator($got, $expected);
+            my ( $ok, $diag ) = $self->$comparator($config, $got, $expected);
 
             unless($ok) {
                 push @diag, "attribute '$k' doesn't match: $diag";
@@ -308,7 +308,7 @@ sub test_bad_params : Test {
 sub test_all_optional :Test {
     my ( $self ) = @_;
 
-    my @required = $self->required_permutations;
+    my $required = $self->simple_required;
     my @optional = $self->optional_permutations;
     my $class    = $self->config_class;
 
@@ -316,17 +316,15 @@ sub test_all_optional :Test {
         return "$class has no optional parameters";
     } else {
         subtest 'Testing all optional parameters' => sub {
-            plan tests => 2 * @required * @optional;
+            plan tests => 2 * @optional;
 
-            foreach my $req (@required) {
-                foreach my $opt (@optional) {
-                    my %params = ( %$req, %$opt );
-                    my $config;
-                    lives_ok {
-                        $config = $class->new(\%params);
-                    } "Creating a config object will all optionals should succeed";
-                    $self->check_params($config, \%params);
-                }
+            foreach my $opt (@optional) {
+                my %params = ( %$required, %$opt );
+                my $config;
+                lives_ok {
+                    $config = $class->new(\%params);
+                } "Creating a config object will all optionals should succeed";
+                $self->check_params($config, \%params);
             }
         };
     }
@@ -335,8 +333,8 @@ sub test_all_optional :Test {
 sub test_all_optional_missing_one_required : Test {
     my ( $self ) = @_;
 
-    my @req_names = keys %{ $self->required_params };
-    my @required  = $self->required_permutations;
+    my $required  = $self->simple_required;
+    my @req_names = keys %$required;
     my @optional  = $self->optional_permutations;
     my $class     = $self->config_class;
 
@@ -344,18 +342,16 @@ sub test_all_optional_missing_one_required : Test {
         return "$class has no optional parameters";
     } else {
         subtest 'Testing all optional parameters except for one required param' => sub {
-            plan tests => @req_names * @required * @optional;
+            plan tests => @req_names *  @optional;
 
-            foreach my $req (@required) {
-                foreach my $opt (@optional) {
-                    foreach my $name (@req_names) {
-                        my %params = ( %$req, %$opt );
-                        delete $params{$name};
+            foreach my $opt (@optional) {
+                foreach my $name (@req_names) {
+                    my %params = ( %$required, %$opt );
+                    delete $params{$name};
 
-                        throws_ok {
-                            $class->new(\%params);
-                        } qr/Attribute.*($name).*is\s+required/, "Missing any required arguments should fail";
-                    }
+                    throws_ok {
+                        $class->new(\%params);
+                    } qr/Attribute.*($name).*is\s+required/, "Missing any required arguments should fail";
                 }
             }
         };

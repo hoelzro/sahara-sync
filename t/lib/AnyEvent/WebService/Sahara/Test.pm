@@ -39,10 +39,27 @@ sub create_client {
     my ( $self ) = @_;
 
     return AnyEvent::WebService::Sahara->new(
-        url      => 'http://localhost:' . $self->port,
-        user     => 'test',
-        password => 'abc123',
+        url           => 'http://localhost:' . $self->port,
+        user          => 'test',
+        password      => 'abc123',
+        poll_interval => $self->client_poll_time,
     );
+}
+
+sub create_fresh_app {
+    return Test::Sahara->create_fresh_app;
+}
+
+sub port {
+    return Test::Sahara->port;
+}
+
+sub expected_capabilities {
+    return ['streaming'];
+}
+
+sub client_poll_time {
+    return 1;
 }
 
 sub setup : Test(setup) {
@@ -155,7 +172,7 @@ sub test_bad_credentials : Test(18) {
 
         $client->capabilities(sub {
             my ( $capabilities ) = @_;
-            is_deeply($capabilities, ['streaming'], "Capabilities should be fetchable with bad auth");
+            is_deeply($capabilities, $self->expected_capabilities, "Capabilities should be fetchable with bad auth");
             $cond->send;
         });
 
@@ -216,7 +233,7 @@ sub test_capabilities : Test {
 
     $client->capabilities(sub {
         my ( $capabilities ) = @_;
-        is_deeply($capabilities, ['streaming'], "Streaming capabilities should be present");
+        is_deeply($capabilities, $self->expected_capabilities, "Streaming capabilities should be present");
         $cond->send;
     });
 
@@ -870,7 +887,7 @@ sub test_cancel_changes : Test(10) {
     $revision = $res->header('ETag');
 
     my $timer = AnyEvent->timer(
-        after => 0.5,
+        after => $self->client_poll_time + 5,
         cb    => sub {
             $cond->send;
         },
@@ -882,6 +899,99 @@ sub test_cancel_changes : Test(10) {
     is $seen_change1, 0;
     is $seen_change2, 0;
     is $seen_change3, 0;
+}
+
+sub test_own_changes_invisible : Test(8) {
+    my ( $self ) = @_;
+
+    my $cond;
+    my $timer;
+    my @client1_changes;
+    my @client2_changes;
+    my $client1 = $self->create_client;
+    my $client2 = $self->create_client;
+    my $revision1;
+    my $revision2;
+
+    $client1->changes(undef, [], sub {
+        my ( $change ) = @_;
+
+        push @client1_changes, $change;
+    });
+
+    $client2->changes(undef, [], sub {
+        my ( $change ) = @_;
+
+        push @client2_changes, $change;
+    });
+
+    $cond  = AnyEvent->condvar;
+    $timer = AnyEvent->timer(
+        after    => $self->client_poll_time + 5,
+        interval => $self->client_poll_time + 5,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $client1->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
+        ( $revision1 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, []);
+    is_deeply(\@client2_changes, [{
+        name     => 'file.txt',
+        revision => $revision1,
+    }]);
+
+    @client1_changes = @client2_changes = ();
+    $cond = AnyEvent->condvar;
+
+    $client2->put_blob('file2.txt', IO::String->new('Test content 2'), {}, sub {
+        ( $revision2 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, [{
+        name     => 'file2.txt',
+        revision => $revision2,
+    }]);
+    is_deeply(\@client2_changes, []);
+
+    @client1_changes = @client2_changes = ();
+    $cond = AnyEvent->condvar;
+
+    $client1->delete_blob('file2.txt', $revision2, sub {
+        ( $revision2 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, []);
+    is_deeply(\@client2_changes, [{
+        name       => 'file2.txt',
+        revision   => $revision2,
+        is_deleted => 1,
+    }]);
+
+    @client1_changes = @client2_changes = ();
+    $cond = AnyEvent->condvar;
+
+    $client2->delete_blob('file.txt', $revision1, sub {
+        ( $revision1 ) = @_;
+    });
+
+    $cond->recv;
+
+    is_deeply(\@client1_changes, [{
+        name       => 'file.txt',
+        revision   => $revision1,
+        is_deleted => 1,
+    }]);
+    is_deeply(\@client2_changes, []);
 }
 
 __PACKAGE__->SKIP_CLASS(1);

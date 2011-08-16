@@ -8,3 +8,4 @@ log:
     type: Screen::Color
     min_level: debug
     stderr: true
+    newline: true

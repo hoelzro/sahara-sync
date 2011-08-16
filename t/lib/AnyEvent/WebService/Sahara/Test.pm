@@ -12,6 +12,7 @@ use Test::TCP qw(empty_port);
 use AnyEvent::WebService::Sahara;
 use IO::String;
 use LWP::UserAgent;
+use Plack::Builder;
 use Plack::Loader;
 
 my $BAD_REVISION = '0' x 40;
@@ -992,6 +993,69 @@ sub test_own_changes_invisible : Test(8) {
         is_deleted => 1,
     }]);
     is_deeply(\@client2_changes, []);
+}
+
+sub test_guard_request_in_flight : Test(2) {
+    my ( $self ) = @_;
+
+    my $app     = $self->create_fresh_app;
+    my $delayed = builder {
+        enable_if { $_[0]->{'REQUEST_METHOD'} eq 'GET' } 'Delay', delay => $self->client_poll_time + 5;
+        $app;
+    };
+
+    my $port = $self->port;
+
+    $self->server(Test::TCP->new(
+        port => $port,
+        code => sub {
+            my ( $port ) = @_;
+
+            my $server = Plack::Loader->auto(
+                port => $port,
+                host => '127.0.0.1',
+            );
+            $server->run($delayed);
+        },
+    ));
+
+    my $ua  = LWP::UserAgent->new;
+    my $res;
+    do {
+        sleep 1;
+        $res = $ua->request(HEAD "http://localhost:$port/");
+    } until $res->is_success;
+
+    $res = $ua->request(PUT_AUTHD "http://localhost:$port/blobs/file.txt",
+        Content => 'Test Content');
+
+    is $res->code, 201 or diag($res->content);
+
+    my $change_seen;
+    my $guard = $self->client->changes(undef, [], sub {
+        $change_seen = 1;
+    });
+
+    my $expire_timer;
+    my $stop_timer;
+    my $cond = AnyEvent->condvar;
+
+    $expire_timer = AnyEvent->timer(
+        after => $self->client_poll_time + 1,
+        cb    => sub {
+            undef $guard;
+        },
+    );
+
+    $stop_timer = AnyEvent->timer(
+        after => $self->client_poll_time + 10,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $cond->recv;
+    ok !$change_seen;
 }
 
 __PACKAGE__->SKIP_CLASS(1);

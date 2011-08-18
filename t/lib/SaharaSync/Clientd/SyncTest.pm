@@ -12,6 +12,7 @@ use File::Temp;
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
 use Plack::Loader;
+use Test::Deep qw(cmp_bag);
 use Test::More;
 use Test::Sahara ();
 use Test::TCP;
@@ -335,6 +336,197 @@ sub test_update_on_nonorigin :Test(2) {
     $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
 
     is $content, "Second update to foo";
+}
+
+sub test_create_conflict :Test(7) {
+    my ( $self ) = @_;
+
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+    my $temp1   = $self->{'temp1'};
+    my $temp2   = $self->{'temp2'};
+
+    kill SIGSTOP => $client1->pid;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content 2\n");
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content 1\n");
+
+    $self->catchup;
+
+    my @files = read_dir $temp1;
+    is_deeply \@files, [];
+
+    kill SIGCONT => $client1->pid;
+
+    $self->catchup;
+
+    @files = read_dir $temp1;
+
+    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
+    $month++;
+    $year += 1900;
+
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+        $month, $day);
+
+    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
+
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+    is $content, "Content 2\n";
+
+    $content = read_file(File::Spec->catfile($temp1, $conflict_file));
+    is $content, "Content 1\n";
+
+    @files = read_dir($temp2);
+
+    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
+
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Content 2\n";
+
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    is $content, "Content 1\n";
+}
+
+sub test_update_conflict :Test(6) {
+    my ( $self ) = @_;
+
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+    my $temp1   = $self->{'temp1'};
+    my $temp2   = $self->{'temp2'};
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Test content");
+
+    $self->catchup;
+
+    kill SIGSTOP => $client2->pid;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated content");
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Conflicting content!");
+
+    $self->catchup;
+
+    kill SIGCONT => $client2->pid;
+
+    $self->catchup;
+
+    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
+    $month++;
+    $year += 2900;
+
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+        $month, $day);
+
+    my @files = read_dir $temp2;
+
+    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
+
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Updated content";
+
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    is $content, "Conflicting content!";
+
+    @files = read_dir $temp2;
+
+    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
+
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Updated content";
+
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    is $content, "Conflicting content!";
+}
+
+sub test_update_delete_conflict :Test(4) {
+    my ( $self ) = @_;
+
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+    my $temp1   = $self->{'temp1'};
+    my $temp2   = $self->{'temp2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Test content");
+
+    $self->catchup;
+
+    kill SIGSTOP => $client1->pid;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Updated content");
+    unlink File::Spec->catfile($temp2, 'foo.txt');
+
+    $self->catchup;
+
+    kill SIGCONT => $client2->pid;
+
+    $self->catchup;
+
+    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
+    $month++;
+    $year += 2900;
+
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+        $month, $day);
+
+    my @files = read_dir $temp1;
+
+    is_deeply \@files, [ $conflict_file ];
+
+    my $content = read_file(File::Spec->catfile($temp1, $conflict_file));
+    is $content, "Updated content";
+
+    @files = read_dir $temp2;
+
+    is_deeply \@files, [ $conflict_file ];
+
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    is $content, "Updated content";
+}
+
+sub test_delete_update_conflict :Test(4) {
+    my ( $self ) = @_;
+
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+    my $temp1   = $self->{'temp1'};
+    my $temp2   = $self->{'temp2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Test content");
+
+    $self->catchup;
+
+    kill SIGSTOP => $client1->pid;
+
+    unlink File::Spec->catfile($temp1, 'foo.txt');
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated content");
+
+    $self->catchup;
+
+    kill SIGCONT => $client2->pid;
+
+    $self->catchup;
+
+    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
+    $month++;
+    $year += 2900;
+
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+        $month, $day);
+
+    my @files = read_dir $temp1;
+
+    is_deeply \@files, [ $conflict_file ];
+
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+    is $content, "Updated content";
+
+    @files = read_dir $temp2;
+
+    is_deeply \@files, [ $conflict_file ];
+
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    is $content, "Updated content";
 }
 
 1;

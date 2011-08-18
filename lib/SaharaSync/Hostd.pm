@@ -439,8 +439,10 @@ sub to_app {
 
     my $store = $self->storage;
 
+    my $log = $self->log;
+
     builder {
-        enable 'LogDispatch', logger => $self->log;
+        enable 'LogDispatch', logger => $log;
         enable 'Sahara::Streaming' unless $self->disable_streaming;
         enable_if { $_[0]->{'REQUEST_URI'} =~ m!^/changes! } 'SetAccept',
             from => 'suffix', tolerant => 0, mapping => {
@@ -451,7 +453,7 @@ sub to_app {
             };
         mount '/changes' => builder {
             enable 'Options', allowed => [qw/GET/];
-            enable 'Sahara::Auth', store => $store, log => $self->log;
+            enable 'Sahara::Auth', store => $store, log => $log;
             sub {
                 return $self->changes(@_);
             };
@@ -459,7 +461,7 @@ sub to_app {
 
         mount '/blobs' => builder {
             enable 'Options', allowed => [qw/GET HEAD PUT DELETE/];
-            enable 'Sahara::Auth', store => $store, log => $self->log;
+            enable 'Sahara::Auth', store => $store, log => $log;
             sub {
                 return $self->blobs(@_);
             };

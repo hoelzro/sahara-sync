@@ -9,4 +9,9 @@ log:
     stderr: 1
     min_level: info
     newline: true
+    color:
+        critical:
+            text: white
+            background: red
+            bold: true
     # option to allow a fallback logger in case on fails to load

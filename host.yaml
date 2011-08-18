@@ -9,3 +9,8 @@ log:
     min_level: debug
     stderr: true
     newline: true
+    color:
+        critical:
+            text: white
+            background: red
+            bold: true

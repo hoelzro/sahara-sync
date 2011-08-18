@@ -3,6 +3,9 @@ package SaharaSync::Util;
 use strict;
 use warnings;
 
+require Carp;
+$Carp::CarpInternal{ (__PACKAGE__) } = 1;
+
 sub install_exception_handler {
     my ( $class, $handler ) = @_;
 
@@ -28,6 +31,8 @@ sub install_exception_handler {
             my $subroutine = $last_eval_frame[3];
 
             if($subroutine =~ /^(?:AnyEvent::Impl|Plack::Util::run_app)/) {
+                local $Carp::CarpLevel = 1; # skip $handler in any backtrace
+                                            # that it may request
                 $handler->($message);
             }
         }

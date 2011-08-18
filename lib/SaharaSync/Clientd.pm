@@ -346,8 +346,6 @@ sub run {
         return $self->handle_upstream_change(@_);
     });
 
-    ## scan sync dir, send blobs that have changed since we last ran
-
     my $cond = AnyEvent->condvar;
     $cond->recv;
 }

@@ -93,14 +93,7 @@ sub BUILDARGS {
     require $path;
     $args{'storage'} = $type->new(%$storage);
 
-    my @outputs;
-    my $log = $args{'log'};
-    foreach my $config (@$log) {
-        my $type = delete $config->{'type'};
-        push @outputs, [ $type, %$config ];
-    }
-
-    $args{'log'} = Log::Dispatch->new(outputs => \@outputs);
+    $args{'log'} = SaharaSync::Util->load_logger($args{'log'});
 
     if(my $server_config = delete $args{'server'}) {
         if(my $port = $server_config->{'port'}) {

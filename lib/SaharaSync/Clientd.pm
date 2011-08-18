@@ -100,14 +100,7 @@ sub BUILDARGS {
         %args = @_;
     }
 
-    my $log = $args{'log'};
-    my @outputs;
-    foreach my $config (@$log) {
-        my $type = delete $config->{'type'};
-        push @outputs, [ $type, %$config ];
-    }
-
-    $args{'log'} = Log::Dispatch->new(outputs => \@outputs);
+    $args{'log'} = SaharaSync::Util->load_logger($args{'log'});
 
     return \%args;
 }

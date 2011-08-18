@@ -328,6 +328,7 @@ sub run {
         my $trace = longmess($message);
 
         $log->critical($trace);
+        $log->alert($message);
     });
 
     mkdir $self->sync_dir unless -d $self->sync_dir;

@@ -448,6 +448,7 @@ sub to_app {
         my $trace = longmess($message);
 
         $log->critical($trace);
+        $log->alert($message);
     });
 
     builder {

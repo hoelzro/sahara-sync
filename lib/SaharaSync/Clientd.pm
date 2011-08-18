@@ -6,7 +6,7 @@ package SaharaSync::Clientd;
 use Moose;
 use autodie qw(mkdir);
 use AnyEvent::WebService::Sahara;
-use Carp qw(croak);
+use Carp qw(croak longmess);
 use DBI;
 use File::Path qw(make_path);
 use File::Slurp qw(read_file);
@@ -17,6 +17,7 @@ use Path::Class;
 use URI;
 
 use SaharaSync::Clientd::SyncDir;
+use SaharaSync::Util;
 
 use namespace::clean -except => 'meta';
 
@@ -318,6 +319,16 @@ sub handle_upstream_change {
 
 sub run {
     my ( $self ) = @_;
+
+    my $log = $self->log;
+
+    SaharaSync::Util->install_exception_handler(sub {
+        my ( $message ) = @_;
+
+        my $trace = longmess($message);
+
+        $log->critical($trace);
+    });
 
     mkdir $self->sync_dir unless -d $self->sync_dir;
     my $private_path = File::Spec->catfile($self->sync_dir, '.saharasync');

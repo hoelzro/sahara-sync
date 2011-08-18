@@ -5,7 +5,7 @@ package SaharaSync::Hostd;
 use Moose;
 use feature 'switch';
 
-use Carp;
+use Carp qw(croak longmess);
 use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
@@ -21,6 +21,7 @@ use UNIVERSAL;
 ## with Twiggy's handles.
 
 use SaharaSync::Stream::Writer;
+use SaharaSync::Util;
 use SaharaSync::X::InvalidArgs;
 use SaharaSync::X::NoSuchBlob;
 
@@ -440,6 +441,14 @@ sub to_app {
     my $store = $self->storage;
 
     my $log = $self->log;
+
+    SaharaSync::Util->install_exception_handler(sub {
+        my ( $message ) = @_;
+
+        my $trace = longmess($message);
+
+        $log->critical($trace);
+    });
 
     builder {
         enable 'LogDispatch', logger => $log;

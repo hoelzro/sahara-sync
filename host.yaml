@@ -14,3 +14,8 @@ log:
             text: white
             background: red
             bold: true
+  -
+    type: Email::MailSender
+    min_level: alert
+    to: rob@hoelz.ro
+    subject: Unhandled Exception

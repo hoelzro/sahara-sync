@@ -27,7 +27,7 @@ sub install_exception_handler {
         if(@last_eval_frame) {
             my $subroutine = $last_eval_frame[3];
 
-            if($subroutine =~ /^AnyEvent::Impl/) {
+            if($subroutine =~ /^(?:AnyEvent::Impl|Plack::Util::run_app)/) {
                 $handler->($message);
             }
         }

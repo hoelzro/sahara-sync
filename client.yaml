@@ -15,3 +15,8 @@ log:
             background: red
             bold: true
     # option to allow a fallback logger in case on fails to load
+  -
+    type: DesktopNotification
+    min_level: alert
+    app_name: SaharaSync
+    name: SaharaSync

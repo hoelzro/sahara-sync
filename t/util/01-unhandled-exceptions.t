@@ -14,6 +14,8 @@ sub test_uncaught_exception : Test {
     my $exceptions_seen = 0;
     my $cond            = AnyEvent->condvar;
 
+    note($AnyEvent::MODEL);
+
     SaharaSync::Util->install_exception_handler(sub {
         $exceptions_seen++;
     });

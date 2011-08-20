@@ -355,14 +355,14 @@ sub test_create_conflict :Test(7) {
 
     $self->catchup;
 
-    my @files = read_dir $temp1;
+    my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
     is_deeply \@files, [];
 
     kill SIGCONT => $client1->pid;
 
     $self->catchup;
 
-    @files = read_dir $temp1;
+    @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     my ( $day, $month, $year ) = (localtime)[3, 4, 5];
     $month++;
@@ -379,7 +379,7 @@ sub test_create_conflict :Test(7) {
     $content = read_file(File::Spec->catfile($temp1, $conflict_file));
     is $content, "Content 1\n";
 
-    @files = read_dir($temp2);
+    @files = grep { $_ ne '.saharasync' } read_dir($temp2);
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
@@ -422,7 +422,7 @@ sub test_update_conflict :Test(6) {
     my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
-    my @files = read_dir $temp2;
+    my @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
@@ -432,7 +432,7 @@ sub test_update_conflict :Test(6) {
     $content = read_file(File::Spec->catfile($temp2, $conflict_file));
     is $content, "Conflicting content!";
 
-    @files = read_dir $temp2;
+    @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
@@ -475,14 +475,14 @@ sub test_update_delete_conflict :Test(4) {
     my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
-    my @files = read_dir $temp1;
+    my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     is_deeply \@files, [ $conflict_file ];
 
     my $content = read_file(File::Spec->catfile($temp1, $conflict_file));
     is $content, "Updated content";
 
-    @files = read_dir $temp2;
+    @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     is_deeply \@files, [ $conflict_file ];
 
@@ -522,14 +522,14 @@ sub test_delete_update_conflict :Test(4) {
     my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
-    my @files = read_dir $temp1;
+    my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     is_deeply \@files, [ $conflict_file ];
 
     my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
     is $content, "Updated content";
 
-    @files = read_dir $temp2;
+    @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     is_deeply \@files, [ $conflict_file ];
 

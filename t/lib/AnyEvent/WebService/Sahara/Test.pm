@@ -339,8 +339,8 @@ sub test_put_blob : Test(8) {
     $client->put_blob('file.txt', IO::String->new('Test content'), { revision => $BAD_REVISION }, sub {
         my ( $revision, $error ) = @_;
 
-        is $revision, undef, "specifying revision on create should error out";
-        like $error, qr/cannot accept revision/i;
+        is $revision, undef, "specifying revision on create should conflict";
+        like $error, qr/conflict/i;
 
         $cond->send;
     });
@@ -361,8 +361,8 @@ sub test_put_blob : Test(8) {
     $client->put_blob('file.txt', IO::String->new('Test content 2'), {}, sub {
         my ( $revision, $error ) = @_;
 
-        is $revision, undef, "not specifying a revision on update should error out";
-        like $error, qr/revision required/i;
+        is $revision, undef, "not specifying a revision on update should conflict";
+        like $error, qr/conflict/i;
         $cond->send;
     });
     $cond->recv;

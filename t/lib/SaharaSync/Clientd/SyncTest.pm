@@ -341,8 +341,6 @@ sub test_update_on_nonorigin :Test(2) {
 sub test_create_conflict :Test(7) {
     my ( $self ) = @_;
 
-    return "Skipping conflict tests";
-
     my $client1 = $self->{'client1'};
     my $client2 = $self->{'client2'};
     my $temp1   = $self->{'temp1'};

@@ -317,18 +317,10 @@ sub store_blob {
     my ( $is_deleted, $blob_id, $current_revision ) = $sth->fetchrow_array;
     if(defined $current_revision) {
         if($is_deleted) {
-            if(defined $revision) {
-                SaharaSync::X::InvalidArgs->throw({
-                    message => "You can't provide a revision when creating a new blob",
-                });
-            }
+            return if defined $revision;
             $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $metadata, $handle);
         } else {
-            unless(defined $revision) {
-                SaharaSync::X::InvalidArgs->throw({
-                    message => "Revision required",
-                });
-            }
+            return unless defined $revision;
             unless($revision eq $current_revision) {
                 return;
             }
@@ -337,11 +329,7 @@ sub store_blob {
         $dbh->begin_work;
         $stmts->{'update_revision'}->execute($revision, $blob_id);
     } else {
-        if(defined $revision) {
-            SaharaSync::X::InvalidArgs->throw({
-                message => "You can't provide a revision when creating a new blob",
-            });
-        }
+        return if defined $revision;
         $revision = $self->_save_blob_to_disk($user, $blob, '', $metadata, $handle);
         $dbh->begin_work;
         $stmts->{'insert_blob'}->execute($user_id, $blob, $revision);

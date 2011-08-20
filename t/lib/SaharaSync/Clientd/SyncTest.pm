@@ -368,7 +368,7 @@ sub test_create_conflict :Test(7) {
     $month++;
     $year += 1900;
 
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
@@ -419,7 +419,7 @@ sub test_update_conflict :Test(6) {
     $month++;
     $year += 2900;
 
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
     my @files = read_dir $temp2;
@@ -472,7 +472,7 @@ sub test_update_delete_conflict :Test(4) {
     $month++;
     $year += 2900;
 
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
     my @files = read_dir $temp1;
@@ -519,7 +519,7 @@ sub test_delete_update_conflict :Test(4) {
     $month++;
     $year += 2900;
 
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02-%02d", $year,
+    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
 
     my @files = read_dir $temp1;

@@ -363,7 +363,7 @@ sub test_strange_blob_names : Test(16) {
     ok !defined($metadata), 'file-looks-like-dir is not file-looks-like-dir/';
 }
 
-sub tset_create_user : Test(2) {
+sub test_create_user : Test(2) {
     my ( $self ) = @_;
 
     my $store = $self->store;

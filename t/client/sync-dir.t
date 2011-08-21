@@ -425,6 +425,24 @@ sub test_self_updates :Test(2) {
     $self->expect_changes([]);
 }
 
+sub test_move_file :Test(5) {
+    my ( $self ) = @_;
+
+    my $sd = $self->sd;
+
+    write_file 'foo.txt', "hello\n";
+
+    $self->expect_changes(['foo.txt']);
+
+    $sd->rename('foo.txt', 'bar.txt');
+
+    $self->expect_changes([]);
+    ok -e 'bar.txt';
+    ok !(-e 'foo.txt');
+    my $content = read_file 'bar.txt';
+    is $content, "hello\n";
+}
+
 my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
     root => File::Temp->newdir->dirname,
 );

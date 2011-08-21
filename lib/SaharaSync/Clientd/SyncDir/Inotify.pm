@@ -344,6 +344,21 @@ sub unlink {
     $self->_update_file_stats($path, $blob_name);
 }
 
+sub rename {
+    my ( $self, $from, $to ) = @_;
+
+    my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
+    close $tempfile;
+    my $from_path = File::Spec->catfile($self->root, $from);
+    my $to_path   = File::Spec->catfile($self->root, $to);
+
+    rename $from_path, $tempfile->filename or die $!;
+    rename $tempfile->filename, $to_path   or die $!;
+
+    $self->_update_file_stats($from_path, $from);
+    $self->_update_file_stats($to_path, $to);
+}
+
 __PACKAGE__->meta->make_immutable;
 
 1;

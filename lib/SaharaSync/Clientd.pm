@@ -228,7 +228,52 @@ sub handle_fs_change {
                         $self->_put_revision_for_blob($blob, $revision, 0);
                         $self->_run_delayed_operations($blob, $revision);
                     } else {
-                        $self->log->warning("Updating $blob failed: $error");
+                        if($error =~ /Conflict/) {
+                            $self->log->info("Conflict: $blob");
+
+                            my ( $year, $month, $day ) = (localtime)[5, 4, 3];
+                            $year += 1900;
+                            $month++;
+
+                            my $conflict_blob = sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
+
+                            $self->sd->rename($blob, $conflict_blob);
+                            $self->ws_client->get_blob($blob, sub {
+                                my ( $h, $metadata ) = @_;
+
+                                ## handle error
+
+                                my $revision = $metadata->{'revision'};
+
+                                my $w = $self->sd->open_write_handle($blob);
+
+                                $h->on_read(sub {
+                                    my $buffer = $h->rbuf;
+                                    $h->rbuf = '';
+
+                                    $w->write($buffer);
+                                });
+
+                                $h->on_error(sub {
+                                    ## do something
+                                });
+
+                                $h->on_eof(sub {
+                                    $w->close;
+                                    undef $h;
+
+                                    $self->_put_revision_for_blob($blob, $revision, 0);
+                                });
+                            });
+
+                            my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
+
+                            $self->handle_fs_change({
+                                path => $conflict_path,
+                            });
+                        } else {
+                            $self->log->warning("Updating $blob failed: $error");
+                        }
                     }
             });
         } else {

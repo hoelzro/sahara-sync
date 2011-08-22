@@ -84,6 +84,16 @@ sub create_fresh_app {
     return Test::Sahara->create_fresh_app;
 }
 
+sub get_conflict_blob {
+    my ( $self, $blob ) = @_;
+
+    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
+    $year += 1900;
+    $month++;
+
+    return sprintf("%s - conflict %04d-%02d-%02d", $blob, $year, $month, $day);
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
@@ -362,13 +372,7 @@ sub test_create_conflict :Test(7) {
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
-    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
-    $month++;
-    $year += 1900;
-
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
-        $month, $day);
-
+    my $conflict_file = $self->get_conflict_blob('foo.txt');
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
     my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
@@ -413,13 +417,7 @@ sub test_update_conflict :Test(6) {
 
     $self->catchup;
 
-    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
-    $month++;
-    $year += 1900;
-
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
-        $month, $day);
-
+    my $conflict_file = $self->get_conflict_blob('foo.txt');
     my @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
@@ -466,13 +464,7 @@ sub test_update_delete_conflict :Test(4) {
 
     $self->catchup;
 
-    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
-    $month++;
-    $year += 1900;
-
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
-        $month, $day);
-
+    my $conflict_file = $self->get_conflict_blob('foo.txt');
     my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     is_deeply \@files, [ $conflict_file ];

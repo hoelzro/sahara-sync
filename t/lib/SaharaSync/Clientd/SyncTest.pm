@@ -354,7 +354,7 @@ sub test_create_conflict :Test(7) {
     $self->catchup;
 
     my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
-    is_deeply \@files, [];
+    is_deeply \@files, ['foo.txt'];
 
     kill SIGCONT => $client1->pid;
 
@@ -404,7 +404,7 @@ sub test_update_conflict :Test(6) {
 
     kill SIGSTOP => $client2->pid;
 
-    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated content");
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Updated content");
     write_file(File::Spec->catfile($temp2, 'foo.txt'), "Conflicting content!");
 
     $self->catchup;
@@ -415,7 +415,7 @@ sub test_update_conflict :Test(6) {
 
     my ( $day, $month, $year ) = (localtime)[3, 4, 5];
     $month++;
-    $year += 2900;
+    $year += 1900;
 
     my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
@@ -430,14 +430,14 @@ sub test_update_conflict :Test(6) {
     $content = read_file(File::Spec->catfile($temp2, $conflict_file));
     is $content, "Conflicting content!";
 
-    @files = grep { $_ ne '.saharasync' } read_dir $temp2;
+    @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
     is $content, "Updated content";
 
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    $content = read_file(File::Spec->catfile($temp1, $conflict_file));
     is $content, "Conflicting content!";
 }
 
@@ -462,13 +462,13 @@ sub test_update_delete_conflict :Test(4) {
 
     $self->catchup;
 
-    kill SIGCONT => $client2->pid;
+    kill SIGCONT => $client1->pid;
 
     $self->catchup;
 
     my ( $day, $month, $year ) = (localtime)[3, 4, 5];
     $month++;
-    $year += 2900;
+    $year += 1900;
 
     my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
         $month, $day);
@@ -509,7 +509,7 @@ sub test_delete_update_conflict :Test(4) {
 
     $self->catchup;
 
-    kill SIGCONT => $client2->pid;
+    kill SIGCONT => $client1->pid;
 
     $self->catchup;
 

@@ -23,7 +23,7 @@ has root => (
     required => 1,
 );
 
-has change_guards => (
+has change_callbacks => (
     is       => 'ro',
     init_arg => undef,
     default  => sub { [] },
@@ -35,10 +35,35 @@ has dbh => (
     builder => '_build_dbh',
 );
 
+has _inotify_handle => (
+    is      => 'ro',
+    default => sub { Linux::Inotify2->new || die $! },
+);
+
+has _inotify_watcher => (
+    is       => 'ro',
+    lazy     => 1,
+    builder  => '_build_inotify_watcher',
+    init_arg => undef,
+);
+
+has _pending_deletes => (
+    is       => 'ro',
+    default  => sub { [] },
+    init_arg => undef,
+);
+
+has _pending_updates => (
+    is       => 'ro',
+    default  => sub { {} },
+    init_arg => undef,
+);
+
 sub BUILD {
     my ( $self ) = @_;
 
     mkdir($self->_overlay);
+    $self->_inotify_watcher; ## kick that lazy attribute!
 }
 
 sub _overlay {
@@ -70,6 +95,168 @@ sub _build_dbh {
     $self->_init_db($dbh);
 
     return $dbh;
+}
+
+sub _handle_inotify_overflow {
+    my ( $self, $e ) = @_;
+
+    ## OH SHIT
+}
+
+sub _process_inotify_event {
+    my ( $self, $e ) = @_;
+
+    my $path = $e->fullname;
+    my $mask = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
+
+    if($e->IN_CREATE) {
+        if($e->IN_ISDIR) {
+            my $watcher = $self->_inotify_handle->watch($path, $mask, sub {
+                $self->_process_inotify_event(@_);
+            });
+
+            my $dh;
+            opendir $dh, $path;
+            while(my $file = readdir $dh) {
+                next if $file eq '.' ||
+                        $file eq '..';
+
+                my $fullpath = File::Spec->catfile($path, $file);
+
+                my $event;
+                if(-d $fullpath) {
+                    $event = $self->create_fake_event(
+                        name => $file,
+                        mask => IN_CREATE | IN_ISDIR,
+                        w    => $watcher,
+                    );
+                } else {
+                    $event = $self->create_fake_event(
+                        name => $file,
+                        mask => IN_CLOSE_WRITE,
+                        w    => $watcher,
+                    );
+                }
+                $self->_process_inotify_event($event);
+            }
+            closedir $dh;
+        }
+        return;
+    }
+
+    my $event = {
+        path => $path,
+    };
+
+    if($e->IN_Q_OVERFLOW) {
+        $self->_handle_inotify_overflow($e);
+    }
+    if($e->IN_MOVE) {
+        my $cookie = $e->cookie;
+
+        if($e->IN_MOVED_FROM) {
+            push @{$self->_pending_deletes}, [ $cookie, $event ];
+            return; # further processing comes later
+        } else { # IN_MOVED_TO
+            if(delete $self->_pending_updates->{$cookie}) {
+                return; # we ignore events we generate ourselves
+            } elsif(any { $_->[0] eq $cookie } @{$self->_pending_deletes}) {
+                push @{$self->_pending_deletes}, [ $cookie, $event ];
+                return;
+            }
+            # handle like a close_write
+        }
+    }
+    $self->_process_event($event);
+}
+
+sub _process_event {
+    my ( $self, $event ) = @_;
+
+    my $path = $event->{'path'};
+    my $root = $self->root;
+    my $file = File::Spec->abs2rel($path, $root);
+
+    $self->_update_file_stats($path, $file);
+
+    my $callbacks = $self->change_callbacks;
+
+    foreach my $cb (@$callbacks) {
+        $cb->($event);
+    }
+}
+
+sub _process_overlay_event {
+    my ( $self, $e ) = @_;
+
+    my $cookie = $e->cookie;
+
+    if($e->IN_MOVED_FROM) {
+        $self->_pending_updates->{$cookie} = 1;
+    } else { # IN_MOVED_TO
+        if(delete $self->_pending_updates->{$cookie}) {
+            return;
+        } else {
+            @{$self->_pending_deletes} = grep {
+                $_->[0] ne $cookie
+            } @{$self->_pending_deletes};
+        }
+    }
+}
+
+sub _flush_pending_events {
+    my ( $self ) = @_;
+}
+
+sub _build_inotify_watcher {
+    my ( $self ) = @_;
+
+    my $wrapper = sub {
+        $self->_process_inotify_event(@_);
+    };
+
+    my $mask    = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
+    my $n       = $self->_inotify_handle;
+    my $root    = $self->root;
+    my $watcher = $n->watch($root, $mask, $wrapper);
+
+    my $overlay_watcher = $n->watch($self->_overlay, IN_MOVE, sub {
+        $self->_process_overlay_event(@_);
+    });
+
+    my $dir;
+    opendir $dir, $root or die $!;
+    while(my $file = readdir $dir) {
+        next if $file eq '.'  ||
+                $file eq '..' ||
+                $file eq '.saharasync';
+
+        my $path = File::Spec->catdir($root, $file);
+        if(-d $path) {
+            ## no_chdir!
+            find(sub {
+                return unless -d;
+
+                $n->watch($_, $mask, $wrapper);
+            }, $path);
+        } else {
+            if($self->_file_has_changed($file, $path)) {
+                ## we'll have the checksum calculated here; we should
+                ## make use of it
+                $self->_process_event({ path => $path });
+            }
+        }
+    }
+    close $dir;
+
+    return AnyEvent->io(
+        fh   => $n->fileno,
+        poll => 'r',
+        cb   => sub {
+            $n->poll;
+            $self->_flush_pending_events;
+        },
+    );
 }
 
 sub _file_has_changed {
@@ -144,172 +331,16 @@ sub on_change {
     return unless defined(wantarray);
 
     weaken $self;
+    weaken $callback;
 
-    my $mask = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
-    my $root = $self->root;
-    my $n    = Linux::Inotify2->new || die $!;
-
-    my $orig_callback = $callback;
-
-    $callback = sub {
-        my ( $event ) = @_;
-
-        my $fullpath = $event->{'path'};
-        my $file     = File::Spec->abs2rel($fullpath, $root);
-
-        $self->_update_file_stats($fullpath, $file);
-
-        goto &$orig_callback;
-    };
-
-    my $overlay_watcher;
-    my %pending_updates;
-    my @pending_deletes;
-
-    my $wrapper;
-    $wrapper = sub {
-        my ( $e ) = @_;
-
-        my $path = $e->fullname;
-
-        if($e->IN_CREATE) {
-            if($e->IN_ISDIR) {
-                my $watcher = $n->watch($path, $mask, $wrapper);
-
-                my $dh;
-                opendir $dh, $path;
-                while(my $file = readdir $dh) {
-                    next if $file eq '.' ||
-                            $file eq '..';
-
-                    my $fullpath = File::Spec->catfile($path, $file);
-
-                    my $event;
-                    if(-d $fullpath) {
-                        $event = $self->create_fake_event(
-                            name => $file,
-                            mask => IN_CREATE | IN_ISDIR,
-                            w    => $watcher,
-                        );
-                    } else {
-                        $event = $self->create_fake_event(
-                            name => $file,
-                            mask => IN_CLOSE_WRITE,
-                            w    => $watcher,
-                        );
-                    }
-                    $wrapper->($event);
-                }
-                closedir $dh;
-
-                # if a file under $path existed before we created the watcher,
-                # we should not get an IN_CREATE event for it
-
-                # emit events for all files, and ignore the next close event for
-                # files that emit a create event?
-            }
-
-            return;
-        }
-
-        my $event = {
-            path => $path,
-        };
-
-        if($e->IN_Q_OVERFLOW) {
-            ## OH SHIT
-        }
-        if($e->IN_MOVE) {
-            my $cookie = $e->cookie;
-
-            if($e->IN_MOVED_FROM) {
-                my $w = $e->w;
-                if($w == $overlay_watcher) {
-                    $pending_updates{$cookie} = 1;
-                } else {
-                    push @pending_deletes, [ $cookie, $event ];
-                }
-                return; # further processing comes later
-            } else { # IN_MOVED_TO
-                if(delete $pending_updates{$cookie}) {
-                    return; # we ignore events we generate ourselves
-                } else {
-                    my $w = $e->w;
-
-                    if($w == $overlay_watcher) {
-                        @pending_deletes = grep {
-                            $_->[0] ne $cookie
-                        } @pending_deletes;
-                        return;
-                    } elsif(any { $_->[0] eq $cookie } @pending_deletes) { ## couldn't you just execute them here?
-                        push @pending_deletes, [ $cookie, $event ];
-                        return;
-                    }
-                    ## handle like a close_write
-                }
-            }
-        }
-        $callback->($event);
-    };
-
-    my $watcher = $n->watch($root, $mask, $wrapper);
-    my $dir;
-    opendir $dir, $root or die $!;
-    while(my $file = readdir $dir) {
-        next if $file eq '.' ||
-                $file eq '..';
-
-        if($file eq '.saharasync') {
-            $file = File::Spec->catdir($root, $file);
-            ## special wrapper for .saharasync?
-            $overlay_watcher = $n->watch($file, IN_MOVE, $wrapper);
-        } else {
-            my $path = File::Spec->catdir($root, $file);
-            if(-d $path) {
-                ## no_chdir!
-                find(sub {
-                    return unless -d;
-
-                    $n->watch($_, $mask, $wrapper);
-                }, $path);
-            } else {
-                if($self->_file_has_changed($file, $path)) {
-                    ## we'll have the checksum calculated here; we should
-                    ## make use of it
-                    $callback->({
-                        path => $path,
-                    });
-                }
-            }
-        }
-    }
-
-    closedir $dir;
-
-    ## verify that $overlay_watcher is defined?
-
-    my $io = AnyEvent->io(
-        fh   => $n->fileno,
-        poll => 'r',
-        cb   => sub {
-            $n->poll;
-            ## the naming of this var sucks
-            foreach my $info (@pending_deletes) {
-                $callback->($info->[1]);
-            }
-            @pending_deletes = ();
-        },
-    );
-
-    push @{ $self->change_guards }, $io;
-    weaken $io;
+    push @{ $self->change_callbacks }, $callback;
 
     return guard {
         return unless $self; # $self is a weak reference, so check first
 
-        @{ $self->change_guards } = grep {
-            $_ != $io
-        } @{ $self->change_guards };
+        @{ $self->change_callbacks } = grep {
+            $_ != $callback
+        } @{ $self->change_callbacks };
     };
 }
 

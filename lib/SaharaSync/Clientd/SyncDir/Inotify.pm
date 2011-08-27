@@ -211,13 +211,17 @@ sub _flush_pending_events {
 sub _build_inotify_watcher {
     my ( $self ) = @_;
 
+    my $mask = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
+    my $n    = $self->_inotify_handle;
+
+    weaken($self);
+    weaken($n);
+
     my $wrapper = sub {
         $self->_process_inotify_event(@_);
     };
 
-    my $mask    = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
-    my $n       = $self->_inotify_handle;
-    my $root    = $self->root;
+    my $root = $self->root;
     my $watcher = $n->watch($root, $mask, $wrapper);
 
     my $overlay_watcher = $n->watch($self->_overlay, IN_MOVE, sub {

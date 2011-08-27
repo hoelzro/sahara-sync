@@ -443,8 +443,9 @@ sub test_move_file :Test(5) {
     is $content, "hello\n";
 }
 
-my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
-    root => File::Temp->newdir->dirname,
+my $tempdir = File::Temp->newdir;
+my $sd      = SaharaSync::Clientd::SyncDir->create_syncdir(
+    root => $tempdir->dirname,
 );
 
 if(defined $sd) {

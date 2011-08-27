@@ -278,7 +278,7 @@ sub test_preservation :Test(2) {
     };
 }
 
-sub test_on_change_guard :Test(4) {
+sub test_on_change_guard :Test(6) {
     my ( $self ) = @_;
 
     my $fh;
@@ -299,6 +299,8 @@ sub test_on_change_guard :Test(4) {
     $self->expect_changes([]);
 
     unlink 'foo';
+
+    $self->expect_changes([]);
 
     my $guard = $self->sd->on_change(sub {
         my ( @events ) = @_;
@@ -321,6 +323,8 @@ sub test_on_change_guard :Test(4) {
 
     unlink 'bar';
     unlink 'baz';
+
+    $self->expect_changes([]);
 
     $guard = $self->sd->on_change(sub {
         my ( @events ) = @_;

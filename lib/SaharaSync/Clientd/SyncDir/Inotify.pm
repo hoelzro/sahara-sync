@@ -59,6 +59,12 @@ has _pending_updates => (
     init_arg => undef,
 );
 
+has _event_queue => (
+    is       => 'ro',
+    default  => sub { [] },
+    init_arg => undef,
+);
+
 sub BUILD {
     my ( $self ) = @_;
 
@@ -95,6 +101,15 @@ sub _build_dbh {
     $self->_init_db($dbh);
 
     return $dbh;
+}
+
+sub _update_queue {
+    my ( $self, $event ) = @_;
+
+    my $path  = $event->{'path'};
+    my $queue = $self->_event_queue;
+    @$queue   = grep { $_->{'path'} ne $path } @$queue;
+    push @$queue, $event;
 }
 
 sub _handle_inotify_overflow {
@@ -178,6 +193,7 @@ sub _process_event {
     my $file = File::Spec->abs2rel($path, $root);
 
     $self->_update_file_stats($path, $file);
+    $self->_update_queue($event);
 
     my $callbacks = $self->change_callbacks;
 
@@ -333,6 +349,8 @@ sub on_change {
     my ( $self, $callback ) = @_;
 
     return unless defined(wantarray);
+
+    $callback->($_) foreach @{ $self->_event_queue };
 
     weaken $self;
     weaken $callback;

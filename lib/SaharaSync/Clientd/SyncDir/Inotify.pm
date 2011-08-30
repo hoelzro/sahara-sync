@@ -223,6 +223,12 @@ sub _process_overlay_event {
 
 sub _flush_pending_events {
     my ( $self ) = @_;
+
+    my $pending = $self->_pending_deletes;
+    foreach my $event (@$pending) {
+        $self->_process_event($event->[1]);
+    }
+    @$pending = ();
 }
 
 sub _build_inotify_watcher {

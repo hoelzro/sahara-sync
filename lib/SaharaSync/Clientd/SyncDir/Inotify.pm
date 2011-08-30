@@ -126,6 +126,7 @@ sub _process_inotify_event {
 
     if($e->IN_CREATE) {
         if($e->IN_ISDIR) {
+            weaken($self);
             my $watcher = $self->_inotify_handle->watch($path, $mask, sub {
                 $self->_process_inotify_event(@_);
             });

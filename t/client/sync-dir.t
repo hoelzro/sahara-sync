@@ -278,7 +278,7 @@ sub test_preservation :Test(2) {
     };
 }
 
-sub test_on_change_guard :Test(6) {
+sub test_on_change_guard :Test(7) {
     my ( $self ) = @_;
 
     my $fh;
@@ -313,7 +313,7 @@ sub test_on_change_guard :Test(6) {
 
     write_file 'bar', "hello\n";
 
-    $self->expect_changes(['bar']);
+    $self->expect_changes(['foo', 'bar']);
 
     undef $guard;
 
@@ -334,6 +334,8 @@ sub test_on_change_guard :Test(6) {
             push @{ $self->{'seen_events'} }, $path;
         }
     });
+
+    $self->expect_changes(['foo', 'bar', 'baz']);
 
     $self->sd(undef);
 

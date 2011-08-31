@@ -33,7 +33,7 @@ sub install_exception_handler {
         if(@last_eval_frame) {
             my $subroutine = $last_eval_frame[3];
 
-            if($subroutine =~ /^(?:AnyEvent::Impl|Plack::Util::run_app)/) {
+            if($subroutine =~ /^(?:AnyEvent::Impl|AnyEvent::CondVar::Base|Plack::Util::run_app)/) {
                 local $Carp::CarpLevel = 1; # skip $handler in any backtrace
                                             # that it may request
                 $handler->($message);

@@ -145,6 +145,19 @@ sub lazy_hash (&) {
     };
 }
 
+sub middleware (&) {
+    my ( $mw ) = @_;
+
+    return sub {
+        my ( $app ) = @_;
+
+        return builder {
+            $mw->();
+            $app;
+        };
+    };
+}
+
 my @methods = qw(GET POST PUT DELETE HEAD OPTIONS);
 
 foreach my $method (@methods) {
@@ -159,7 +172,7 @@ foreach my $method (@methods) {
     };
 }
 
-my @export = (@methods, 'REQUEST', 'lazy_hash');
+my @export = (@methods, 'REQUEST', 'lazy_hash', 'middleware');
 
 sub import {
     my ( $class, @args ) = @_;

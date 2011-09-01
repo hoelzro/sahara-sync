@@ -199,7 +199,7 @@ sub _process_event {
     my $callbacks = $self->change_callbacks;
 
     foreach my $cb (@$callbacks) {
-        $cb->($event);
+        $cb->($self, $event);
     }
 }
 
@@ -357,7 +357,7 @@ sub on_change {
 
     return unless defined(wantarray);
 
-    $callback->($_) foreach @{ $self->_event_queue };
+    $callback->($self, $_) foreach @{ $self->_event_queue };
 
     weaken $self;
     weaken $callback;

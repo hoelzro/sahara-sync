@@ -31,10 +31,10 @@ sub create_sync_dir {
 
     $self->{'seen_events'} = [];
     $self->{'watch_guard'} = $sd->on_change(sub {
-        my ( @events ) = @_;
+        my ( $sd, @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
@@ -286,10 +286,10 @@ sub test_on_change_guard :Test(7) {
     $self->{'watch_guard'} = undef;
 
     $self->sd->on_change(sub {
-        my ( @events ) = @_;
+        my ( $sd, @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
@@ -303,10 +303,10 @@ sub test_on_change_guard :Test(7) {
     $self->expect_changes([]);
 
     my $guard = $self->sd->on_change(sub {
-        my ( @events ) = @_;
+        my ( $sd, @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });
@@ -327,10 +327,10 @@ sub test_on_change_guard :Test(7) {
     $self->expect_changes([]);
 
     $guard = $self->sd->on_change(sub {
-        my ( @events ) = @_;
+        my ( $sd, @events ) = @_;
 
         foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
+            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
             push @{ $self->{'seen_events'} }, $path;
         }
     });

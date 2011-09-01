@@ -192,7 +192,7 @@ sub _put_revision_for_blob {
 }
 
 sub handle_fs_change {
-    my ( $self, @events ) = @_;
+    my ( $self, $sd, @events ) = @_;
 
     my $operations = $self->inflight_operations;
 
@@ -237,7 +237,7 @@ sub handle_fs_change {
 
                             my $conflict_blob = sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
 
-                            $self->sd->rename($blob, $conflict_blob);
+                            $sd->rename($blob, $conflict_blob);
                             $self->ws_client->get_blob($blob, sub {
                                 my ( $h, $metadata ) = @_;
 
@@ -245,7 +245,7 @@ sub handle_fs_change {
 
                                 my $revision = $metadata->{'revision'};
 
-                                my $w = $self->sd->open_write_handle($blob);
+                                my $w = $sd->open_write_handle($blob);
 
                                 $h->on_read(sub {
                                     my $buffer = $h->rbuf;
@@ -268,7 +268,7 @@ sub handle_fs_change {
 
                             my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
 
-                            $self->handle_fs_change({
+                            $self->handle_fs_change($self->sd, {
                                 path => $conflict_path,
                             });
                         } else {

@@ -168,6 +168,7 @@ sub do_request {
 
     my $handler;
 
+    weaken $self;
     $handler = sub {
         my ( $data, $headers ) = @_;
 
@@ -176,14 +177,14 @@ sub do_request {
         if($status > 400) {
             my $reason = $headers->{'Reason'};
             $reason = $reasons{$status} if $status > 590 && exists $reasons{$status};
-            $cb->(undef, $reason);
+            $cb->($self, undef, $reason);
         } elsif($status == 400) {
             # 400 errors are special, because we overload them
             # not ideal, I know.
 
-            $cb->(undef, $data);
+            $cb->($self, undef, $data);
         } else {
-            $cb->($prepare->($data, $headers));
+            $cb->($self, $prepare->($data, $headers));
         }
     };
 
@@ -323,7 +324,7 @@ sub _handle_change {
         return;
     }
 
-    $cb->($change);
+    $cb->($self, $change);
 }
 
 sub _streaming_changes {
@@ -368,7 +369,7 @@ sub _streaming_changes {
             undef $h;
         });
     }, sub {
-        my ( $ok, $error ) = @_;
+        my ( $self, $ok, $error ) = @_;
 
         $cb->(@_) unless $ok;
     });
@@ -427,7 +428,7 @@ sub _non_streaming_changes {
                 $reader->feed($body);
                 $reader->feed(undef);
             }, sub {
-                my ( $ok, $error ) = @_;
+                my ( $self, $ok, $error ) = @_;
 
                 $cb->(@_) unless $ok;
             });
@@ -456,7 +457,7 @@ sub changes {
     my $error;
 
     $self->capabilities(sub {
-        ( $caps, $error ) = @_;
+        ( undef, $caps, $error ) = @_;
 
         $cond->send;
     });
@@ -465,7 +466,7 @@ sub changes {
     $cond->recv;
 
     unless($caps) {
-        $cb->(undef, $error);
+        $cb->($self, undef, $error);
         return;
     }
 
@@ -487,6 +488,9 @@ __END__
 =head1 DESCRIPTION
 
 =head1 METHODS
+
+All callbacks are passed a reference to the AnyEvent::WebService::Sahara
+object calling them; other specified arguments are in \@_[1..$#$_].
 
 =head2 AnyEvent::WebService::Sahara->new(%options)
 

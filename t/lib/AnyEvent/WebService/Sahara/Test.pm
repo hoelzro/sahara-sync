@@ -102,7 +102,7 @@ sub test_bad_connection : Test(10) {
     $cond = AnyEvent->condvar;
 
     $client->capabilities(sub {
-        my ( $capabilities, $error ) = @_;
+        my ( $c, $capabilities, $error ) = @_;
 
         is $capabilities, undef, "first callback argument should be undef on error";
         like $error, qr/Connection refused/i, "second callback argument should be error string on error";
@@ -112,7 +112,7 @@ sub test_bad_connection : Test(10) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( $h, $metadata ) = @_;
+        my ( $c, $h, $metadata ) = @_;
 
         is $h, undef, "first callback argument should be undef on error";
         like $metadata, qr/Connection refused/i, "second callback argument should be error string on error";
@@ -122,7 +122,7 @@ sub test_bad_connection : Test(10) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('something'), {}, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "first callback argument should be undef on error";
         like $error, qr/Connection refused/i, "second callback argument should be error string on error";
@@ -132,7 +132,7 @@ sub test_bad_connection : Test(10) {
 
     $cond = AnyEvent->condvar;
     $client->delete_blob('file.txt', $BAD_REVISION, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "first callback argument should be undef on error";
         like $error, qr/Connection refused/i, "second callback argument should be error string on error";
@@ -142,7 +142,7 @@ sub test_bad_connection : Test(10) {
 
     $cond = AnyEvent->condvar;
     $client->changes(undef, [], sub {
-        my ( $change, $error ) = @_;
+        my ( $c, $change, $error ) = @_;
 
         is $change, undef, "first callback argument should be undef on error";
         like $error, qr/Connection refused/i, "second callback argument should be error string on error";
@@ -172,7 +172,7 @@ sub test_bad_credentials : Test(18) {
         $cond = AnyEvent->condvar;
 
         $client->capabilities(sub {
-            my ( $capabilities ) = @_;
+            my ( $c, $capabilities ) = @_;
             is_deeply($capabilities, $self->expected_capabilities, "Capabilities should be fetchable with bad auth");
             $cond->send;
         });
@@ -182,7 +182,7 @@ sub test_bad_credentials : Test(18) {
         $cond = AnyEvent->condvar;
 
         $client->get_blob('file.txt', sub {
-            my ( $h, $metadata ) = @_;
+            my ( $c, $h, $metadata ) = @_;
             is $h, undef, "First callback argument should be undef on auth error";
             like $metadata, qr/Unauthorized/, "Second callback argument should be error message on auth error";
             $cond->send;
@@ -193,7 +193,7 @@ sub test_bad_credentials : Test(18) {
         $cond = AnyEvent->condvar;
 
         $client->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
-            my ( $revision, $error ) = @_;
+            my ( $c, $revision, $error ) = @_;
             is $revision, undef, "First callback argument should be undef on auth error";
             like $error, qr/Unauthorized/, "Second callback argument should be error message on auth error";
             $cond->send;
@@ -204,7 +204,7 @@ sub test_bad_credentials : Test(18) {
         $cond = AnyEvent->condvar;
 
         $client->delete_blob('file.txt', $BAD_REVISION, sub {
-            my ( $revision, $error ) = @_;
+            my ( $c, $revision, $error ) = @_;
             is $revision, undef, "First callback argument should be undef on auth error";
             like $error, qr/Unauthorized/, "Second callback argument should be error message on auth error";
             $cond->send;
@@ -215,7 +215,7 @@ sub test_bad_credentials : Test(18) {
         $cond = AnyEvent->condvar;
 
         $client->changes(undef, [], sub {
-            my ( $change, $error ) = @_;
+            my ( $c, $change, $error ) = @_;
             is $change, undef, "First callback argument should be undef on auth error";
             like $error, qr/Unauthorized/, "Second callback argument should be error message on auth error";
             $cond->send;
@@ -233,7 +233,7 @@ sub test_capabilities : Test {
     my $cond = AnyEvent->condvar;
 
     $client->capabilities(sub {
-        my ( $capabilities ) = @_;
+        my ( $c, $capabilities ) = @_;
         is_deeply($capabilities, $self->expected_capabilities, "Streaming capabilities should be present");
         $cond->send;
     });
@@ -250,7 +250,7 @@ sub test_get_blob : Test(10) {
     my $cond = AnyEvent->condvar;
 
     $client->get_blob('file.txt', sub {
-        my ( $h, $metadata ) = @_;
+        my ( $c, $h, $metadata ) = @_;
 
         ok !defined($h), "Handle should be undefined for non-existent blob";
         like $metadata, qr/Not found/i, "Error message should be passed as second callback argument";
@@ -262,7 +262,7 @@ sub test_get_blob : Test(10) {
     $cond = AnyEvent->condvar;
 
     $client->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "put_blob should succeed";
         $last_revision = $revision;
@@ -273,7 +273,7 @@ sub test_get_blob : Test(10) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( $h, $metadata ) = @_;
+        my ( $c, $h, $metadata ) = @_;
 
         is_deeply $metadata, { revision => $last_revision }, "putting empty metadata should yield metadata with only the revision";
         isa_ok $h, 'AnyEvent::Handle', "content handle should be an AnyEvent::Handle";
@@ -298,7 +298,7 @@ sub test_get_blob : Test(10) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file2.txt', IO::String->new('Test content 2: The sequel'), \%meta, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "put_blob with metadata should suceed";
         $last_revision = $revision;
@@ -309,7 +309,7 @@ sub test_get_blob : Test(10) {
 
     $cond    = AnyEvent->condvar;
     $client->get_blob('file2.txt', sub {
-        my ( $h, $metadata ) = @_;
+        my ( $c, $h, $metadata ) = @_;
 
         is_deeply $metadata, { foo => 'some value', revision => $last_revision }, "metadata should match";
         isa_ok $h, 'AnyEvent::Handle', "content handle should ben an AnyEvent::Handle";
@@ -337,7 +337,7 @@ sub test_put_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content'), { revision => $BAD_REVISION }, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "specifying revision on create should conflict";
         like $error, qr/conflict/i;
@@ -348,7 +348,7 @@ sub test_put_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         $last_revision = $revision;
 
@@ -359,7 +359,7 @@ sub test_put_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content 2'), {}, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "not specifying a revision on update should conflict";
         like $error, qr/conflict/i;
@@ -369,7 +369,7 @@ sub test_put_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content 2'), { revision => $BAD_REVISION }, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "specifying a bad revision on update should error out";
         like $error, qr/conflict/i;
@@ -379,7 +379,7 @@ sub test_put_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content 2'), { revision => $last_revision }, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "specifying the correct revision on update should succeed";
         $cond->send;
@@ -395,7 +395,7 @@ sub test_metadata : Test(6) {
     my $client = $self->client;
 
     $client->put_blob('file.txt', IO::String->new('Test content'), { foo => 17 }, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "creating a blob with metadata should succeed";
         $last_revision = $revision;
@@ -405,7 +405,7 @@ sub test_metadata : Test(6) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( undef, $metadata ) = @_;
+        my ( $c, undef, $metadata ) = @_;
 
         is_deeply $metadata, { foo => 17, revision => $last_revision }, "metadata should match";
         $cond->send;
@@ -414,7 +414,7 @@ sub test_metadata : Test(6) {
     
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content 2'), { foo => 18, bar => 21, revision => $last_revision }, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
         ok $revision, "updating a blob with metadata shold succeed" or diag($_[1]);
         $last_revision = $revision;
         $cond->send;
@@ -423,7 +423,7 @@ sub test_metadata : Test(6) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( undef, $metadata ) = @_;
+        my ( $c, undef, $metadata ) = @_;
 
         is_deeply $metadata, {
             foo      => 18,
@@ -437,7 +437,7 @@ sub test_metadata : Test(6) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content 3'), { foo => 19, revision => $last_revision }, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
         ok $revision, "updating a blob with metadata shold succeed";
         $last_revision = $revision;
         $cond->send;
@@ -446,7 +446,7 @@ sub test_metadata : Test(6) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( undef, $metadata ) = @_;
+        my ( $c, undef, $metadata ) = @_;
 
         is_deeply $metadata, {
             foo      => 19,
@@ -468,7 +468,7 @@ sub test_unicode_metadata : Test(4) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content'), { word => 'über'}, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "creating a blob with Unicode metadata should succeed";
         $last_revision = $revision;
@@ -478,7 +478,7 @@ sub test_unicode_metadata : Test(4) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( undef, $metadata ) = @_;
+        my ( $c, undef, $metadata ) = @_;
 
         is_deeply $metadata, { word => 'über', revision => $last_revision },
             "Unicode metadata should match";
@@ -488,7 +488,7 @@ sub test_unicode_metadata : Test(4) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content 2'), { word => 'schön', revision => $last_revision }, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "updating a blob with Unicode metadata should succeed";
         $last_revision = $revision;
@@ -498,7 +498,7 @@ sub test_unicode_metadata : Test(4) {
 
     $cond = AnyEvent->condvar;
     $client->get_blob('file.txt', sub {
-        my ( undef, $metadata ) = @_;
+        my ( $c, undef, $metadata ) = @_;
 
         is_deeply $metadata, { word => 'schön', revision => $last_revision },
             "Unicode metadata should match";
@@ -516,7 +516,7 @@ sub test_delete_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->delete_blob('file.txt', undef, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "Deleting a non-existent blob should fail";
         like $error, qr/revision required/i;
@@ -526,7 +526,7 @@ sub test_delete_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->delete_blob('file.txt', $BAD_REVISION, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "Deleting a non-existent blob should fail";
         like $error, qr/Not found/i;
@@ -536,7 +536,7 @@ sub test_delete_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision;
         $last_revision = $revision;
@@ -546,7 +546,7 @@ sub test_delete_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->delete_blob('file.txt', $BAD_REVISION, sub {
-        my ( $revision, $error ) = @_;
+        my ( $c, $revision, $error ) = @_;
 
         is $revision, undef, "Deleting a blob with a bad revision should fail";
         like $error, qr/conflict/i;
@@ -556,7 +556,7 @@ sub test_delete_blob : Test(8) {
 
     $cond = AnyEvent->condvar;
     $client->delete_blob('file.txt', $last_revision, sub {
-        my ( $revision ) = @_;
+        my ( $c, $revision ) = @_;
 
         ok $revision, "deleting a revision with a good revision should succeed";
         $cond->send;
@@ -576,7 +576,7 @@ sub test_streaming_changes : Test(4) {
     my $ua     = LWP::UserAgent->new;
 
     $client->changes(undef, [], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         is_deeply($change, $expected_change, "changes should match");
         $cond->send;
@@ -652,7 +652,7 @@ sub test_streaming_changes_since : Test(5) {
     };
 
     my $guard = $client->changes(undef, [], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         is_deeply($change, $expected_change);
 
@@ -660,7 +660,7 @@ sub test_streaming_changes_since : Test(5) {
     });
 
     my $guard2 = $client->changes($revision, [], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         if($first_round) {
             $seen_change = 1;
@@ -694,7 +694,7 @@ sub test_streaming_changes_since : Test(5) {
     $revision2 = $res->header('ETag');
 
     $client->changes($revision, [], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         is_deeply($change, {
             name     => 'file.txt',
@@ -773,7 +773,7 @@ sub test_changes_metadata : Test(45) {
     };
 
     my $changes1 = $client->changes(undef, ['foo'], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         my $copy = { %$expected_change };
         delete $copy->{'bar'};
@@ -783,7 +783,7 @@ sub test_changes_metadata : Test(45) {
     });
 
     my $changes2 = $client->changes(undef, ['foo', 'bar'], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         is_deeply($change, $expected_change, "metadata changes should match");
         $cond->send unless --$change_count;
@@ -793,7 +793,7 @@ sub test_changes_metadata : Test(45) {
 
     my $standalone = 1;
     $changes1 = $client->changes(undef, ['foo', 'bar'], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         my $seen_change = delete $seen_changes{$change->{'name'}};
         is_deeply($change, $seen_change, "metadata changes should match");
@@ -811,7 +811,7 @@ sub test_changes_metadata : Test(45) {
 
     $standalone = 0;
     $changes2 = $client->changes($revision, ['foo', 'bar'], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         is_deeply($change, $expected_change, "metadata changes should match");
         $cond->send unless --$change_count;
@@ -915,13 +915,13 @@ sub test_own_changes_invisible : Test(8) {
     my $revision2;
 
     $client1->changes(undef, [], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         push @client1_changes, $change;
     });
 
     $client2->changes(undef, [], sub {
-        my ( $change ) = @_;
+        my ( $c, $change ) = @_;
 
         push @client2_changes, $change;
     });
@@ -936,7 +936,7 @@ sub test_own_changes_invisible : Test(8) {
     );
 
     $client1->put_blob('file.txt', IO::String->new('Test content'), {}, sub {
-        ( $revision1 ) = @_;
+        ( undef, $revision1 ) = @_;
     });
 
     $cond->recv;
@@ -951,7 +951,7 @@ sub test_own_changes_invisible : Test(8) {
     $cond = AnyEvent->condvar;
 
     $client2->put_blob('file2.txt', IO::String->new('Test content 2'), {}, sub {
-        ( $revision2 ) = @_;
+        ( undef, $revision2 ) = @_;
     });
 
     $cond->recv;
@@ -966,7 +966,7 @@ sub test_own_changes_invisible : Test(8) {
     $cond = AnyEvent->condvar;
 
     $client1->delete_blob('file2.txt', $revision2, sub {
-        ( $revision2 ) = @_;
+        ( undef, $revision2 ) = @_;
     });
 
     $cond->recv;
@@ -982,7 +982,7 @@ sub test_own_changes_invisible : Test(8) {
     $cond = AnyEvent->condvar;
 
     $client2->delete_blob('file.txt', $revision1, sub {
-        ( $revision1 ) = @_;
+        ( undef, $revision1 ) = @_;
     });
 
     $cond->recv;
@@ -1057,5 +1057,7 @@ sub test_guard_request_in_flight : Test(2) {
     $cond->recv;
     ok !$change_seen;
 }
+
+## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

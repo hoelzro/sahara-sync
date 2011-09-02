@@ -8,6 +8,7 @@ use Cwd;
 use File::Path qw(make_path);
 use File::Slurp qw(append_file read_file write_file);
 use File::Temp;
+use List::MoreUtils qw(all);
 use SaharaSync::Clientd::SyncDir;
 use Test::Deep::NoTest qw(bag cmp_details deep_diag);
 use Test::More;
@@ -447,6 +448,125 @@ sub test_move_file :Test(5) {
     ok !(-e 'foo.txt');
     my $content = read_file 'bar.txt';
     is $content, "hello\n";
+}
+
+sub prepare_conflict_test {
+    my ( $self, %params ) = @_;
+
+    my @actions = @params{qw/action1 action2/};
+
+    my @conflict_info;
+
+    my $guard = $self->sd->on_conflict(sub {
+        my ( $sd, $blob, $conflicting_file ) = @_;
+
+        my $path              = File::Spec->catfile($sd->root, $blob);
+        my $contents          = -e $path ? read_file($path)
+                                         : undef;
+        my $conflict_contents = $conflicting_file ? read_file($conflicting_file)
+                                                  : undef;
+
+        push @conflict_info, {
+            blob              => $blob,
+            contents          => $contents,
+            conflict_file     => $conflicting_file,
+            conflict_contents => $conflict_contents,
+        };
+    });
+
+    my $h = $self->sd->open_write_handle('foo.txt');
+    $h->write("In foo.txt\n");
+    $h->close;
+
+    $_->() foreach @actions;
+    $self->expect_changes(['foo.txt']);
+
+    return @conflict_info;
+}
+
+sub test_update_update_conflict :Test(4) {
+    my ( $self ) = @_;
+
+    my @conflict_info = $self->prepare_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub {
+            my $h = $self->sd->open_write_handle('foo.txt');
+            $h->write("Conflict!");
+            $h->close;
+        },
+    );
+
+    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
+
+    is_deeply \@conflict_info, [{
+        blob              => 'foo.txt',
+        contents          => "In foo.txt\nNext line",
+        conflict_contents => "Conflict!",
+    }];
+
+    ok all { defined() } @conflict_files;
+    ok all { ! -e } @conflict_files;
+}
+
+sub test_update_delete_conflict :Test(3) {
+    my ( $self ) = @_;
+
+    my @conflict_info = $self->prepare_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub { $self->sd->unlink('foo.txt') },
+    );
+
+    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
+
+    is_deeply \@conflict_info, [{
+        blob              => 'foo.txt',
+        contents          => "In foo.txt\nNext line",
+        conflict_contents => undef,
+    }];
+    is_deeply \@conflict_files, [ undef ];
+}
+
+sub test_delete_update_conflict :Test(4) {
+    my ( $self ) = @_;
+
+    my @conflict_info = $self->prepare_conflict_test(
+        action1 => sub { unlink 'foo.txt' },
+        action2 => sub {
+            my $h = $self->sd->open_write_handle('foo.txt');
+            $h->write("Conflict!");
+            $h->close;
+        },
+    );
+
+    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
+
+    is_deeply \@conflict_info, [{
+        blob              => 'foo.txt',
+        contents          => undef,
+        conflict_contents => "Conflict!",
+    }];
+
+    ok all { defined() } @conflict_files;
+    ok all { ! -e } @conflict_files;
+}
+
+sub test_delete_delete_conflict :Test(3) {
+    my ( $self ) = @_;
+
+    my @conflict_info = $self->prepare_conflict_test(
+        action1 => sub { unlink 'foo.txt' },
+        action2 => sub { $self->sd->unlink('foo.txt') },
+    );
+
+    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
+
+    is_deeply \@conflict_info, [{
+        blob              => 'foo.txt',
+        contents          => undef,
+        conflict_contents => undef,
+    }];
+
+    ok all { ! defined() } @conflict_files;
 }
 
 my $tempdir = File::Temp->newdir;

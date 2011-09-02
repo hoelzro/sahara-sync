@@ -221,7 +221,7 @@ sub handle_fs_change {
 
             $self->ws_client->put_blob($blob, IO::File->new($path, 'r'),
                 \%meta, sub {
-                    my ( $revision, $error ) = @_;
+                    my ( $ws, $revision, $error ) = @_;
 
                     if(defined $revision) {
                         $self->log->info("Successfully updated $blob; new revision is $revision");
@@ -238,8 +238,8 @@ sub handle_fs_change {
                             my $conflict_blob = sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
 
                             $sd->rename($blob, $conflict_blob);
-                            $self->ws_client->get_blob($blob, sub {
-                                my ( $h, $metadata ) = @_;
+                            $ws->get_blob($blob, sub {
+                                my ( $ws, $h, $metadata ) = @_;
 
                                 ## handle error
 
@@ -281,7 +281,7 @@ sub handle_fs_change {
                 $self->upstream, $blob));
 
             $self->ws_client->delete_blob($blob, $revision, sub {
-                my ( $revision, $error ) = @_;
+                my ( $ws, $revision, $error ) = @_;
 
                 if(defined $revision) {
                     $self->log->info("Successfully deleted $blob; new revision is $revision");
@@ -318,7 +318,7 @@ sub handle_upstream_change {
         $self->sd->unlink($blob);
     } else {
         $self->ws_client->get_blob($blob, sub {
-            my ( $h, $metadata ) = @_;
+            my ( $ws, $h, $metadata ) = @_;
 
             ## handle error
 
@@ -382,6 +382,7 @@ sub run {
     $self->_sync_dir_guard($guard);
 
     $self->ws_client->changes($last_revision, [], sub {
+        shift; # shift off ws_client
         return $self->handle_upstream_change(@_);
     });
 

@@ -45,7 +45,7 @@ sub close {
 
         # XXX shitty name for a method
         unless($sync_dir->_verify_blob($real_name, $temp2->filename, $tempfile->filename)) {
-            ## XXX what about hard links?
+            ## XXX what about hard links? (how do hard links behave with inotify?)
             rename $real_name, $tempfile->filename or die $!; ## potential problems here (could be modified)
             rename $temp2->filename, $real_name or die $!;
             $sync_dir->_signal_conflict($blob_name, $tempfile->filename);

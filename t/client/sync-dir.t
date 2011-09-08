@@ -40,6 +40,13 @@ sub create_sync_dir {
         }
     });
 
+    $self->{'seen_conflicts'} = [];
+    $self->{'conflict_guard'} = $sd->on_conflict(sub {
+        my ( $sd, $blob ) = @_;
+
+        push @{ $self->{'seen_conflicts'} }, $blob;
+    });
+
     return $sd;
 }
 
@@ -57,12 +64,14 @@ sub setup :Test(setup) {
     $self->create_sync_dir;
 }
 
-sub teardown :Test(teardown) {
+sub teardown :Test(teardown => 1) {
     my ( $self ) = @_;
 
     undef $self->{'watch_guard'};
     chdir $self->{'wd'};
     undef $self->{'temp'};
+
+    is_deeply $self->{'seen_conflicts'}, [];
 }
 
 sub timeout {
@@ -458,6 +467,8 @@ sub test_move_file :Test(5) {
 
 sub prepare_conflict_test {
     my ( $self, %params ) = @_;
+
+    local $self->{'seen_conflicts'} = []; # we're expecting some, so ignore them
 
     my @actions = @params{qw/action1 action2/};
 

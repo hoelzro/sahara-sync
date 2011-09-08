@@ -5,6 +5,7 @@ use warnings;
 use parent 'IO::Handle';
 
 use File::Spec;
+use File::Temp;
 
 sub new {
     my ( $class, $sync_dir, $tempfile, $mode, $destination ) = @_;
@@ -27,14 +28,36 @@ sub cancel {
 sub close {
     my ( $self ) = @_;
 
+    ## the name 'real_name' sucks
     my ( $tempfile, $mode, $real_name, $sync_dir ) = @{*$self}{qw/tempfile mode real_name sync_dir/};
 
-    my $retval = IO::Handle::close($self);
-    chmod $mode, $tempfile->filename or die $! if defined $mode;
-    rename $tempfile->filename, $real_name or die $!;
+    my $blob_name = File::Spec->abs2rel($real_name, $sync_dir->root);
+    my $retval    = IO::Handle::close($self);
 
-    my $file = File::Spec->abs2rel($real_name, $sync_dir->root);
-    $sync_dir->_update_file_stats($real_name, $file);
+    if(defined $mode) {
+        my $temp2 = File::Temp->new(UNLINK => 0, DIR => $sync_dir->_overlay);
+        close $temp2;
+        rename $real_name, $temp2->filename;
+        ## a user could recreate $real_name here, fucking things up.
+        rename $tempfile->filename, $real_name or die $!;
+        ## a user could alter $real_name here, which would cause problems
+        ## if a conflict is detected.
+
+        # XXX shitty name for a method
+        unless($sync_dir->_verify_blob($real_name, $temp2->filename, $tempfile->filename)) {
+            ## XXX what about hard links?
+            rename $real_name, $tempfile->filename or die $!; ## potential problems here (could be modified)
+            rename $temp2->filename, $real_name or die $!;
+            $sync_dir->_signal_conflict($blob_name, $tempfile->filename);
+        }
+
+        chmod $mode, $real_name;
+    } else {
+        # XXX verify that $real_name doesn't exist
+        rename $tempfile->filename, $real_name or die $!;
+    }
+
+    $sync_dir->_update_file_stats($real_name, $blob_name);
 
     return $retval;
 }

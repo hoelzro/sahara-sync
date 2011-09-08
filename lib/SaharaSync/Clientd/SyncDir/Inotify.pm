@@ -103,6 +103,12 @@ sub _build_dbh {
     return $dbh;
 }
 
+has conflict_callbacks => (
+    is       => 'ro',
+    init_arg => undef,
+    default  => sub { [] },
+);
+
 sub _update_queue {
     my ( $self, $event ) = @_;
 
@@ -352,6 +358,22 @@ sub _debug_event {
     diag("  mask:     " . join(', ', @masks));
 }
 
+sub _verify_blob {
+    my ( $self, $blob_name, $old_path, $new_path ) = @_;
+
+    return 0;
+}
+
+sub _signal_conflict {
+    my ( $self, $blob_name, $conflict_contents ) = @_;
+
+    my $callbacks = $self->conflict_callbacks;
+
+    foreach my $cb (@$callbacks) {
+        $self->$cb($blob_name, $conflict_contents);
+    }
+}
+
 sub on_change {
     my ( $self, $callback ) = @_;
 
@@ -373,6 +395,25 @@ sub on_change {
     };
 }
 
+sub on_conflict {
+    my ( $self, $callback ) = @_;
+
+    return unless defined(wantarray); # XXX ???
+
+    weaken $self;
+    weaken $callback;
+
+    push @{ $self->conflict_callbacks }, $callback;
+
+    return guard {
+        return unless $self; # $self is a weak reference, so check first
+
+        @{ $self->conflict_callbacks } = grep {
+            $_ != $callback
+        } @{ $self->conflict_callbacks };
+    };
+}
+
 sub open_write_handle {
     my ( $self, $blob_name ) = @_;
 
@@ -388,7 +429,7 @@ sub open_write_handle {
     ## chmod parent dir too?
     ## do some more checks?
 
-    my $file = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
+    my $file = File::Temp->new(DIR => $self->_overlay);
     return SaharaSync::Clientd::SyncDir::Inotify::Handle->new($self, $file, $old_mode,
         $current_path);
 }

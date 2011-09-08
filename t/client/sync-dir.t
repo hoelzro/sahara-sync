@@ -99,6 +99,12 @@ sub expect_changes {
     }
 }
 
+sub octal {
+    my ( $n ) = @_;
+
+    return sprintf('0%o', $n);
+}
+
 sub test_self_changes :Test(3) {
     my ( $self ) = @_;
 
@@ -272,7 +278,7 @@ sub test_preservation :Test(2) {
 
             my ( $mode, $uid, $gid ) = (stat 'foo.txt')[2, 4, 5];
             $mode &= 0777;
-            is $mode, $perm;
+            is octal($mode), octal($perm);
             is $uid, $<;
             is $gid, $group;
         }

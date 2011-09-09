@@ -37,7 +37,7 @@ sub close {
     if(defined $mode) {
         my $temp2 = File::Temp->new(UNLINK => 0, DIR => $sync_dir->_overlay);
         close $temp2;
-        rename $real_name, $temp2->filename;
+        rename $real_name, $temp2->filename or die $!;
         ## a user could recreate $real_name here, fucking things up.
         rename $tempfile->filename, $real_name or die $!;
         ## a user could alter $real_name here, which would cause problems

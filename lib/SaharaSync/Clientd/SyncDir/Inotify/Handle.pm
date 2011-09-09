@@ -53,8 +53,12 @@ sub close {
 
         chmod $mode, $real_name;
     } else {
-        # XXX verify that $real_name doesn't exist
-        rename $tempfile->filename, $real_name or die $!;
+        if($sync_dir->_verify_blob($blob_name, undef)) {
+            # XXX verify that $real_name doesn't exist
+            rename $tempfile->filename, $real_name or die $!;
+        } else {
+            $sync_dir->_signal_conflict($blob_name, $tempfile->filename);
+        }
     }
 
     $sync_dir->_update_file_stats($real_name, $blob_name);

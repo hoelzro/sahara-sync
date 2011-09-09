@@ -457,8 +457,22 @@ sub unlink {
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;
     my $path = File::Spec->catfile($self->root, $blob_name);
-    rename $path, $tempfile->filename or die $!;
-    unlink $tempfile->filename;
+    unless(rename $path, $tempfile->filename) {
+        unless(-e $path) {
+            ## check our notion of $path (do we think it ought to exist or not?)
+            $self->_signal_conflict($blob_name, undef);
+            return;
+        } else {
+            die $!;
+        }
+    }
+    if($self->_verify_blob($blob_name, $tempfile->filename)) {
+        unlink $tempfile->filename;
+    } else {
+        rename $tempfile->filename, $path or die $!;
+        $self->_signal_conflict($blob_name, undef);
+        ## return here?
+    }
     $self->_update_file_stats($path, $blob_name);
 }
 

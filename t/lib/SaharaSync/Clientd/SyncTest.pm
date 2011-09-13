@@ -130,7 +130,8 @@ sub setup : Test(setup) {
 sub teardown : Test(teardown) {
     my ( $self ) = @_;
 
-    delete @{$self}{qw/hostd client1 client2/};
+    delete @{$self}{qw/client1 client2/}; # stop client daemons first
+    delete $self->{'hostd'};
     delete @{$self}{qw/temp1 temp2/};
 }
 

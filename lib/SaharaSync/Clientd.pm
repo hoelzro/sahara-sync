@@ -309,6 +309,9 @@ sub handle_upstream_change {
     my $is_deleted = $change->{'is_deleted'};
     my $revision   = $change->{'revision'};
 
+    $self->log->info(sprintf("Blob %s was %s on the server (revision is %s)",
+        $blob, $is_deleted ? 'deleted' : 'changed', $revision));
+
     if($self->inflight_operations->{$blob}) {
         push @{ $self->delayed_operations }, $change;
         return;

@@ -25,7 +25,9 @@ sub client_poll_interval {
 sub catchup {
     my ( $self ) = @_;
 
-    sleep $self->client_poll_interval + 1;
+    for(my $i = 0; $i < $self->client_poll_interval + 1; $i++) {
+        sleep 1;
+    }
 }
 
 sub port {

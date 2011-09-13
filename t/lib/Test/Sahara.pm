@@ -57,10 +57,19 @@ sub create_fresh_app {
         $dbh->do($schema);
     }
     unless($options{'log'}) {
-        $options{'log'} = [{
-            type      => 'Null',
-            min_level => 'debug',
-        }];
+        if($ENV{'TEST_HOSTD_DEBUG'}) {
+            $options{'log'} = [{
+                type      => 'Screen',
+                stderr    => 1,
+                min_level => 'debug',
+                newline   => 1,
+            }],
+        } else {
+            $options{'log'} = [{
+                type      => 'Null',
+                min_level => 'debug',
+            }];
+        }
     }
 
     if($options{'storage'}{'type'} eq 'DBIWithFS' &&
@@ -92,6 +101,13 @@ sub create_fresh_app {
         $app   = $hostd->to_app;
     }
     
+    if($ENV{'TEST_HOSTD_DEBUG'}) {
+        $hostd->log->add_callback(sub {
+            my %params = @_;
+
+            return "\033[33m[host] $params{'message'}\033[0m";
+        });
+    }
     $hostd->storage->create_user('test', 'abc123');
 
     return $app;

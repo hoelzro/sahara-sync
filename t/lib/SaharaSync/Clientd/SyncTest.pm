@@ -71,6 +71,14 @@ sub create_fresh_client {
 
             my $daemon = SaharaSync::Clientd->new($config);
 
+            if($ENV{'TEST_CLIENTD_DEBUG'}) {
+                $daemon->log->add_callback(sub {
+                    my %params = @_;
+
+                    return "\033[31m[client - $$] $params{'message'}\033[0m";
+                });
+            }
+
             try {
                 $daemon->run;
             } catch {

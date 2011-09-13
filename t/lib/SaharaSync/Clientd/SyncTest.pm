@@ -155,7 +155,7 @@ sub test_create_file :Test(5) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, ['foo.txt']);
 
-    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $contents, "Hello!\n";
 }
 
@@ -180,7 +180,7 @@ sub test_delete_file :Test(7) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, ['foo.txt']);
 
-    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $contents, "Hello!\n";
 
     unlink File::Spec->catfile($temp1, 'foo.txt');
@@ -215,7 +215,7 @@ sub test_update_file :Test(8) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, ['foo.txt']);
 
-    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $contents, "Hello!\n";
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello 2\n");
@@ -228,7 +228,7 @@ sub test_update_file :Test(8) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, ['foo.txt']);
 
-    $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is($contents, "Hello 2\n");
 }
 
@@ -261,7 +261,7 @@ sub test_preexisting_files :Test(5) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, ['foo.txt']);
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, World!";
 }
 
@@ -289,7 +289,7 @@ sub test_offline_update :Test(4) {
 
     $self->catchup;
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, World!";
 
     $self->{'client1'} = $self->create_fresh_client($temp1);
@@ -297,7 +297,7 @@ sub test_offline_update :Test(4) {
 
     $self->catchup;
 
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, again";
 }
 
@@ -324,12 +324,12 @@ sub test_revision_persistence :Test(4) {
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, again");
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, World!";
 
     $self->catchup;
 
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, again";
 }
 
@@ -343,7 +343,7 @@ sub test_update_on_nonorigin :Test(2) {
 
     $self->catchup;
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
 
     is $content, "In foo";
 
@@ -351,7 +351,7 @@ sub test_update_on_nonorigin :Test(2) {
 
     $self->catchup;
 
-    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
 
     is $content, "Second update to foo";
 }
@@ -383,20 +383,20 @@ sub test_create_conflict :Test(7) {
     my $conflict_file = $self->get_conflict_blob('foo.txt');
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
     is $content, "Content 2\n";
 
-    $content = read_file(File::Spec->catfile($temp1, $conflict_file));
+    $content = read_file(File::Spec->catfile($temp1, $conflict_file), err_mode => 'quiet');
     is $content, "Content 1\n";
 
     @files = grep { $_ ne '.saharasync' } read_dir($temp2);
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Content 2\n";
 
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file), err_mode => 'quiet');
     is $content, "Content 1\n";
 }
 
@@ -428,20 +428,20 @@ sub test_update_conflict :Test(6) {
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file), err_mode => 'quiet');
     is $content, "Conflicting content!";
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
-    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 
-    $content = read_file(File::Spec->catfile($temp1, $conflict_file));
+    $content = read_file(File::Spec->catfile($temp1, $conflict_file), err_mode => 'quiet');
     is $content, "Conflicting content!";
 }
 
@@ -475,14 +475,14 @@ sub test_update_delete_conflict :Test(4) {
 
     is_deeply \@files, [ $conflict_file ];
 
-    my $content = read_file(File::Spec->catfile($temp1, $conflict_file));
+    my $content = read_file(File::Spec->catfile($temp1, $conflict_file), err_mode => 'quiet');
     is $content, "Updated content";
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     is_deeply \@files, [ $conflict_file ];
 
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file));
+    $content = read_file(File::Spec->catfile($temp2, $conflict_file), err_mode => 'quiet');
     is $content, "Updated content";
 }
 
@@ -522,14 +522,14 @@ sub test_delete_update_conflict :Test(4) {
 
     is_deeply \@files, [ $conflict_file ];
 
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'));
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
     is_deeply \@files, [ $conflict_file ];
 
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'));
+    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 }
 

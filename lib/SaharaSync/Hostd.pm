@@ -6,6 +6,7 @@ use Moose;
 use feature 'switch';
 
 use Carp qw(croak longmess);
+use Data::Dumper;
 use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
@@ -137,6 +138,8 @@ sub send_change_to_streams {
     };
 
     if($streams) {
+        $self->log->debug("writing change to streaming clients: " . Dumper($changes));
+
         foreach my $stream (@$streams) {
             my $meta = $stream->{'metadata'};
             $stream->{'stream'}->write_object({

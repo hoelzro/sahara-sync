@@ -320,6 +320,11 @@ sub test_revision_persistence :Test(4) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, ['foo.txt']);
 
+    $self->{'client1'} = undef;
+    $self->{'client2'} = undef;
+
+    $self->catchup;
+
     $self->{'client1'} = $self->create_fresh_client($temp1);
     $self->{'client2'} = $self->create_fresh_client($temp2);
 

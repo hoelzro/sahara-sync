@@ -32,12 +32,16 @@ sub create_sync_dir {
 
     $self->{'seen_events'} = [];
     $self->{'watch_guard'} = $sd->on_change(sub {
-        my ( $sd, @events ) = @_;
+        my ( $sd, $event, $continuation ) = @_;
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-            push @{ $self->{'seen_events'} }, $path;
+        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
+        push @{ $self->{'seen_events'} }, $path;
+
+        unless(defined $continuation) {
+            use Carp qw(longmess);
+            diag(longmess());
         }
+        $continuation->();
     });
 
     $self->{'seen_conflicts'} = [];
@@ -302,12 +306,12 @@ sub test_on_change_guard :Test(7) {
     $self->{'watch_guard'} = undef;
 
     $self->sd->on_change(sub {
-        my ( $sd, @events ) = @_;
+        my ( $sd, $event, $continuation ) = @_;
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
+        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
+        push @{ $self->{'seen_events'} }, $path;
+
+        $continuation->();
     });
 
     write_file 'foo', "hello\n";
@@ -319,12 +323,12 @@ sub test_on_change_guard :Test(7) {
     $self->expect_changes([]);
 
     my $guard = $self->sd->on_change(sub {
-        my ( $sd, @events ) = @_;
+        my ( $sd, $event, $continuation ) = @_;
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
+        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
+        push @{ $self->{'seen_events'} }, $path;
+
+        $continuation->();
     });
 
     write_file 'bar', "hello\n";
@@ -343,12 +347,12 @@ sub test_on_change_guard :Test(7) {
     $self->expect_changes([]);
 
     $guard = $self->sd->on_change(sub {
-        my ( $sd, @events ) = @_;
+        my ( $sd, $event, $continuation ) = @_;
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
+        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
+        push @{ $self->{'seen_events'} }, $path;
+
+        $continuation->();
     });
 
     $self->expect_changes(['foo', 'bar', 'baz']);

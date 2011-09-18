@@ -199,13 +199,20 @@ sub _process_event {
     my $root = $self->root;
     my $file = File::Spec->abs2rel($path, $root);
 
-    $self->_update_file_stats($path, $file);
     $self->_update_queue($event);
+
+    my $called = 0;
+    my $continuation = sub {
+        unless($called) {
+            $called = 1;
+            $self->_update_file_stats($path, $file);
+        }
+    };
 
     my $callbacks = $self->change_callbacks;
 
     foreach my $cb (@$callbacks) {
-        $cb->($self, $event);
+        $cb->($self, $event, $continuation);
     }
 }
 
@@ -396,7 +403,8 @@ sub on_change {
 
     return unless defined(wantarray);
 
-    $callback->($self, $_) foreach @{ $self->_event_queue };
+    ## $continuation?
+    $callback->($self, $_, sub {}) foreach @{ $self->_event_queue };
 
     weaken $self;
     weaken $callback;

@@ -5,9 +5,16 @@ use warnings;
 use parent 'Test::Class';
 
 use EV;
+use AnyEvent;
 use Test::More;
 
 my %timeouts;
+
+sub detect_ae_model :Test(startup => 1) {
+    $ENV{'PERL_ANYEVENT_MODEL'} = 'EV';
+    my $model = AnyEvent::detect();
+    is $model, 'AnyEvent::Impl::EV', 'The AnyEvent model MUST be EV to properly detect uncaught errors';
+}
 
 sub TIMEOUT {
     my $self  = shift;

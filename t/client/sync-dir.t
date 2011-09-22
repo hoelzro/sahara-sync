@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use autodie qw(chmod open rename);
-use parent 'Test::Class';
+use parent 'Test::Class::AnyEvent';
 
 use AnyEvent;
 use Cwd;

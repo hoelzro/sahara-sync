@@ -2,7 +2,7 @@ package AnyEvent::WebService::Sahara::Test;
 
 use strict;
 use warnings;
-use parent 'Test::Class';
+use parent 'Test::Class::AnyEvent';
 use utf8;
 
 use Test::More;

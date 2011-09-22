@@ -1,0 +1,51 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use AnyEvent::Socket qw(tcp_server);
+use SaharaSync::Clientd;
+use SaharaSync::Clientd::Config;
+
+my ( $upstream, $port, $root, $poll_interval ) = @ARGV;
+
+my $log_config = {
+    type => 'Null',
+};
+
+if($ENV{'TEST_CLIENTD_DEBUG'}) {
+    $log_config = {
+        type    => 'Screen',
+        newline => 1,
+        stderr  => 1,
+    };
+}
+$log_config->{'min_level'} = 'debug';
+
+my $config = SaharaSync::Clientd::Config->new(
+    upstream      => $upstream,
+    sync_dir      => $root,
+    username      => 'test',
+    password      => 'abc123',
+    log           => $log_config,
+    poll_interval => $poll_interval,
+);
+
+# make sure Test::TCP can talk to us
+tcp_server '127.0.0.1', $port, sub {
+    my ( $fh ) = @_;
+
+    close $fh;
+};
+
+my $daemon = SaharaSync::Clientd->new($config);
+
+if($ENV{'TEST_CLIENTD_DEBUG'}) {
+    $daemon->log->add_callback(sub {
+        my %params = @_;
+
+        return "\033[31m[client - $$] $params{'message'}\033[0m";
+    });
+}
+
+$daemon->run;

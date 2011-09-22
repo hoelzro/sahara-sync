@@ -5,13 +5,9 @@ use warnings;
 use autodie qw(open);
 use parent 'Test::Class';
 
-use AnyEvent::Socket qw(tcp_server);
 use File::Slurp qw(read_dir read_file write_file);
 use File::Spec;
 use File::Temp;
-use SaharaSync::Clientd;
-use SaharaSync::Clientd::Config;
-use Plack::Loader;
 use Test::Deep qw(cmp_bag);
 use Test::More;
 use Test::Sahara ();
@@ -39,61 +35,15 @@ sub port {
 sub create_fresh_client {
     my ( $self, $sync_dir ) = @_;
 
-    my $log_config = {
-        type => 'Null',
-    };
-
-    if($ENV{'TEST_CLIENTD_DEBUG'}) {
-        $log_config = {
-            type    => 'Screen',
-            newline => 1,
-            stderr  => 1,
-        };
-    }
-    $log_config->{'min_level'} = 'debug';
-
-    my $config = SaharaSync::Clientd::Config->new(
-        upstream      => 'http://localhost:' . $self->port,
-        sync_dir      => $sync_dir->dirname,
-        username      => 'test',
-        password      => 'abc123',
-        log           => $log_config,
-        poll_interval => $self->client_poll_interval,
-    );
-
     # this is easier than managing the client process ourselves
     return Test::TCP->new(
         code => sub {
             my ( $port ) = @_;
 
-            # make sure Test::TCP can talk to us
-            tcp_server '127.0.0.1', $port, sub {
-                my ( $fh ) = @_;
-
-                close $fh;
-            };
-
-            my $daemon = SaharaSync::Clientd->new($config);
-
-            if($ENV{'TEST_CLIENTD_DEBUG'}) {
-                $daemon->log->add_callback(sub {
-                    my %params = @_;
-
-                    return "\033[31m[client - $$] $params{'message'}\033[0m";
-                });
-            }
-
-            try {
-                $daemon->run;
-            } catch {
-                fail "ERROR: $_";
-            }
+            exec $^X, 't/run-test-client', 'http://localhost:' . $self->port,
+                $port, $sync_dir->dirname, $self->client_poll_interval;
         },
     );
-}
-
-sub create_fresh_app {
-    return Test::Sahara->create_fresh_app;
 }
 
 sub get_conflict_blob {
@@ -112,13 +62,7 @@ sub setup : Test(setup) {
     $self->{'hostd'} = Test::TCP->new(
         port => $self->port,
         code => sub {
-            my ( $port ) = @_;
-
-            my $server = Plack::Loader->auto(
-                port => $port,
-                host => '127.0.0.1',
-            );
-            $server->run($self->create_fresh_app);
+            exec $^X, 't/run-test-app', @_;
         },
     );
 

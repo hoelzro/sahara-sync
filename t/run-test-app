@@ -1,0 +1,18 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Plack::Loader;
+use Test::Sahara ();
+
+my $app = Test::Sahara->create_fresh_app;
+
+my ( $port ) = @ARGV;
+
+my $server = Plack::Loader->auto(
+    port => $port,
+    host => '127.0.0.1',
+);
+
+$server->run($app);

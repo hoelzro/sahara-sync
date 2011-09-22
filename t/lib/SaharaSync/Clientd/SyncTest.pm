@@ -23,9 +23,11 @@ sub client_poll_interval {
 }
 
 sub catchup {
-    my ( $self ) = @_;
+    my ( $self, $extra ) = @_;
 
-    for(my $i = 0; $i < $self->client_poll_interval + 1; $i++) {
+    $extra = 1 unless defined $extra;
+
+    for(my $i = 0; $i < $self->client_poll_interval + $extra; $i++) {
         sleep 1;
     }
 }

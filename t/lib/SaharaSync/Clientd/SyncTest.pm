@@ -386,7 +386,7 @@ sub test_create_conflict :Test(7) {
 
     kill SIGCONT => $client1->pid;
 
-    $self->catchup;
+    $self->catchup(5); # wait a little longer
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 

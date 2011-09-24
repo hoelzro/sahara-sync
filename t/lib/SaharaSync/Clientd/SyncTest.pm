@@ -402,8 +402,6 @@ sub test_update_conflict :Test(6) {
 sub test_update_delete_conflict :Test(4) {
     my ( $self ) = @_;
 
-    return "Skipping conflict tests";
-
     my $client1 = $self->{'client1'};
     my $client2 = $self->{'client2'};
     my $temp1   = $self->{'temp1'};
@@ -442,8 +440,6 @@ sub test_update_delete_conflict :Test(4) {
 
 sub test_delete_update_conflict :Test(4) {
     my ( $self ) = @_;
-
-    return "Skipping conflict tests";
 
     my $client1 = $self->{'client1'};
     my $client2 = $self->{'client2'};

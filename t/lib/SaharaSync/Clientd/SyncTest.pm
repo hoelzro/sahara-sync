@@ -3,7 +3,7 @@ package SaharaSync::Clientd::SyncTest;
 use strict;
 use warnings;
 use autodie qw(open);
-use parent 'Test::Class::AnyEvent'; ## this breaks with child processes!
+use parent 'Test::Class::AnyEvent';
 
 use File::Slurp qw(read_dir read_file write_file);
 use File::Spec;

@@ -289,7 +289,41 @@ sub handle_fs_change {
                 $self->_put_revision_for_blob($blob, $revision, 1);
                 $self->_run_delayed_operations($blob, $revision);
             } else {
-                $self->log->warning("Deleting $blob failed: $error");
+                if($error =~ /Conflict/) {
+                    $self->log->info("Deleting '$blob' failed: conflict");
+
+                    $continuation->();
+
+                    $ws->get_blob($blob, sub {
+                        my ( $ws, $h, $metadata ) = @_;
+
+                        ## handle error
+
+                        my $revision = $metadata->{'revision'};
+
+                        my $w = $sd->open_write_handle($blob);
+
+                        $h->on_read(sub {
+                            my $buffer = $h->rbuf;
+                            $h->rbuf = '';
+
+                            $w->write($buffer);
+                        });
+
+                        $h->on_error(sub {
+                            ## do something
+                        });
+
+                        $h->on_eof(sub {
+                            $w->close;
+                            undef $h;
+
+                            $self->_put_revision_for_blob($blob, $revision, 0);
+                        });
+                    });
+                } else {
+                    $self->log->warning("Deleting $blob failed: $error");
+                }
            }
         });
     }

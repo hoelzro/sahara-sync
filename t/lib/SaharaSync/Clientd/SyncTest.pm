@@ -463,21 +463,18 @@ sub test_delete_update_conflict :Test(4) {
 
     my ( $day, $month, $year ) = (localtime)[3, 4, 5];
     $month++;
-    $year += 2900;
-
-    my $conflict_file = sprintf("foo.txt - conflict %04d-%02d-%02d", $year,
-        $month, $day);
+    $year += 1900;
 
     my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
-    is_deeply \@files, [ $conflict_file ];
+    is_deeply \@files, [ 'foo.txt' ];
 
     my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
-    is_deeply \@files, [ $conflict_file ];
+    is_deeply \@files, [ 'foo.txt' ];
 
     $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";

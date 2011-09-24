@@ -420,7 +420,7 @@ sub test_update_delete_conflict :Test(4) {
 
     kill SIGCONT => $client1->pid;
 
-    $self->catchup;
+    $self->catchup(5);
 
     my $conflict_file = $self->get_conflict_blob('foo.txt');
     my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
@@ -459,7 +459,7 @@ sub test_delete_update_conflict :Test(4) {
 
     kill SIGCONT => $client1->pid;
 
-    $self->catchup;
+    $self->catchup(5);
 
     my ( $day, $month, $year ) = (localtime)[3, 4, 5];
     $month++;

@@ -2,9 +2,10 @@ package SaharaSync::Clientd::SyncTest;
 
 use strict;
 use warnings;
-use autodie qw(open);
+use autodie qw(open pipe);
 use parent 'Test::Class::AnyEvent';
 
+use IO::Handle;
 use File::Slurp qw(read_dir read_file write_file);
 use File::Spec;
 use File::Temp;
@@ -35,15 +36,30 @@ sub port {
 sub create_fresh_client {
     my ( $self, $sync_dir ) = @_;
 
+    my ( $read, $write );
+
+    pipe $read, $write;
+
     # this is easier than managing the client process ourselves
-    return Test::TCP->new(
+    my $client = Test::TCP->new(
         code => sub {
             my ( $port ) = @_;
+
+            close $read;
+
+            open STDOUT, '>&', $write;
 
             exec $^X, 't/run-test-client', 'http://localhost:' . $self->port,
                 $port, $sync_dir->dirname, $self->client_poll_interval;
         },
     );
+
+    close $write;
+    my $pipe = IO::Handle->new;
+    $pipe->fdopen(fileno($read), 'r');
+    close $read;
+
+    return ( $client, $pipe );
 }
 
 sub get_conflict_blob {
@@ -69,8 +85,8 @@ sub setup : Test(setup) {
     my $temp1 = File::Temp->newdir;
     my $temp2 = File::Temp->newdir;
 
-    $self->{'client1'} = $self->create_fresh_client($temp1);
-    $self->{'client2'} = $self->create_fresh_client($temp2);
+    ( $self->{'client1'} ) = $self->create_fresh_client($temp1);
+    ( $self->{'client2'} ) = $self->create_fresh_client($temp2);
     $self->{'temp1'}   = $temp1;
     $self->{'temp2'}   = $temp2;
 }
@@ -199,8 +215,8 @@ sub test_preexisting_files :Test(5) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, []);
 
-    $self->{'client1'} = $self->create_fresh_client($temp1);
-    $self->{'client2'} = $self->create_fresh_client($temp2);
+    ( $self->{'client1'} ) = $self->create_fresh_client($temp1);
+    ( $self->{'client2'} ) = $self->create_fresh_client($temp2);
 
     $self->catchup;
 
@@ -241,8 +257,8 @@ sub test_offline_update :Test(4) {
     my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, World!";
 
-    $self->{'client1'} = $self->create_fresh_client($temp1);
-    $self->{'client2'} = $self->create_fresh_client($temp2);
+    ( $self->{'client1'} ) = $self->create_fresh_client($temp1);
+    ( $self->{'client2'} ) = $self->create_fresh_client($temp2);
 
     $self->catchup;
 
@@ -271,8 +287,8 @@ sub test_revision_persistence :Test(4) {
 
     $self->catchup;
 
-    $self->{'client1'} = $self->create_fresh_client($temp1);
-    $self->{'client2'} = $self->create_fresh_client($temp2);
+    ( $self->{'client1'} ) = $self->create_fresh_client($temp1);
+    ( $self->{'client2'} ) = $self->create_fresh_client($temp2);
 
     $self->catchup;
 

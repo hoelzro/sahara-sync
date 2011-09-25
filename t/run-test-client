@@ -4,8 +4,10 @@ use strict;
 use warnings;
 
 use AnyEvent::Socket qw(tcp_server);
+use EV;
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
+use Test::More;
 
 my ( $upstream, $port, $root, $poll_interval ) = @ARGV;
 
@@ -48,6 +50,13 @@ if($ENV{'TEST_CLIENTD_DEBUG'}) {
     });
 }
 
+my $num_errors = 0;
+
+$EV::DIED = sub {
+    $num_errors++;
+    note($@);
+};
+
 $daemon->run;
 
-print '0';
+print $num_errors;

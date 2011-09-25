@@ -59,6 +59,8 @@ sub create_fresh_client {
     $pipe->fdopen(fileno($read), 'r');
     close $read;
 
+    $pipe->blocking(0);
+
     return ( $client, $pipe );
 }
 

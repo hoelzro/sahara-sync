@@ -49,3 +49,5 @@ if($ENV{'TEST_CLIENTD_DEBUG'}) {
 }
 
 $daemon->run;
+
+print '0';

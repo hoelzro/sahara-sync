@@ -47,7 +47,7 @@ sub create_fresh_client {
 
             close $read;
 
-            open STDOUT, '>&', $write;
+            open STDERR, '>&', $write;
 
             exec $^X, 't/run-test-client', 'http://localhost:' . $self->port,
                 $port, $sync_dir->dirname, $self->client_poll_interval;

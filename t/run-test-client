@@ -59,4 +59,4 @@ $EV::DIED = sub {
 
 $daemon->run;
 
-print $num_errors;
+print STDERR $num_errors;

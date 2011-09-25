@@ -74,6 +74,23 @@ sub get_conflict_blob {
     return sprintf("%s - conflict %04d-%02d-%02d", $blob, $year, $month, $day);
 }
 
+# This is four tests in a single method
+# It also cleans up the client pipes and the client objects
+sub check_clients {
+    my ( $self ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    delete @{$self}{qw/client1 client2/};
+
+    foreach my $pipe (delete @{$self}{qw/client1_pipe client2_pipe/}) {
+        my $buffer = '';
+        my $bytes  = $pipe->sysread($buffer, 1);
+        is $bytes, 1, 'The client should write a status byte upon safe exit';
+        is $buffer, 0, 'No errors should occur in the clients';
+    };
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
@@ -93,10 +110,10 @@ sub setup : Test(setup) {
     $self->{'temp2'}   = $temp2;
 }
 
-sub teardown : Test(teardown) {
+sub teardown : Test(teardown => 4) {
     my ( $self ) = @_;
 
-    delete @{$self}{qw/client1 client2/}; # stop client daemons first
+    $self->check_clients; # stop client daemons first
     delete $self->{'hostd'};
     delete @{$self}{qw/temp1 temp2/};
 }
@@ -199,7 +216,7 @@ sub test_update_file :Test(8) {
     is($contents, "Hello 2\n");
 }
 
-sub test_preexisting_files :Test(5) {
+sub test_preexisting_files :Test(9) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
@@ -217,6 +234,7 @@ sub test_preexisting_files :Test(5) {
     is_deeply(\@files1, ['foo.txt']);
     is_deeply(\@files2, []);
 
+    $self->check_clients;
     @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
     @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
 
@@ -232,7 +250,7 @@ sub test_preexisting_files :Test(5) {
     is $content, "Hello, World!";
 }
 
-sub test_offline_update :Test(4) {
+sub test_offline_update :Test(8) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
@@ -259,6 +277,7 @@ sub test_offline_update :Test(4) {
     my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Hello, World!";
 
+    $self->check_clients;
     @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
     @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
 
@@ -268,7 +287,7 @@ sub test_offline_update :Test(4) {
     is $content, "Hello, again";
 }
 
-sub test_revision_persistence :Test(4) {
+sub test_revision_persistence :Test(8) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
@@ -289,6 +308,7 @@ sub test_revision_persistence :Test(4) {
 
     $self->catchup;
 
+    $self->check_clients;
     @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
     @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
 

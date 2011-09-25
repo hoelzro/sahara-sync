@@ -39,6 +39,11 @@ sub create_fresh_client {
 
     confess "client num required" unless $client_num;
 
+    my @client_info = grep { /^client$client_num/} keys %$self;
+    if(@client_info) {
+        confess "create_fresh_client called with the following client info keys: "
+            . join(' ', @client_info);
+    }
 
     my ( $read, $write );
 

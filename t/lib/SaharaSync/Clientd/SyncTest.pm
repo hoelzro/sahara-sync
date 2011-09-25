@@ -5,6 +5,7 @@ use warnings;
 use autodie qw(open pipe);
 use parent 'Test::Class::AnyEvent';
 
+use Carp qw(confess);
 use IO::Handle;
 use File::Slurp qw(read_dir read_file write_file);
 use File::Spec;
@@ -34,7 +35,10 @@ sub port {
 }
 
 sub create_fresh_client {
-    my ( $self, $sync_dir ) = @_;
+    my ( $self, $sync_dir, $client_num ) = @_;
+
+    confess "client num required" unless $client_num;
+
 
     my ( $read, $write );
 
@@ -104,8 +108,8 @@ sub setup : Test(setup) {
     my $temp1 = File::Temp->newdir;
     my $temp2 = File::Temp->newdir;
 
-    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
+    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
     $self->{'temp1'}   = $temp1;
     $self->{'temp2'}   = $temp2;
 }
@@ -235,8 +239,8 @@ sub test_preexisting_files :Test(9) {
     is_deeply(\@files2, []);
 
     $self->check_clients;
-    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
+    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
 
     $self->catchup;
 
@@ -278,8 +282,8 @@ sub test_offline_update :Test(8) {
     is $content, "Hello, World!";
 
     $self->check_clients;
-    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
+    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
 
     $self->catchup;
 
@@ -309,8 +313,8 @@ sub test_revision_persistence :Test(8) {
     $self->catchup;
 
     $self->check_clients;
-    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1);
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2);
+    @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
 
     $self->catchup;
 

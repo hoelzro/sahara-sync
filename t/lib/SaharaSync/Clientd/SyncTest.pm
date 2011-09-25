@@ -92,12 +92,17 @@ sub check_clients {
 
     delete @{$self}{qw/client1 client2/};
 
+    my $ok = 1;
+
     foreach my $pipe (delete @{$self}{qw/client1_pipe client2_pipe/}) {
         my $buffer = '';
         my $bytes  = $pipe->sysread($buffer, 1);
-        is $bytes, 1, 'The client should write a status byte upon safe exit';
-        is $buffer, 0, 'No errors should occur in the clients';
-    };
+        $ok = is($bytes, 1, 'The client should write a status byte upon safe exit') && $ok;
+        $ok = is($buffer, 0, 'No errors should occur in the clients')               && $ok;
+    }
+    unless($ok) {
+        diag("Client check in method " . $self->current_method . " failed");
+    }
 }
 
 sub setup : Test(setup) {

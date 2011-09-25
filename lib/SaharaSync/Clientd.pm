@@ -424,6 +424,20 @@ sub run {
     });
 
     my $cond = AnyEvent->condvar;
+    my $int = AnyEvent->signal(
+        signal => 'INT',
+        cb     => sub {
+            $cond->send;
+        },
+    );
+
+    my $term = AnyEvent->signal(
+        signal => 'TERM',
+        cb     => sub {
+            $cond->send;
+        },
+    );
+
     $cond->recv;
 }
 

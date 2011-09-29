@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use autodie qw(open);
 
+use AnyEvent;
 use EV;
 use Plack::Loader;
 use Test::Sahara ();
@@ -26,9 +27,20 @@ $EV::DIED = sub {
     note($@);
 };
 
-$SIG{TERM} = $SIG{INT} = sub {
-    print $pipe $num_errors;
-    exit 0;
-};
+my $term = AnyEvent->signal(
+    signal => 'TERM',
+    cb     => sub {
+        print $pipe $num_errors;
+        exit 0;
+    },
+);
+
+my $int = AnyEvent->signal(
+    signal => 'INT',
+    cb     => sub {
+        print $pipe $num_errors;
+        exit 0;
+    },
+);
 
 $server->run($app);

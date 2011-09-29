@@ -128,7 +128,7 @@ sub setup : Test(setup) {
 sub teardown : Test(teardown => 4) {
     my ( $self ) = @_;
 
-    $self->check_clients; # stop client daemons first
+    $self->check_clients; # stop client daemons first (4 tests)
     delete $self->{'hostd'};
     delete @{$self}{qw/temp1 temp2/};
 }

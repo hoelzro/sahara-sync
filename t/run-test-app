@@ -12,7 +12,7 @@ my $app = Test::Sahara->create_fresh_app;
 
 my ( $port ) = @ARGV;
 
-my $server = Plack::Loader->auto(
+my $server = Plack::Loader->load('Twiggy',
     port => $port,
     host => '127.0.0.1',
 );

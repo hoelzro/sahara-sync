@@ -2,7 +2,9 @@
 
 use strict;
 use warnings;
+use autodie qw(open);
 
+use EV;
 use Plack::Loader;
 use Test::Sahara ();
 
@@ -14,5 +16,19 @@ my $server = Plack::Loader->auto(
     port => $port,
     host => '127.0.0.1',
 );
+
+my $num_errors = 0;
+my $pipe;
+open $pipe, '>&3';
+
+$EV::DIED = sub {
+    $num_errors++;
+    note($@);
+};
+
+$SIG{TERM} = $SIG{INT} = sub {
+    print $pipe $num_errors;
+    exit 0;
+};
 
 $server->run($app);

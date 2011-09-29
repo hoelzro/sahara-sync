@@ -109,12 +109,27 @@ sub check_clients {
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
+    my ( $read, $write );
+
+    pipe $read, $write;
     $self->{'hostd'} = Test::TCP->new(
         port => $self->port,
         code => sub {
+            close $read;
+            dup2 fileno($write), 3 or die $!;
+
             exec $^X, 't/run-test-app', @_;
         },
     );
+
+    close $write;
+    my $pipe = IO::Handle->new;
+    $pipe->fdopen(fileno($read), 'r');
+    close $read;
+
+    $pipe->blocking(0);
+
+    $self->{'hostd_pipe'} = $pipe;
 
     my $temp1 = File::Temp->newdir;
     my $temp2 = File::Temp->newdir;
@@ -125,12 +140,21 @@ sub setup : Test(setup) {
     $self->{'temp2'}   = $temp2;
 }
 
-sub teardown : Test(teardown => 4) {
+sub teardown : Test(teardown => 5) {
     my ( $self ) = @_;
 
     $self->check_clients; # stop client daemons first (4 tests)
     delete $self->{'hostd'};
     delete @{$self}{qw/temp1 temp2/};
+    my $pipe   = delete $self->{'hostd_pipe'};
+    my $buffer = '';
+    my $bytes  = $pipe->sysread($buffer, 1);
+
+    if($bytes == 1) {
+        is $buffer, 0, 'No errors should occur in the host';
+    } else {
+        fail 'The host should write a status byte upon safe exit';
+    }
 }
 
 sub test_create_file :Test(5) {

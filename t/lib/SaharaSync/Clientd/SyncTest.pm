@@ -10,6 +10,7 @@ use IO::Handle;
 use File::Slurp qw(read_dir read_file write_file);
 use File::Spec;
 use File::Temp;
+use POSIX qw(dup2);
 use Test::Deep qw(cmp_bag);
 use Test::More;
 use Test::Sahara ();
@@ -56,7 +57,7 @@ sub create_fresh_client {
 
             close $read;
 
-            open STDERR, '>&', $write;
+            dup2 fileno($write), 3 or die $!;
 
             exec $^X, 't/run-test-client', 'http://localhost:' . $self->port,
                 $port, $sync_dir->dirname, $self->client_poll_interval;

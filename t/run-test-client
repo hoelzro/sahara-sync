@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use autodie qw(open);
 
 use AnyEvent::Socket qw(tcp_server);
 use EV;
@@ -59,4 +60,6 @@ $EV::DIED = sub {
 
 $daemon->run;
 
-print STDERR $num_errors;
+my $pipe;
+open $pipe, '>&3';
+print $pipe $num_errors;

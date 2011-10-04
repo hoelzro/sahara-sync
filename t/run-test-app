@@ -25,7 +25,7 @@ open $pipe, '>&3';
 
 $EV::DIED = sub {
     $num_errors++;
-    note($@);
+    diag($@);
 };
 
 my $term = AnyEvent->signal(

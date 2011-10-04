@@ -55,7 +55,7 @@ my $num_errors = 0;
 
 $EV::DIED = sub {
     $num_errors++;
-    note($@);
+    diag($@);
 };
 
 $daemon->run;

@@ -25,11 +25,10 @@ sub port {
 my %temp_app_storage;
 tie %temp_app_storage, 'Tie::RefHash::Weak';
 
-sub create_fresh_app {
+sub create_fresh_hostd {
     my ( undef, %options ) = @_;
 
     my $hostd;
-    my $app;
 
     unless($options{'storage'}) {
         $options{'storage'} = {};
@@ -98,13 +97,19 @@ sub create_fresh_app {
     }
     $hostd->storage->create_user('test', 'abc123');
 
-    return $hostd->to_app;
+    return $hostd;
+}
+
+sub create_fresh_app {
+    my ( $class, %options ) = @_;
+
+    return $class->create_fresh_hostd(%options)->to_app;
 }
 
 sub test_host {
     my ( $cb ) = @_;
 
-    return Plack::Test::test_psgi create_fresh_app, $cb;
+    return Plack::Test::test_psgi __PACKAGE__->create_fresh_app, $cb;
 }
 
 sub REQUEST {

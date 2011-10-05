@@ -12,6 +12,7 @@ use MIME::Base64 ();
 use Plack::Builder;
 use Plack::Test ();
 use SaharaSync::Hostd ();
+use Tie::RefHash::Weak;
 
 use namespace::clean;
 
@@ -20,6 +21,9 @@ our $VERSION = '0.01';
 sub port {
     return 5982;
 }
+
+my %temp_app_storage;
+tie %temp_app_storage, 'Tie::RefHash::Weak';
 
 sub create_fresh_app {
     my ( undef, %options ) = @_;
@@ -80,25 +84,9 @@ sub create_fresh_app {
 
         $hostd = SaharaSync::Hostd->new(%options);
 
-        $app = builder {
-            # dummy middleware to keep a reference to $tempdir
-            enable sub {
-                my ( $app ) = @_;
-
-                ( undef ) = $tempdir;
-
-                return sub {
-                    my ( $env ) = @_;
-
-                    return $app->($env);
-                };
-            };
-
-            $hostd->to_app;
-        };
+        $temp_app_storage{$hostd} = $tempdir;
     } else {
         $hostd = SaharaSync::Hostd->new(%options);
-        $app   = $hostd->to_app;
     }
     
     if($ENV{'TEST_HOSTD_DEBUG'}) {
@@ -110,7 +98,7 @@ sub create_fresh_app {
     }
     $hostd->storage->create_user('test', 'abc123');
 
-    return $app;
+    return $hostd->to_app;
 }
 
 sub test_host {

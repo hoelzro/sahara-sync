@@ -3,6 +3,7 @@ package SaharaSync::Hostd::Config;
 use Moose;
 use MooseX::StrictConstructor;
 use MooseX::Types -declare => [qw/ContainsType LogConfigs PortNumber/];
+use MooseX::Types::IPv4 qw(ip4);
 use MooseX::Types::Moose qw(ArrayRef Bool HashRef Int);
 use MooseX::Types::Structured qw(Dict Optional);
 
@@ -32,6 +33,7 @@ has server => (
     is      => 'ro',
     isa     => Dict[
         port              => Optional[PortNumber],
+        host              => Optional[ip4],
         disable_streaming => Optional[Bool],
     ],
     default => sub { {} },

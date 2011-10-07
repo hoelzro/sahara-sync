@@ -23,6 +23,7 @@ sub run {
 
     my $server = SaharaSync::Hostd::Server->new(
         port => $hostd->port,
+        host => $hostd->host,
     );
     $server->start;
 

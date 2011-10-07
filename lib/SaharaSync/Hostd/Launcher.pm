@@ -25,7 +25,7 @@ sub run {
         port => $hostd->port,
         host => $hostd->host,
     );
-    $server->start;
+    $server->start($hostd->to_app);
 
     my $cond = AnyEvent->condvar;
 

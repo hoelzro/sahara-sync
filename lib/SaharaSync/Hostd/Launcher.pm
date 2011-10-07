@@ -6,14 +6,21 @@ use warnings;
 use AnyEvent;
 use SaharaSync::Hostd;
 use SaharaSync::Hostd::Server;
+use UNIVERSAL;
 
 use namespace::clean -except => 'meta';
 
 sub run {
     my ( undef, $config ) = @_;
 
-    my $hostd  = SaharaSync::Hostd->new($config);
-    my $app    = $hostd->to_app;
+    my $hostd;
+
+    if(UNIVERSAL::isa($config, 'SaharaSync::Hostd')) {
+        $hostd = $config;
+    } else {
+        $hostd = SaharaSync::Hostd->new($config);
+    }
+
     my $server = SaharaSync::Hostd::Server->new(
         port => $hostd->port,
     );

@@ -6,7 +6,7 @@ use Twiggy::Server;
 use namespace::clean -except => 'meta';
 
 has twiggy => (
-    is => 'ro'
+    is => 'rw'
 );
 
 sub BUILDARGS {

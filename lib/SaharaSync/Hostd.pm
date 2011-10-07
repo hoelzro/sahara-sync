@@ -39,6 +39,12 @@ has log => (
     required => 1,
 );
 
+has host => (
+    is      => 'ro',
+    isa     => 'Str',
+    default => '0.0.0.0',
+);
+
 has port => (
     is      => 'ro',
     isa     => 'Int', ## positive int?

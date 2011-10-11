@@ -200,7 +200,11 @@ sub _fetch_and_write_blob {
     $ws->get_blob($blob, sub {
         my ( $ws, $h, $metadata ) = @_;
 
-        ## handle error
+        unless($h) {
+            my $error = $metadata;
+            $self->log->error("An error occurred while calling get_blob: $error");
+            return;
+        }
 
         my $revision = $metadata->{'revision'};
 

@@ -547,6 +547,27 @@ sub test_update_delete_conflict :Test(3) {
     is_deeply \@conflict_files, [ undef ];
 }
 
+sub test_update_rename_conflict :Test(3) {
+    my ( $self ) = @_;
+
+    my @conflict_info = $self->prepare_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub { $self->sd->rename('foo.txt', 'bar.txt') },
+    );
+
+    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
+
+    is_deeply \@conflict_info, [{
+        blob              => 'foo.txt',
+        contents          => "In foo.txt\nNext line",
+        conflict_contents => ,
+    }];
+
+    is_deeply \@conflict_files, [];
+}
+
+## rename to existing file!
+
 sub test_delete_update_conflict :Test(4) {
     my ( $self ) = @_;
 

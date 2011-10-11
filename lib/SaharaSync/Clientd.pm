@@ -230,6 +230,33 @@ sub _fetch_and_write_blob {
     });
 }
 
+sub _get_conflict_name {
+    my ( $self, $blob ) = @_;
+
+    my ( $year, $month, $day ) = (localtime)[5, 4, 3];
+    $year += 1900;
+    $month++;
+
+    return sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
+}
+
+sub handle_upstream_conflict {
+    my ( $self, $blob ) = @_;
+
+    $self->log->info("Conflict: $blob");
+
+    my $conflict_blob = $self->_get_conflict_name($blob);
+
+    $self->sd->rename($blob, $conflict_blob);
+    $self->_fetch_and_write_blob($blob);
+    ## XXX do this after fetch and write completes?
+    my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
+
+    $self->handle_fs_change($self->sd, {
+        path => $conflict_path,
+    }, sub {}); ## XXX leary...
+}
+
 sub handle_fs_change {
     my ( $self, $sd, $event, $continuation ) = @_;
 
@@ -268,22 +295,7 @@ sub handle_fs_change {
                     $self->_run_delayed_operations($blob, $revision);
                 } else {
                     if($error =~ /Conflict/) {
-                        $self->log->info("Conflict: $blob");
-
-                        my ( $year, $month, $day ) = (localtime)[5, 4, 3];
-                        $year += 1900;
-                        $month++;
-
-                        my $conflict_blob = sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
-
-                        $sd->rename($blob, $conflict_blob);
-                        $self->_fetch_and_write_blob($blob);
-                        ## XXX do this after fetch and write completes?
-                        my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
-
-                        $self->handle_fs_change($self->sd, {
-                            path => $conflict_path,
-                        }, sub {}); ## XXX leary...
+                        $self->handle_upstream_conflict($blob);
                     } else {
                         $self->log->warning("Updating $blob failed: $error");
                     }

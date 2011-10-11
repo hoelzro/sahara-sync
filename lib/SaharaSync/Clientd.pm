@@ -202,7 +202,9 @@ sub _fetch_and_write_blob {
 
         unless($h) {
             my $error = $metadata;
-            $self->log->error("An error occurred while calling get_blob: $error");
+            if($error !~ /not found/i) { # XXX is there a better way to go about this?
+                $self->log->error("An error occurred while calling get_blob: $error");
+            }
             return;
         }
 

@@ -6,6 +6,7 @@ use autodie qw(open);
 
 use AnyEvent::Socket qw(tcp_server);
 use EV;
+use Log::Dispatch::Null;
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
 use Test::More;

@@ -191,6 +191,41 @@ sub _put_revision_for_blob {
         undef, $blob, $revision, $is_deleted);
 }
 
+sub _fetch_and_write_blob {
+    my ( $self, $blob ) = @_;
+
+    my $ws = $self->ws_client;
+    my $sd = $self->sd;
+
+    $ws->get_blob($blob, sub {
+        my ( $ws, $h, $metadata ) = @_;
+
+        ## handle error
+
+        my $revision = $metadata->{'revision'};
+
+        my $w = $sd->open_write_handle($blob);
+
+        $h->on_read(sub {
+            my $buffer = $h->rbuf;
+            $h->rbuf = '';
+
+            $w->write($buffer);
+        });
+
+        $h->on_error(sub {
+            ## do something
+        });
+
+        $h->on_eof(sub {
+            $w->close;
+            undef $h;
+
+            $self->_put_revision_for_blob($blob, $revision, 0);
+        });
+    });
+}
+
 sub handle_fs_change {
     my ( $self, $sd, $event, $continuation ) = @_;
 
@@ -238,34 +273,8 @@ sub handle_fs_change {
                         my $conflict_blob = sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
 
                         $sd->rename($blob, $conflict_blob);
-                        $ws->get_blob($blob, sub {
-                            my ( $ws, $h, $metadata ) = @_;
-
-                            ## handle error
-
-                            my $revision = $metadata->{'revision'};
-
-                            my $w = $sd->open_write_handle($blob);
-
-                            $h->on_read(sub {
-                                my $buffer = $h->rbuf;
-                                $h->rbuf = '';
-
-                                $w->write($buffer);
-                            });
-
-                            $h->on_error(sub {
-                                ## do something
-                            });
-
-                            $h->on_eof(sub {
-                                $w->close;
-                                undef $h;
-
-                                $self->_put_revision_for_blob($blob, $revision, 0);
-                            });
-                        });
-
+                        $self->_fetch_and_write_blob($blob);
+                        ## XXX do this after fetch and write completes?
                         my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
 
                         $self->handle_fs_change($self->sd, {
@@ -292,35 +301,11 @@ sub handle_fs_change {
                 if($error =~ /Conflict/) {
                     $self->log->info("Deleting '$blob' failed: conflict");
 
-                    $continuation->();
+                    $continuation->(); # XXX call after _fetch_and_write_blob
+                                       # finishes?
 
-                    $ws->get_blob($blob, sub {
-                        my ( $ws, $h, $metadata ) = @_;
-
-                        ## handle error
-
-                        my $revision = $metadata->{'revision'};
-
-                        my $w = $sd->open_write_handle($blob);
-
-                        $h->on_read(sub {
-                            my $buffer = $h->rbuf;
-                            $h->rbuf = '';
-
-                            $w->write($buffer);
-                        });
-
-                        $h->on_error(sub {
-                            ## do something
-                        });
-
-                        $h->on_eof(sub {
-                            $w->close;
-                            undef $h;
-
-                            $self->_put_revision_for_blob($blob, $revision, 0);
-                        });
-                    });
+                    
+                    $self->_fetch_and_write_blob($blob);
                 } else {
                     $self->log->warning("Deleting $blob failed: $error");
                 }
@@ -354,31 +339,7 @@ sub handle_upstream_change {
     if($is_deleted) {
         $self->sd->unlink($blob);
     } else {
-        $self->ws_client->get_blob($blob, sub {
-            my ( $ws, $h, $metadata ) = @_;
-
-            ## handle error
-
-            my $w = $self->sd->open_write_handle($blob);
-
-            $h->on_read(sub {
-                my $buffer = $h->rbuf;
-                $h->rbuf = '';
-
-                $w->write($buffer);
-            });
-
-            $h->on_error(sub {
-                ## do something
-            });
-
-            $h->on_eof(sub {
-                $w->close;
-                undef $h;
-
-                $self->_put_revision_for_blob($blob, $revision, $is_deleted ? 1 : 0);
-            });
-        });
+        $self->_fetch_and_write_blob($blob);
     }
 
     ## lock the file

@@ -334,6 +334,11 @@ sub handle_fs_change {
     $operations->{$blob} = 1;
 }
 
+sub handle_fs_conflict {
+    my ( $self, $sd, $blob, $conflicting_file ) = @_;
+
+}
+
 sub handle_upstream_change {
     my ( $self, $change, $error ) = @_;
 
@@ -393,6 +398,10 @@ sub run {
 
     my $guard = $self->sd->on_change(sub {
         return $self->handle_fs_change(@_);
+    });
+
+    my $conflict_guard = $self->sd->on_conflict(sub {
+        $self->handle_fs_conflict(@_);
     });
 
     $self->_sync_dir_guard($guard);

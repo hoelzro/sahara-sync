@@ -544,14 +544,15 @@ sub test_delete_update_conflict :Test(4) {
 
     my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
-    is_deeply \@files, [ 'foo.txt' ];
+    my $conflict_file = $self->get_conflict_blob('foo.txt');
+    is_deeply \@files, [ $conflict_file ];
 
     my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
-    is_deeply \@files, [ 'foo.txt' ];
+    is_deeply \@files, [ $conflict_file ];
 
     $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";

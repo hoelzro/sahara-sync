@@ -53,6 +53,19 @@ if($ENV{'TEST_CLIENTD_DEBUG'}) {
 
 my $num_errors = 0;
 
+my $dummy_output = Log::Dispatch::Null->new(
+    min_level => 'warning',
+);
+$dummy_output->add_callback(sub {
+    my ( %params ) = @_;
+
+    $num_errors++;
+    diag($params{'message'});
+
+    return $params{'message'};
+});
+$daemon->log->add($dummy_output);
+
 $EV::DIED = sub {
     $num_errors++;
     diag($@);

@@ -476,7 +476,7 @@ sub test_update_conflict :Test(6) {
     is $content, "Conflicting content!";
 }
 
-sub test_update_delete_conflict :Test(4) {
+sub test_delete_update_conflict :Test(4) {
     my ( $self ) = @_;
 
     my $client1 = $self->{'client1'};
@@ -515,7 +515,7 @@ sub test_update_delete_conflict :Test(4) {
     is $content, "Updated content";
 }
 
-sub test_delete_update_conflict :Test(4) {
+sub test_update_delete_conflict :Test(4) {
     my ( $self ) = @_;
 
     my $client1 = $self->{'client1'};
@@ -545,14 +545,14 @@ sub test_delete_update_conflict :Test(4) {
     my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
 
     my $conflict_file = $self->get_conflict_blob('foo.txt');
-    is_deeply \@files, [ $conflict_file ];
+    is_deeply \@files, [ 'foo.txt' ];
 
     my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 
     @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
-    is_deeply \@files, [ $conflict_file ];
+    is_deeply \@files, [ 'foo.txt' ];
 
     $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";

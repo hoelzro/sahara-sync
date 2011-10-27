@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use parent 'IO::Handle';
 
+use Carp qw(croak);
 use File::Spec;
 use File::Temp;
 
@@ -26,7 +27,7 @@ sub cancel {
 }
 
 sub close {
-    my ( $self ) = @_;
+    my ( $self, $cont ) = @_;
 
     ## the name 'real_name' sucks
     my ( $tempfile, $mode, $real_name, $sync_dir ) = @{*$self}{qw/tempfile mode real_name sync_dir/};
@@ -34,6 +35,7 @@ sub close {
     my $blob_name = File::Spec->abs2rel($real_name, $sync_dir->root);
     my $retval    = IO::Handle::close($self);
 
+    my $ok = 1;
     if(defined $mode) {
         my $temp2 = File::Temp->new(UNLINK => 0, DIR => $sync_dir->_overlay);
         close $temp2;
@@ -48,7 +50,9 @@ sub close {
             ## XXX what about hard links? (how do hard links behave with inotify?)
             rename $real_name, $tempfile->filename or die $!; ## potential problems here (could be modified)
             rename $temp2->filename, $real_name or die $!;
-            $sync_dir->_signal_conflict($blob_name, $tempfile->filename);
+            $cont->(undef, 'conflict', $tempfile->filename);
+            undef $ok;
+            #$sync_dir->_signal_conflict($blob_name, $tempfile->filename);
         }
 
         chmod $mode, $real_name;
@@ -57,11 +61,16 @@ sub close {
             # XXX verify that $real_name doesn't exist
             rename $tempfile->filename, $real_name or die $!;
         } else {
-            $sync_dir->_signal_conflict($blob_name, $tempfile->filename);
+            $cont->(undef, 'conflict', $tempfile->filename);
+            undef $ok;
+            #$sync_dir->_signal_conflict($blob_name, $tempfile->filename);
         }
     }
 
     $sync_dir->_update_file_stats($real_name, $blob_name);
+
+    croak "Continuation needed" unless $cont;
+    $cont->($ok) if $ok;
 
     return $retval;
 }

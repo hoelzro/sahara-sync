@@ -224,7 +224,19 @@ sub _fetch_and_write_blob {
         });
 
         $h->on_eof(sub {
-            $w->close;
+            $w->close(sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                unless($ok) {
+                    if($error =~ /conflict/) {
+                        # XXX the blob has changed since we last saw an event
+                        # for it; there's probably an event in the queue.  Move
+                        # $blob to a conflict file, and $conflict_file to $blob
+                    } else {
+                        # XXX I/O error
+                    }
+                }
+            });
             undef $h;
 
             $self->_put_revision_for_blob($blob, $revision, 0);
@@ -249,7 +261,20 @@ sub handle_upstream_conflict {
 
     my $conflict_blob = $self->_get_conflict_name($blob);
 
-    $self->sd->rename($blob, $conflict_blob);
+    $self->sd->rename($blob, $conflict_blob, sub {
+        my ( $ok, $error ) = @_;
+
+        unless($ok) {
+            if($error =~ /conflict/i) {
+                # XXX this means that $blob has changed since last we saw an event for it,
+                # and we have yet to receive the event
+            } else {
+                # XXX an I/O error occurred; what to do?
+                # XXX this could be that $conflict_blob exists; if so, create
+                #     a new name and try again
+            }
+        }
+    });
     $self->_fetch_and_write_blob($blob);
     ## XXX do this after fetch and write completes?
     my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
@@ -334,11 +359,6 @@ sub handle_fs_change {
     $operations->{$blob} = 1;
 }
 
-sub handle_fs_conflict {
-    my ( $self, $sd, $blob, $conflicting_file ) = @_;
-
-}
-
 sub handle_upstream_change {
     my ( $self, $change, $error ) = @_;
 
@@ -360,7 +380,18 @@ sub handle_upstream_change {
     }
 
     if($is_deleted) {
-        $self->sd->unlink($blob);
+        $self->sd->unlink($blob, sub {
+            my ( $ok, $error ) = @_;
+
+            unless($ok) {
+                if($error =~ /conflict/) {
+                    # XXX $blob's contents have changed since last we saw
+                    #     move $blob to conflict_blob($blob)
+                } else {
+                    # XXX I/O error
+                }
+            }
+        });
     } else {
         $self->_fetch_and_write_blob($blob);
     }
@@ -398,10 +429,6 @@ sub run {
 
     my $guard = $self->sd->on_change(sub {
         return $self->handle_fs_change(@_);
-    });
-
-    my $conflict_guard = $self->sd->on_conflict(sub {
-        $self->handle_fs_conflict(@_);
     });
 
     $self->_sync_dir_guard($guard);

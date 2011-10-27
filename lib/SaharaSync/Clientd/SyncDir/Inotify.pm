@@ -4,6 +4,7 @@ use Moose;
 
 use autodie qw(chmod opendir);
 use AnyEvent;
+use Carp qw(croak);
 use DBI;
 use Digest::SHA;
 use Guard qw(guard);
@@ -420,25 +421,6 @@ sub on_change {
     };
 }
 
-sub on_conflict {
-    my ( $self, $callback ) = @_;
-
-    return unless defined(wantarray); # XXX ???
-
-    weaken $self;
-    weaken $callback;
-
-    push @{ $self->conflict_callbacks }, $callback;
-
-    return guard {
-        return unless $self; # $self is a weak reference, so check first
-
-        @{ $self->conflict_callbacks } = grep {
-            $_ != $callback
-        } @{ $self->conflict_callbacks };
-    };
-}
-
 sub open_write_handle {
     my ( $self, $blob_name ) = @_;
 
@@ -460,7 +442,10 @@ sub open_write_handle {
 }
 
 sub unlink {
-    my ( $self, $blob_name ) = @_;
+    my ( $self, $blob_name, $cont ) = @_;
+
+    croak "Continuation needed" unless $cont;
+    my $ok = 1;
 
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;
@@ -468,35 +453,49 @@ sub unlink {
     unless(rename $path, $tempfile->filename) {
         unless(-e $path) {
             ## check our notion of $path (do we think it ought to exist or not?)
-            $self->_signal_conflict($blob_name, undef);
+            #$self->_signal_conflict($blob_name, undef);
+            $cont->(undef, 'conflict');
             return;
         } else {
             die $!;
         }
     }
     if($self->_verify_blob($blob_name, $tempfile->filename)) {
+        # XXX check errors?
         unlink $tempfile->filename;
     } else {
+        # XXX push errors to $cont?
         rename $tempfile->filename, $path or die $!;
-        $self->_signal_conflict($blob_name, undef);
+        $cont->(undef, 'conflict');
+        $ok = 0;
+        #$self->_signal_conflict($blob_name, undef);
         ## return here?
     }
+    # XXX do we want to do this if not $ok?
     $self->_update_file_stats($path, $blob_name);
+
+    $cont->($ok) if $ok;
 }
 
 sub rename {
-    my ( $self, $from, $to ) = @_;
+    my ( $self, $from, $to, $cont ) = @_;
+
+    croak "Continuation needed" unless $cont;
 
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;
     my $from_path = File::Spec->catfile($self->root, $from);
     my $to_path   = File::Spec->catfile($self->root, $to);
 
+    # XXX push errors to $cont
     rename $from_path, $tempfile->filename or die $!;
     rename $tempfile->filename, $to_path   or die $!;
 
+    # XXX do we want to do this if not $ok?
     $self->_update_file_stats($from_path, $from);
     $self->_update_file_stats($to_path, $to);
+
+    $cont->(1);
 }
 
 __PACKAGE__->meta->make_immutable;

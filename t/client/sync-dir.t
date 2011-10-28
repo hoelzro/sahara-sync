@@ -507,7 +507,7 @@ sub perform_conflict_test {
     });
 
     $_->() foreach @actions;
-    $self->expect_changes(['foo.txt']);
+    $self->expect_changes($params{'changes'} || ['foo.txt']);
 }
 
 sub test_update_update_conflict :Tests(8) {

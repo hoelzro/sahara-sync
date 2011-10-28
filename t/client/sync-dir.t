@@ -556,7 +556,9 @@ sub test_update_delete_conflict :Test(6) {
     );
 }
 
-## rename to existing file!
+sub test_update_rename_conflict :Test(1) {
+    my ( $self ) = @_;
+}
 
 sub test_delete_update_conflict :Test(8) {
     my ( $self ) = @_;
@@ -601,6 +603,43 @@ sub test_delete_delete_conflict :Test(6) {
             });
         },
     );
+}
+
+sub test_delete_rename_conflict :Test(1) {
+    my ( $self ) = @_;
+}
+
+sub test_rename_update :Test(1) {
+}
+
+sub test_rename_delete :Test(1) {
+}
+
+sub test_rename_rename :Test(1) {
+}
+
+sub test_rename_existing_file :Test(1) {
+}
+
+sub test_rename_with_open_handle_same :Test(1) {
+}
+
+sub test_unlink_with_open_handle_same :Test(1) {
+}
+
+sub test_open_with_open_handle_same :Test(1) {
+}
+
+sub test_rename_with_open_handle_diff :Test(1) {
+}
+
+sub test_unlink_with_open_handle_diff :Test(1) {
+}
+
+sub test_open_with_open_handle_diff :Test(1) {
+}
+
+sub test_rename_in_conflict_handler :Test(1) {
 }
 
 my $tempdir = File::Temp->newdir;

@@ -491,14 +491,12 @@ sub test_move_file :Test(6) {
     is $content, "hello\n";
 }
 
-sub prepare_conflict_test {
+sub perform_conflict_test {
     my ( $self, %params ) = @_;
 
     local $self->{'seen_conflicts'} = []; # we're expecting some, so ignore them
 
     my @actions = @params{qw/action1 action2/};
-
-    my @conflict_info;
 
     my $h = $self->sd->open_write_handle('foo.txt');
     $h->write("In foo.txt\n");
@@ -510,15 +508,13 @@ sub prepare_conflict_test {
 
     $_->() foreach @actions;
     $self->expect_changes(['foo.txt']);
-
-    return @conflict_info;
 }
 
 sub test_update_update_conflict :Tests(8) {
     my ( $self ) = @_;
 
     my $conflict_file;
-    my @conflict_info = $self->prepare_conflict_test(
+    $self->perform_conflict_test(
         action1 => sub { append_file 'foo.txt', "Next line" },
         action2 => sub {
             my $h = $self->sd->open_write_handle('foo.txt');
@@ -545,7 +541,7 @@ sub test_update_update_conflict :Tests(8) {
 sub test_update_delete_conflict :Test(6) {
     my ( $self ) = @_;
 
-    my @conflict_info = $self->prepare_conflict_test(
+    $self->perform_conflict_test(
         action1 => sub { append_file 'foo.txt', "Next line" },
         action2 => sub { $self->sd->unlink('foo.txt', sub {
             my ( $ok, $error, $conflict_file ) = @_;
@@ -562,47 +558,49 @@ sub test_update_delete_conflict :Test(6) {
 
 ## rename to existing file!
 
-sub test_delete_update_conflict :Test(4) {
+sub test_delete_update_conflict :Test(8) {
     my ( $self ) = @_;
 
-    my @conflict_info = $self->prepare_conflict_test(
+    my $conflict_file;
+    $self->perform_conflict_test(
         action1 => sub { unlink 'foo.txt' },
         action2 => sub {
             my $h = $self->sd->open_write_handle('foo.txt');
             $h->write("Conflict!");
-            $h->close;
+            $h->close(sub {
+                my ( $ok, $error );
+                ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok $conflict_file;
+                my $content = read_file($conflict_file);
+                is $content, "Conflict!";
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
         },
     );
 
-    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
-
-    is_deeply \@conflict_info, [{
-        blob              => 'foo.txt',
-        contents          => undef,
-        conflict_contents => "Conflict!",
-    }];
-
-    ok all { defined() } @conflict_files;
-    ok all { ! -e } @conflict_files;
+    ok ! -e $conflict_file;
 }
 
-sub test_delete_delete_conflict :Test(3) {
+sub test_delete_delete_conflict :Test(6) {
     my ( $self ) = @_;
 
-    my @conflict_info = $self->prepare_conflict_test(
+    $self->perform_conflict_test(
         action1 => sub { unlink 'foo.txt' },
-        action2 => sub { $self->sd->unlink('foo.txt') },
+        action2 => sub {
+            $self->sd->unlink('foo.txt', sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok !$ok;
+                like $error, qr/conflict/i;
+                ok !defined($conflict_file);
+            });
+        },
     );
-
-    my @conflict_files = map { delete $_->{'conflict_file'} } @conflict_info;
-
-    is_deeply \@conflict_info, [{
-        blob              => 'foo.txt',
-        contents          => undef,
-        conflict_contents => undef,
-    }];
-
-    ok all { ! defined() } @conflict_files;
 }
 
 my $tempdir = File::Temp->newdir;

@@ -556,8 +556,26 @@ sub test_update_delete_conflict :Test(6) {
     );
 }
 
-sub test_update_rename_conflict :Test(1) {
+sub test_update_rename_conflict :Test(7) {
     my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub {
+            $self->sd->rename('foo.txt', 'bar.txt', sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                my $contents = read_file('foo.txt');
+                is $contents, "In foo.txt\nNext line";
+
+                ok ! -e 'bar.txt';
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+                ok !defined($conflict_file);
+            });
+        },
+    );
 }
 
 sub test_delete_update_conflict :Test(8) {

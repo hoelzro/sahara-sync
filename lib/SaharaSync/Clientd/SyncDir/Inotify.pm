@@ -488,6 +488,11 @@ sub rename {
     my $from_path = File::Spec->catfile($self->root, $from);
     my $to_path   = File::Spec->catfile($self->root, $to);
 
+    if(-e $to_path) { # XXX naive, race condition-y check
+        $cont->(undef, 'file exists');
+        return;
+    }
+
     # XXX push errors to $cont
     unless($self->_verify_blob($from, $from_path)) {
         $cont->(undef, 'conflict');

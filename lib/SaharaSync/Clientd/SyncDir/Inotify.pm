@@ -489,12 +489,11 @@ sub rename {
     my $to_path   = File::Spec->catfile($self->root, $to);
 
     # XXX push errors to $cont
-    rename $from_path, $tempfile->filename or die $!;
-    unless($self->_verify_blob($from, $tempfile->filename)) {
-        rename $tempfile->filename, $from_path;
+    unless($self->_verify_blob($from, $from_path)) {
         $cont->(undef, 'conflict');
         return;
     }
+    rename $from_path, $tempfile->filename or die $!;
     rename $tempfile->filename, $to_path   or die $!;
 
     # XXX do we want to do this if not $ok?

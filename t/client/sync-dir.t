@@ -697,7 +697,28 @@ sub test_rename_delete :Test(7) {
     );
 }
 
-sub test_rename_rename :Test(1) {
+sub test_rename_rename :Test(8) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { rename 'foo.txt', 'bar.txt' },
+        action2 => sub {
+            $self->sd->rename('foo.txt', 'baz.txt', sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok ! -e 'baz.txt';
+                my $content = read_file('bar.txt');
+                is $content, "In foo.txt\n";
+
+                ok !defined($conflict_file);
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
+        },
+        changes => [qw/foo.txt bar.txt/],
+    );
 }
 
 sub test_rename_existing_file :Test(1) {

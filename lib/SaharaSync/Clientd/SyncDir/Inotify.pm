@@ -372,6 +372,7 @@ sub _verify_blob {
     my $dbh = $self->dbh;
 
     if(defined $old_path) {
+        return unless -e $old_path; # XXX race condition
         my $digest = Digest::SHA->new(1);
         $digest->addfile($old_path);
         $digest = $digest->hexdigest;

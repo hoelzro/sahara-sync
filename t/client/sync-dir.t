@@ -721,7 +721,26 @@ sub test_rename_rename :Test(8) {
     );
 }
 
-sub test_rename_existing_file :Test(1) {
+sub test_rename_existing_file :Test(6) {
+    my ( $self ) = @_;
+
+    write_file 'foo.txt', "In foo.txt\n";
+    write_file 'bar.txt', "In bar.txt\n";
+
+    $self->expect_changes(['foo.txt', 'bar.txt']);
+
+    $self->sd->rename('foo.txt', 'bar.txt', sub {
+        my ( $ok, $error, $conflict_file ) = @_;
+
+        ok !$ok;
+        like $error, qr/file exists/i;
+        ok !defined($conflict_file);
+
+        my $content = read_file 'foo.txt', err_mode => 'quiet';
+        is $content, "In foo.txt\n";
+        $content = read_file 'bar.txt', err_mode => 'quiet';
+        is $content, "In bar.txt\n";
+    });
 }
 
 sub test_rename_with_open_handle_same :Test(1) {

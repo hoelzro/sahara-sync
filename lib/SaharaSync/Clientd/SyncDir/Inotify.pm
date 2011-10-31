@@ -104,12 +104,6 @@ sub _build_dbh {
     return $dbh;
 }
 
-has conflict_callbacks => (
-    is       => 'ro',
-    init_arg => undef,
-    default  => sub { [] },
-);
-
 sub _update_queue {
     my ( $self, $event ) = @_;
 
@@ -400,16 +394,6 @@ SQL
     }
 }
 
-sub _signal_conflict {
-    my ( $self, $blob_name, $conflict_contents ) = @_;
-
-    my $callbacks = $self->conflict_callbacks;
-
-    foreach my $cb (@$callbacks) {
-        $self->$cb($blob_name, $conflict_contents);
-    }
-}
-
 sub on_change {
     my ( $self, $callback ) = @_;
 
@@ -481,7 +465,6 @@ sub unlink {
         rename $tempfile->filename, $path or die $!;
         $cont->(undef, 'conflict');
         $ok = 0;
-        #$self->_signal_conflict($blob_name, undef);
         ## return here?
     }
     # XXX do we want to do this if not $ok?

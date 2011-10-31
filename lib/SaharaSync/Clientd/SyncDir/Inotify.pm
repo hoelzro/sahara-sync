@@ -366,6 +366,16 @@ sub _debug_event {
     diag("  mask:     " . join(', ', @masks));
 }
 
+sub _known_blob {
+    my ( $self, $blob_name ) = @_;
+
+    my ( $count ) = $self->dbh->selectrow_array(<<SQL, undef, $blob_name);
+SELECT COUNT(1) FROM file_stats WHERE path = ?
+SQL
+
+    return $count > 0;
+}
+
 sub _verify_blob {
     my ( $self, $blob_name, $old_path ) = @_;
 
@@ -488,18 +498,27 @@ sub rename {
     my $from_path = File::Spec->catfile($self->root, $from);
     my $to_path   = File::Spec->catfile($self->root, $to);
 
-    if(-e $to_path) { # XXX naive, race condition-y check
-        $cont->(undef, 'file exists');
+    unless(CORE::rename $from_path, $tempfile->filename) {
+        unless(-e $from_path) {
+            if($self->_known_blob($from)) {
+                $cont->(undef, 'conflict');
+                return;
+            }
+        }
+        $cont->(undef, $!);
         return;
     }
 
-    # XXX push errors to $cont
-    unless($self->_verify_blob($from, $from_path)) {
+    unless($self->_verify_blob($from, $tempfile->filename)) {
+        link $tempfile->filename, $from_path; # XXX check error
         $cont->(undef, 'conflict');
         return;
     }
-    rename $from_path, $tempfile->filename or die $!;
-    rename $tempfile->filename, $to_path   or die $!;
+    unless(link $tempfile->filename, $to_path) {
+        link $tempfile->filename, $from_path; # XXX check error
+        $cont->(undef, $!);
+        return;
+    }
 
     # XXX do we want to do this if not $ok?
     $self->_update_file_stats($from_path, $from);

@@ -375,22 +375,15 @@ sub _verify_blob {
 
     my $dbh = $self->dbh;
 
-    if(defined $old_path) {
-        my $digest = Digest::SHA->new(1);
-        $digest->addfile($old_path);
-        $digest = $digest->hexdigest;
+    my $digest = Digest::SHA->new(1);
+    $digest->addfile($old_path);
+    $digest = $digest->hexdigest;
 
-        my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob_name, $digest);
+    my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob_name, $digest);
 SELECT COUNT(1) FROM file_stats WHERE path = ? AND checksum = ?
 SQL
 
-        return $count;
-    } else {
-        my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob_name);
-SELECT COUNT(1) FROM file_stats WHERE path = ?
-SQL
-        return ! $count;
-    }
+    return $count;
 }
 
 sub on_change {

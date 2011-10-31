@@ -458,14 +458,16 @@ sub unlink {
     croak "Continuation needed" unless $cont;
     my $ok = 1;
 
+    my $path     = File::Spec->catfile($self->root, $blob_name);
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;
-    my $path = File::Spec->catfile($self->root, $blob_name);
-    unless(rename $path, $tempfile->filename) {
+    unless(CORE::rename $path, $tempfile->filename) {
         unless(-e $path) {
-            ## check our notion of $path (do we think it ought to exist or not?)
-            #$self->_signal_conflict($blob_name, undef);
-            $cont->(undef, 'conflict');
+            if($self->_known_blob($blob_name)) {
+                $cont->(undef, 'conflict');
+                return;
+            }
+            $cont->(undef, $!);
             return;
         } else {
             die $!;

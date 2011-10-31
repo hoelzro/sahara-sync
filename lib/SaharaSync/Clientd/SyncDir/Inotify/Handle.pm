@@ -57,7 +57,7 @@ sub close {
 
         chmod $mode, $real_name;
     } else {
-        if($sync_dir->_verify_blob($blob_name, undef)) {
+        unless($sync_dir->_known_blob($blob_name)) {
             # XXX verify that $real_name doesn't exist
             rename $tempfile->filename, $real_name or die $!;
         } else {

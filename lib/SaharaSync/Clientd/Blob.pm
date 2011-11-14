@@ -14,6 +14,8 @@ has _root => (
 );
 
 sub path {
+    my ( $self ) = @_;
+
     return File::Spec->catfile($self->_root, $self->name);
 }
 

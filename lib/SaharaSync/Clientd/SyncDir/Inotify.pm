@@ -108,9 +108,9 @@ sub _build_dbh {
 sub _update_queue {
     my ( $self, $event ) = @_;
 
-    my $path  = $event->{'path'};
+    my $path  = $event->{'blob'}->path;
     my $queue = $self->_event_queue;
-    @$queue   = grep { $_->{'path'} ne $path } @$queue;
+    @$queue   = grep { $_->{'blob'}->path ne $path } @$queue;
     push @$queue, $event;
 }
 
@@ -163,7 +163,7 @@ sub _process_inotify_event {
     }
 
     my $event = {
-        path => $path,
+        blob => $self->blob(path => $path),
     };
 
     if($e->IN_Q_OVERFLOW) {
@@ -191,9 +191,7 @@ sub _process_inotify_event {
 sub _process_event {
     my ( $self, $event ) = @_;
 
-    my $path = $event->{'path'};
-    my $root = $self->root;
-    my $file = File::Spec->abs2rel($path, $root);
+    my $blob = $event->{'blob'};
 
     $self->_update_queue($event);
 
@@ -201,7 +199,7 @@ sub _process_event {
     my $continuation = sub {
         unless($called) {
             $called = 1;
-            $self->_update_file_stats($path, $file);
+            $self->_update_file_stats($blob->path, $blob->name);
         }
     };
 
@@ -279,7 +277,7 @@ sub _build_inotify_watcher {
             if($self->_file_has_changed($file, $path)) {
                 ## we'll have the checksum calculated here; we should
                 ## make use of it
-                $self->_process_event({ path => $path });
+                $self->_process_event({ blob => $self->blob(path => $path) });
             }
         }
     }
@@ -449,7 +447,7 @@ sub unlink {
 
     croak "Continuation needed" unless $cont;
     my $ok = 1;
-
+    
     my $path     = File::Spec->catfile($self->root, $blob_name);
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;

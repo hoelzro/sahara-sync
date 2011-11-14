@@ -4,7 +4,7 @@ use Moose;
 
 use autodie qw(chmod opendir);
 use AnyEvent;
-use Carp qw(croak);
+use Carp qw(croak confess);
 use DBI;
 use Digest::SHA;
 use Guard qw(guard);
@@ -13,6 +13,7 @@ use File::Spec;
 use File::Temp;
 use Linux::Inotify2;
 use List::MoreUtils qw(any);
+use SaharaSync::Clientd::Blob;
 use SaharaSync::Clientd::SyncDir::Inotify::Handle;
 use Scalar::Util qw(weaken);
 
@@ -384,6 +385,21 @@ SELECT COUNT(1) FROM file_stats WHERE path = ? AND checksum = ?
 SQL
 
     return $count;
+}
+
+sub blob {
+    my ( $self, $type, $name ) = @_;
+
+    if($type eq 'path') {
+        $name = File::Spec->abs2rel($name, $self->root);
+    } elsif($type ne 'name') {
+        confess "Invalid blob type '$type'";
+    }
+
+    return SaharaSync::Clientd::Blob->new(
+        name => $name,
+        root => $self->root,
+    );
 }
 
 sub on_change {

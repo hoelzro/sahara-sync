@@ -43,7 +43,7 @@ sub close {
         ## if a conflict is detected.
 
         # XXX shitty name for a method
-        unless($sync_dir->_verify_blob($blob->name, $temp2->filename)) {
+        unless($sync_dir->_verify_blob($blob, $temp2->filename)) {
             ## XXX what about hard links? (how do hard links behave with inotify?)
             rename $blob->path, $tempfile->filename or die $!; ## potential problems here (could be modified)
             rename $temp2->filename, $blob->path or die $!;
@@ -54,7 +54,7 @@ sub close {
 
         chmod $mode, $blob->path;
     } else {
-        unless($sync_dir->_known_blob($blob->name)) {
+        unless($sync_dir->_known_blob($blob)) {
             # XXX verify that $blob->path doesn't exist
             rename $tempfile->filename, $blob->path or die $!;
         } else {

@@ -360,9 +360,9 @@ sub _debug_event {
 }
 
 sub _known_blob {
-    my ( $self, $blob_name ) = @_;
+    my ( $self, $blob ) = @_;
 
-    my ( $count ) = $self->dbh->selectrow_array(<<SQL, undef, $blob_name);
+    my ( $count ) = $self->dbh->selectrow_array(<<SQL, undef, $blob->name);
 SELECT COUNT(1) FROM file_stats WHERE path = ?
 SQL
 
@@ -370,7 +370,7 @@ SQL
 }
 
 sub _verify_blob {
-    my ( $self, $blob_name, $old_path ) = @_;
+    my ( $self, $blob, $old_path ) = @_;
 
     my $dbh = $self->dbh;
 
@@ -378,7 +378,7 @@ sub _verify_blob {
     $digest->addfile($old_path);
     $digest = $digest->hexdigest;
 
-    my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob_name, $digest);
+    my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob->name, $digest);
 SELECT COUNT(1) FROM file_stats WHERE path = ? AND checksum = ?
 SQL
 
@@ -453,7 +453,7 @@ sub unlink {
     close $tempfile;
     unless(CORE::rename $path, $tempfile->filename) {
         unless(-e $path) {
-            if($self->_known_blob($blob->name)) {
+            if($self->_known_blob($blob)) {
                 $cont->(undef, 'conflict');
                 return;
             }
@@ -463,7 +463,7 @@ sub unlink {
             die $!;
         }
     }
-    if($self->_verify_blob($blob->name, $tempfile->filename)) {
+    if($self->_verify_blob($blob, $tempfile->filename)) {
         # XXX check errors?
         unlink $tempfile->filename;
     } else {
@@ -489,7 +489,7 @@ sub rename {
 
     unless(CORE::rename $from->path, $tempfile->filename) {
         unless(-e $from->path) {
-            if($self->_known_blob($from->name)) {
+            if($self->_known_blob($from)) {
                 $cont->(undef, 'conflict');
                 return;
             }
@@ -498,7 +498,7 @@ sub rename {
         return;
     }
 
-    unless($self->_verify_blob($from->name, $tempfile->filename)) {
+    unless($self->_verify_blob($from, $tempfile->filename)) {
         link $tempfile->filename, $from->path; # XXX check error
         $cont->(undef, 'conflict');
         return;

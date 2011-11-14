@@ -443,17 +443,17 @@ sub open_write_handle {
 }
 
 sub unlink {
-    my ( $self, $blob_name, $cont ) = @_;
+    my ( $self, $blob, $cont ) = @_;
 
     croak "Continuation needed" unless $cont;
     my $ok = 1;
     
-    my $path     = File::Spec->catfile($self->root, $blob_name);
+    my $path     = $blob->path;
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;
     unless(CORE::rename $path, $tempfile->filename) {
         unless(-e $path) {
-            if($self->_known_blob($blob_name)) {
+            if($self->_known_blob($blob->name)) {
                 $cont->(undef, 'conflict');
                 return;
             }
@@ -463,7 +463,7 @@ sub unlink {
             die $!;
         }
     }
-    if($self->_verify_blob($blob_name, $tempfile->filename)) {
+    if($self->_verify_blob($blob->name, $tempfile->filename)) {
         # XXX check errors?
         unlink $tempfile->filename;
     } else {
@@ -474,7 +474,7 @@ sub unlink {
         ## return here?
     }
     # XXX do we want to do this if not $ok?
-    $self->_update_file_stats($path, $blob_name);
+    $self->_update_file_stats($path, $blob->name);
 
     $cont->($ok) if $ok;
 }

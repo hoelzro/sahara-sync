@@ -396,7 +396,7 @@ sub test_delete_file :Test(5) {
 
     $self->expect_changes(['foo.txt']);
 
-    $sd->unlink('foo.txt', sub {
+    $sd->unlink($self->blob('foo.txt'), sub {
         my ( $ok, $error ) = @_;
 
         ok $ok;
@@ -545,7 +545,7 @@ sub test_update_delete_conflict :Test(6) {
 
     $self->perform_conflict_test(
         action1 => sub { append_file 'foo.txt', "Next line" },
-        action2 => sub { $self->sd->unlink('foo.txt', sub {
+        action2 => sub { $self->sd->unlink($self->blob('foo.txt'), sub {
             my ( $ok, $error, $conflict_file ) = @_;
 
             my $contents = read_file('foo.txt');
@@ -613,7 +613,7 @@ sub test_delete_delete_conflict :Test(6) {
     $self->perform_conflict_test(
         action1 => sub { unlink 'foo.txt' },
         action2 => sub {
-            $self->sd->unlink('foo.txt', sub {
+            $self->sd->unlink($self->blob('foo.txt'), sub {
                 my ( $ok, $error, $conflict_file ) = @_;
 
                 ok ! -e 'foo.txt';
@@ -682,7 +682,7 @@ sub test_rename_delete :Test(7) {
     $self->perform_conflict_test(
         action1 => sub { rename 'foo.txt', 'bar.txt' },
         action2 => sub {
-            $self->sd->unlink('foo.txt', sub {
+            $self->sd->unlink($self->blob('foo.txt'), sub {
                 my ( $ok, $error, $conflict_file ) = @_;
 
                 ok ! -e 'foo.txt';

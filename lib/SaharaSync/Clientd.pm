@@ -152,12 +152,12 @@ SQL
 sub _run_delayed_operations {
     my ( $self, $blob, $revision ) = @_;
 
-    delete $self->inflight_operations->{$blob};
+    delete $self->inflight_operations->{$blob->name};
 
     my $delayed = $self->delayed_operations;
 
     foreach my $operation (@$delayed) {
-        next if $operation->{'name'} eq $blob &&
+        next if $operation->{'name'} eq $blob->name &&
                 $operation->{'revision'} eq $revision;
 
         $self->handle_upstream_change($operation);
@@ -176,7 +176,7 @@ sub _get_revision_for_blob {
     my ( $self, $blob ) = @_;
 
     my $sth = $self->dbh->prepare('SELECT revision from local_revisions WHERE filename = ? AND is_deleted = 0 LIMIT 1');
-    $sth->execute($blob);
+    $sth->execute($blob->name);
 
     if(my ( $revision ) = $sth->fetchrow_array) {
         return $revision;
@@ -188,7 +188,7 @@ sub _put_revision_for_blob {
     my ( $self, $blob, $revision, $is_deleted ) = @_;
 
     $self->dbh->do('INSERT OR REPLACE INTO local_revisions VALUES (?, ?, ?)',
-        undef, $blob, $revision, $is_deleted);
+        undef, $blob->name, $revision, $is_deleted);
 }
 
 sub _fetch_and_write_blob {
@@ -197,7 +197,7 @@ sub _fetch_and_write_blob {
     my $ws = $self->ws_client;
     my $sd = $self->sd;
 
-    $ws->get_blob($blob, sub {
+    $ws->get_blob($blob->name, sub {
         my ( $ws, $h, $metadata ) = @_;
 
         unless($h) {
@@ -251,13 +251,18 @@ sub _get_conflict_name {
     $year += 1900;
     $month++;
 
-    return sprintf("$blob - conflict %04d-%02d-%02d", $year, $month, $day);
+    my $name          = $blob->name;
+    my $conflict_name = sprintf("$name - conflict %04d-%02d-%02d", $year, $month, $day);
+
+    return $self->sd->blob(name => $conflict_name);
 }
 
 sub handle_upstream_conflict {
     my ( $self, $blob ) = @_;
 
-    $self->log->info("Conflict: $blob");
+    my $blob_name = $blob->name;
+
+    $self->log->info("Conflict: $blob_name");
 
     my $conflict_blob = $self->_get_conflict_name($blob);
 
@@ -277,10 +282,9 @@ sub handle_upstream_conflict {
     });
     $self->_fetch_and_write_blob($blob);
     ## XXX do this after fetch and write completes?
-    my $conflict_path = File::Spec->catfile($self->sync_dir, $conflict_blob);
 
     $self->handle_fs_change($self->sd, {
-        path => $conflict_path,
+        blob => $conflict_blob,
     }, sub {}); ## XXX leary...
 }
 
@@ -292,17 +296,17 @@ sub handle_fs_change {
     ## if $event is just a metadata (ex. permissions) change, do something
     ## about it
 
-    my $path = $event->{'path'};
+    my $blob = $event->{'blob'};
+    my $path = $blob->path;
     $self->log->info("$path changed on filesystem!");
 
-    my $blob = File::Spec->abs2rel($path, $self->sync_dir);
     ## make sure to send blobs names in Unix style file format
 
     my $revision = $self->_get_revision_for_blob($blob);
 
     if(-f $path) {
         $self->log->info(sprintf("Sending PUT %s/blobs/%s",
-            $self->upstream, $blob));
+            $self->upstream, $blob->name));
 
         my %meta;
         ## attach metadata (MIME Type, File Size, Contents Hash)
@@ -311,12 +315,13 @@ sub handle_fs_change {
             $meta{'revision'} = $revision;
         }
 
-        $self->ws_client->put_blob($blob, IO::File->new($path, 'r'),
+        $self->ws_client->put_blob($blob->name, IO::File->new($path, 'r'),
             \%meta, sub {
                 my ( $ws, $revision, $error ) = @_;
 
                 if(defined $revision) {
-                    $self->log->info("Successfully updated $blob; new revision is $revision");
+                    my $name = $blob->name;
+                    $self->log->info("Successfully updated $name; new revision is $revision");
                     $continuation->();
                     $self->_put_revision_for_blob($blob, $revision, 0);
                     $self->_run_delayed_operations($blob, $revision);
@@ -331,19 +336,20 @@ sub handle_fs_change {
         });
     } else {
         $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
-            $self->upstream, $blob));
+            $self->upstream, $blob->name));
 
-        $self->ws_client->delete_blob($blob, $revision, sub {
+        $self->ws_client->delete_blob($blob->name, $revision, sub {
             my ( $ws, $revision, $error ) = @_;
 
+            my $name = $blob->name;
             if(defined $revision) {
-                $self->log->info("Successfully deleted $blob; new revision is $revision");
+                $self->log->info("Successfully deleted $name; new revision is $revision");
                 $continuation->();
                 $self->_put_revision_for_blob($blob, $revision, 1);
                 $self->_run_delayed_operations($blob, $revision);
             } else {
                 if($error =~ /Conflict/) {
-                    $self->log->info("Deleting '$blob' failed: conflict");
+                    $self->log->info("Deleting '$name' failed: conflict");
 
                     $continuation->(); # XXX call after _fetch_and_write_blob
                                        # finishes?
@@ -351,13 +357,13 @@ sub handle_fs_change {
                     
                     $self->_fetch_and_write_blob($blob);
                 } else {
-                    $self->log->warning("Deleting $blob failed: $error");
+                    $self->log->warning("Deleting $name failed: $error");
                 }
            }
         });
     }
 
-    $operations->{$blob} = 1;
+    $operations->{$blob->name} = 1;
 }
 
 sub handle_upstream_change {
@@ -368,14 +374,14 @@ sub handle_upstream_change {
         return;
     }
 
-    my $blob       = $change->{'name'};
+    my $blob       = $self->sd->blob(name => $change->{'name'});
     my $is_deleted = $change->{'is_deleted'};
     my $revision   = $change->{'revision'};
 
     $self->log->info(sprintf("Blob %s was %s on the server (revision is %s)",
-        $blob, $is_deleted ? 'deleted' : 'changed', $revision));
+        $blob->name, $is_deleted ? 'deleted' : 'changed', $revision));
 
-    if($self->inflight_operations->{$blob}) {
+    if($self->inflight_operations->{$blob->name}) {
         push @{ $self->delayed_operations }, $change;
         return;
     }

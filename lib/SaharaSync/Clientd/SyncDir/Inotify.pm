@@ -423,9 +423,9 @@ sub on_change {
 }
 
 sub open_write_handle {
-    my ( $self, $blob_name ) = @_;
+    my ( $self, $blob ) = @_;
 
-    my $current_path = File::Spec->catfile($self->root, $blob_name);
+    my $current_path = $blob->path;
     my $old_mode     = (stat $current_path)[2];
     if(defined $old_mode) {
         my $mode = $old_mode & 07555;

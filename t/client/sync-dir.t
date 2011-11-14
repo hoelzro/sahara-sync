@@ -108,11 +108,17 @@ sub octal {
     return sprintf('0%o', $n);
 }
 
+sub blob {
+    my ( $self, $filename ) = @_;
+
+    return $self->sd->blob(name => $filename);
+}
+
 sub test_self_changes :Test(5) {
     my ( $self ) = @_;
 
     my $sd = $self->sd;
-    my $h  = $sd->open_write_handle('foo.txt');
+    my $h  = $sd->open_write_handle($self->blob('foo.txt'));
     $h->write("Hello, World!\n");
     $h->close(sub {
         my ( $ok, $error ) = @_;
@@ -126,7 +132,7 @@ sub test_self_changes :Test(5) {
 
     write_file 'bar.txt', "Bar\n";
 
-    $h = $sd->open_write_handle('baz.txt');
+    $h = $sd->open_write_handle($self->blob('baz.txt'));
     $h->write("Baz\n");
     $h->close(sub {
         my ( $ok, $error ) = @_;
@@ -194,7 +200,7 @@ sub test_moves : Test(8) {
     my ( $self ) = @_;
 
     my $sd = $self->sd;
-    my $h  = $sd->open_write_handle('foo.txt');
+    my $h  = $sd->open_write_handle($self->blob('foo.txt'));
     $h->write('Foo');
     $h->close(sub {
         my ( $ok, $error ) = @_;
@@ -208,7 +214,7 @@ sub test_moves : Test(8) {
     # as a delete + create; we may change that later
     $self->expect_changes(['foo.txt', 'bar.txt']);
 
-    $h = $sd->open_write_handle('baz.txt');
+    $h = $sd->open_write_handle($self->blob('baz.txt'));
     $h->write('Baz');
     $h->close(sub {
         my ( $ok, $error ) = @_;
@@ -287,7 +293,7 @@ sub test_preservation :Test(2) {
         foreach my $perm (@test_perms) {
             chmod $perm, 'foo.txt';
 
-            $h = $sd->open_write_handle('foo.txt');
+            $h = $sd->open_write_handle($self->blob('foo.txt'));
             $h->write("Test text 2\n");
             $h->close(sub {
                 my ( $ok, $error ) = @_;
@@ -372,7 +378,7 @@ sub test_on_change_guard :Test(7) {
 sub test_handle_cancel :Test(2) {
     my ( $self ) = @_;
 
-    my $h = $self->sd->open_write_handle('foo.txt');
+    my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
     $h->write("Hey you guys");
     $h->cancel;
 
@@ -448,7 +454,7 @@ sub test_offline_static :Test(2) {
 sub test_self_updates :Test(3) {
     my ( $self) = @_;
 
-    my $h = $self->sd->open_write_handle('foo.txt');
+    my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
     $h->write("Hello!\n");
     $h->close(sub {
         my ( $ok, $error ) = @_;
@@ -494,7 +500,7 @@ sub perform_conflict_test {
 
     my @actions = @params{qw/action1 action2/};
 
-    my $h = $self->sd->open_write_handle('foo.txt');
+    my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
     $h->write("In foo.txt\n");
     $h->close(sub {
         my ( $ok, $error ) = @_;
@@ -513,7 +519,7 @@ sub test_update_update_conflict :Tests(8) {
     $self->perform_conflict_test(
         action1 => sub { append_file 'foo.txt', "Next line" },
         action2 => sub {
-            my $h = $self->sd->open_write_handle('foo.txt');
+            my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
             $h->write("Conflict!");
             $h->close(sub {
                 my ( $ok, $error );
@@ -581,7 +587,7 @@ sub test_delete_update_conflict :Test(8) {
     $self->perform_conflict_test(
         action1 => sub { unlink 'foo.txt' },
         action2 => sub {
-            my $h = $self->sd->open_write_handle('foo.txt');
+            my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
             $h->write("Conflict!");
             $h->close(sub {
                 my ( $ok, $error );
@@ -646,7 +652,7 @@ sub test_rename_update :Test(9) {
     $self->perform_conflict_test(
         action1 => sub { rename 'foo.txt', 'bar.txt' },
         action2 => sub {
-            my $h = $self->sd->open_write_handle('foo.txt');
+            my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
             $h->write('Conflict!');
             $h->close(sub {
                 my ( $ok, $error );

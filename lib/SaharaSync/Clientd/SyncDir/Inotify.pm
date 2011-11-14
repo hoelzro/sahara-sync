@@ -486,12 +486,10 @@ sub rename {
 
     my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
     close $tempfile;
-    my $from_path = File::Spec->catfile($self->root, $from);
-    my $to_path   = File::Spec->catfile($self->root, $to);
 
-    unless(CORE::rename $from_path, $tempfile->filename) {
-        unless(-e $from_path) {
-            if($self->_known_blob($from)) {
+    unless(CORE::rename $from->path, $tempfile->filename) {
+        unless(-e $from->path) {
+            if($self->_known_blob($from->name)) {
                 $cont->(undef, 'conflict');
                 return;
             }
@@ -500,20 +498,20 @@ sub rename {
         return;
     }
 
-    unless($self->_verify_blob($from, $tempfile->filename)) {
-        link $tempfile->filename, $from_path; # XXX check error
+    unless($self->_verify_blob($from->name, $tempfile->filename)) {
+        link $tempfile->filename, $from->path; # XXX check error
         $cont->(undef, 'conflict');
         return;
     }
-    unless(link $tempfile->filename, $to_path) {
-        link $tempfile->filename, $from_path; # XXX check error
+    unless(link $tempfile->filename, $to->path) {
+        link $tempfile->filename, $from->path; # XXX check error
         $cont->(undef, $!);
         return;
     }
 
     # XXX do we want to do this if not $ok?
-    $self->_update_file_stats($from_path, $from);
-    $self->_update_file_stats($to_path, $to);
+    $self->_update_file_stats($from->path, $from->name);
+    $self->_update_file_stats($to->path, $to->name);
 
     $cont->(1);
 }

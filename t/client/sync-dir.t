@@ -480,7 +480,7 @@ sub test_move_file :Test(6) {
 
     $self->expect_changes(['foo.txt']);
 
-    $sd->rename('foo.txt', 'bar.txt', sub {
+    $sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
         my ( $ok, $error ) = @_;
 
         ok $ok or diag $error;
@@ -564,7 +564,7 @@ sub test_update_rename_conflict :Test(7) {
     $self->perform_conflict_test(
         action1 => sub { append_file 'foo.txt', "Next line" },
         action2 => sub {
-            $self->sd->rename('foo.txt', 'bar.txt', sub {
+            $self->sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
                 my ( $ok, $error, $conflict_file ) = @_;
 
                 my $contents = read_file('foo.txt');
@@ -631,7 +631,7 @@ sub test_delete_rename_conflict :Test(7) {
     $self->perform_conflict_test(
         action1 => sub { unlink 'foo.txt' },
         action2 => sub {
-            $self->sd->rename('foo.txt', 'bar.txt', sub {
+            $self->sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
                 my ( $ok, $error, $conflict_file ) = @_;
 
                 ok ! -e 'foo.txt';
@@ -705,7 +705,7 @@ sub test_rename_rename :Test(8) {
     $self->perform_conflict_test(
         action1 => sub { rename 'foo.txt', 'bar.txt' },
         action2 => sub {
-            $self->sd->rename('foo.txt', 'baz.txt', sub {
+            $self->sd->rename($self->blob('foo.txt'), $self->blob('baz.txt'), sub {
                 my ( $ok, $error, $conflict_file ) = @_;
 
                 ok ! -e 'foo.txt';
@@ -731,7 +731,7 @@ sub test_rename_existing_file :Test(6) {
 
     $self->expect_changes(['foo.txt', 'bar.txt']);
 
-    $self->sd->rename('foo.txt', 'bar.txt', sub {
+    $self->sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
         my ( $ok, $error, $conflict_file ) = @_;
 
         ok !$ok;

@@ -199,7 +199,7 @@ sub _process_event {
     my $continuation = sub {
         unless($called) {
             $called = 1;
-            $self->_update_file_stats($blob->path, $blob->name);
+            $self->_update_file_stats($blob);
         }
     };
 
@@ -313,18 +313,18 @@ sub _file_has_changed {
 }
 
 sub _update_file_stats {
-    my ( $self, $fullpath, $file ) = @_;
+    my ( $self, $blob ) = @_;
 
     my $dbh = $self->dbh;
 
-    if(-f $fullpath) {
+    if(-f $blob->path) {
         my $digest = Digest::SHA->new(1);
-        $digest->addfile($fullpath);
+        $digest->addfile($blob->path);
 
         $dbh->do('INSERT OR REPLACE INTO file_stats (path, checksum) VALUES (?, ?)', undef,
-            $file, $digest->hexdigest);
+            $blob->name, $digest->hexdigest);
     } else {
-        $dbh->do('DELETE FROM file_stats WHERE path = ?', undef, $file);
+        $dbh->do('DELETE FROM file_stats WHERE path = ?', undef, $blob->name);
     }
 }
 
@@ -439,7 +439,7 @@ sub open_write_handle {
 
     my $file = File::Temp->new(DIR => $self->_overlay);
     return SaharaSync::Clientd::SyncDir::Inotify::Handle->new($self, $file, $old_mode,
-        $current_path);
+        $blob);
 }
 
 sub unlink {
@@ -474,7 +474,7 @@ sub unlink {
         ## return here?
     }
     # XXX do we want to do this if not $ok?
-    $self->_update_file_stats($path, $blob->name);
+    $self->_update_file_stats($blob);
 
     $cont->($ok) if $ok;
 }
@@ -510,8 +510,8 @@ sub rename {
     }
 
     # XXX do we want to do this if not $ok?
-    $self->_update_file_stats($from->path, $from->name);
-    $self->_update_file_stats($to->path, $to->name);
+    $self->_update_file_stats($from);
+    $self->_update_file_stats($to);
 
     $cont->(1);
 }

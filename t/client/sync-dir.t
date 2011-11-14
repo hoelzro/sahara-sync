@@ -34,8 +34,7 @@ sub create_sync_dir {
     $self->{'watch_guard'} = $sd->on_change(sub {
         my ( $sd, $event, $continuation ) = @_;
 
-        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-        push @{ $self->{'seen_events'} }, $path;
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
 
         unless(defined $continuation) {
             use Carp qw(longmess);
@@ -317,8 +316,7 @@ sub test_on_change_guard :Test(7) {
     $self->sd->on_change(sub {
         my ( $sd, $event, $continuation ) = @_;
 
-        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-        push @{ $self->{'seen_events'} }, $path;
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
 
         $continuation->();
     });
@@ -334,8 +332,7 @@ sub test_on_change_guard :Test(7) {
     my $guard = $self->sd->on_change(sub {
         my ( $sd, $event, $continuation ) = @_;
 
-        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-        push @{ $self->{'seen_events'} }, $path;
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
 
         $continuation->();
     });
@@ -358,8 +355,7 @@ sub test_on_change_guard :Test(7) {
     $guard = $self->sd->on_change(sub {
         my ( $sd, $event, $continuation ) = @_;
 
-        my $path = File::Spec->abs2rel($event->{'path'}, $sd->root);
-        push @{ $self->{'seen_events'} }, $path;
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
 
         $continuation->();
     });

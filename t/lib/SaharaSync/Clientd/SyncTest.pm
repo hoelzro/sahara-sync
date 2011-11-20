@@ -63,6 +63,7 @@ sub create_fresh_client {
             $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $self->port;
             $ENV{'_CLIENTD_ROOT'}          = $sync_dir->dirname;
             $ENV{'_CLIENTD_POLL_INTERVAL'} = $self->client_poll_interval;
+            $ENV{'_CLIENTD_NUM'}           = $client_num;
 
             exec $^X, 't/run-test-client';
         },

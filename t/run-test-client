@@ -15,6 +15,7 @@ my $upstream      = $ENV{'_CLIENTD_UPSTREAM'};
 my $port          = $ENV{'_CLIENTD_PORT'};
 my $root          = $ENV{'_CLIENTD_ROOT'};
 my $poll_interval = $ENV{'_CLIENTD_POLL_INTERVAL'};
+my $client_num    = $ENV{'_CLIENTD_NUM'};
 
 my $log_config = {
     type => 'Null',
@@ -51,7 +52,7 @@ if($ENV{'TEST_CLIENTD_DEBUG'}) {
     $daemon->log->add_callback(sub {
         my %params = @_;
 
-        return "\033[31m[client - $$] $params{'message'}\033[0m";
+        return "\033[31m[client - $client_num] $params{'message'}\033[0m";
     });
 }
 

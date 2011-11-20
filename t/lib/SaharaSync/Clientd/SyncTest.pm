@@ -119,10 +119,14 @@ sub setup : Test(setup) {
     $self->{'hostd'} = Test::TCP->new(
         port => $self->port,
         code => sub {
+            my ( $port ) = @_;
+
             close $read;
             dup2 fileno($write), 3 or die $!;
 
-            exec $^X, 't/run-test-app', @_;
+            $ENV{'_HOSTD_PORT'} = $port;
+
+            exec $^X, 't/run-test-app';
         },
     );
 

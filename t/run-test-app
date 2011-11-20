@@ -9,7 +9,7 @@ use SaharaSync::Hostd::Launcher;
 use Test::More;
 use Test::Sahara ();
 
-my ( $port ) = @ARGV;
+my $port = $ENV{'_HOSTD_PORT'};
 
 my $num_errors = 0;
 my $pipe;

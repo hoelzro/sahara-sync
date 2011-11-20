@@ -59,8 +59,12 @@ sub create_fresh_client {
 
             dup2 fileno($write), 3 or die $!;
 
-            exec $^X, 't/run-test-client', 'http://localhost:' . $self->port,
-                $port, $sync_dir->dirname, $self->client_poll_interval;
+            $ENV{'_CLIENTD_PORT'}          = $port;
+            $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $self->port;
+            $ENV{'_CLIENTD_ROOT'}          = $sync_dir->dirname;
+            $ENV{'_CLIENTD_POLL_INTERVAL'} = $self->client_poll_interval;
+
+            exec $^X, 't/run-test-client';
         },
     );
 

@@ -11,7 +11,10 @@ use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
 use Test::More;
 
-my ( $upstream, $port, $root, $poll_interval ) = @ARGV;
+my $upstream      = $ENV{'_CLIENTD_UPSTREAM'};
+my $port          = $ENV{'_CLIENTD_PORT'};
+my $root          = $ENV{'_CLIENTD_ROOT'};
+my $poll_interval = $ENV{'_CLIENTD_POLL_INTERVAL'};
 
 my $log_config = {
     type => 'Null',

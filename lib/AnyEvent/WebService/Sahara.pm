@@ -267,6 +267,14 @@ sub put_blob {
         }
     }
 
+    my $cb_wrapper = sub {
+        my ( $self ) = @_;
+
+        $self->run_delayed_changes($blob);
+
+        return $cb->(@_);
+    };
+
     $self->do_request(PUT => ['blobs', $blob], $meta, sub {
         my ( undef, $headers ) = @_;
 
@@ -277,10 +285,8 @@ sub put_blob {
             revision => $revision,
         });
 
-        $self->run_delayed_changes($blob);
-
         return $revision;
-    }, $cb);
+    }, $cb_wrapper);
 
     $self->mark_in_flight($blob);
 }
@@ -294,6 +300,14 @@ sub delete_blob {
         },
     };
 
+    my $cb_wrapper = sub {
+        my ( $self ) = @_;
+
+        $self->run_delayed_changes($blob);
+
+        return $cb->(@_);
+    };
+
     $self->do_request(DELETE => ['blobs', $blob], $meta, sub {
         my ( undef, $headers ) = @_;
 
@@ -304,10 +318,9 @@ sub delete_blob {
             revision => $revision,
         });
 
-        $self->run_delayed_changes($blob);
-
         return $revision;
-    }, $cb);
+    }, $cb_wrapper);
+
     $self->mark_in_flight($blob);
 }
 

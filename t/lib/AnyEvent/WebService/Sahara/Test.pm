@@ -995,6 +995,92 @@ sub test_own_changes_invisible : Test(8) {
     is_deeply(\@client2_changes, []);
 }
 
+sub test_conflicting_change_in_flight : Test(4) {
+    my ( $self ) = @_;
+
+    my $cond;
+    my $timer;
+    my @client1_changes;
+    my @client2_changes;
+    my $revision1;
+    my $revision2;
+    my $client1 = $self->create_client;
+    my $client2 = $self->create_client;
+
+    $client1->changes(undef, [], sub {
+        my ( undef, $change ) = @_;
+
+        push @client1_changes, $change;
+    });
+
+    $client2->changes(undef, [], sub {
+        my ( undef, $change ) = @_;
+
+        push @client2_changes, $change;
+    });
+
+    $cond  = AnyEvent->condvar;
+    $timer = AnyEvent->timer(
+        after    => $self->client_poll_time + 5,
+        interval => $self->client_poll_time + 5,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $client1->put_blob('file.txt', IO::String->new('Content 1'), {}, sub {
+        ( undef, $revision1 ) = @_;
+    });
+
+    $client2->put_blob('file.txt', IO::String->new('Content 2'), {}, sub {
+        ( undef, $revision2 ) = @_;
+    });
+
+    $cond->recv;
+
+    ok($revision1 xor $revision2);
+
+    my $revision = $revision1 || $revision2;
+    my @expected_changes = ({
+        name     => 'file.txt',
+        revision => $revision,
+    });
+
+    if($revision1) {
+        is_deeply \@client2_changes, \@expected_changes;
+    } else {
+        is_deeply \@client1_changes, \@expected_changes;
+    }
+
+    $cond = AnyEvent->condvar;
+
+    $client1->delete_blob('file.txt', $revision, sub {
+        ( undef, $revision1 ) = @_;
+    });
+
+    $client2->delete_blob('file.txt', $revision, sub {
+        ( undef, $revision2 ) = @_;
+    });
+
+    @client1_changes = @client2_changes = ();
+    $cond->recv;
+
+    ok($revision1 xor $revision2);
+
+    $revision = $revision1 || $revision2;
+    @expected_changes = ({
+        name       => 'file.txt',
+        revision   => $revision,
+        is_deleted => 1,
+    });
+
+    if($revision1) {
+        is_deeply \@client2_changes, \@expected_changes;
+    } else {
+        is_deeply \@client1_changes, \@expected_changes;
+    }
+}
+
 sub test_guard_request_in_flight : Test(2) {
     my ( $self ) = @_;
 

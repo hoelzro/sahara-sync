@@ -69,7 +69,7 @@ has inflight_operations => (
 );
 
 has delayed_operations => (
-    is      => 'ro',
+    is      => 'rw',
     default => sub { [] },
 );
 
@@ -154,16 +154,16 @@ sub _run_delayed_operations {
 
     delete $self->inflight_operations->{$blob->name};
 
-    my $delayed = $self->delayed_operations;
+    my @delayed = @{$self->delayed_operations};
+    $self->delayed_operations([]);
 
-    foreach my $operation (@$delayed) {
+    # XXX how much you wanna bet that $delayed has actions at a distance?
+    foreach my $operation (@delayed) {
         next if $operation->{'name'} eq $blob->name &&
                 $operation->{'revision'} eq $revision;
 
         $self->handle_upstream_change($operation);
     }
-
-    @$delayed = ();
 }
 
 sub _get_last_sync {

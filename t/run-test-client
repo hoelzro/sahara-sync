@@ -48,11 +48,13 @@ tcp_server '127.0.0.1', $port, sub {
 
 my $daemon = SaharaSync::Clientd->new($config);
 
+my $color = $client_num == 1 ? "\e[32;1m" : "\e[31;1m";
+
 if($ENV{'TEST_CLIENTD_DEBUG'}) {
     $daemon->log->add_callback(sub {
         my %params = @_;
 
-        return "\033[31m[client - $client_num] $params{'message'}\033[0m";
+        return "${color}[client - $client_num] $params{'message'}\033[0m";
     });
 }
 

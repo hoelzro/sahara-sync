@@ -92,7 +92,7 @@ sub create_fresh_hostd {
         $hostd->log->add_callback(sub {
             my %params = @_;
 
-            return "\033[33m[host] $params{'message'}\033[0m";
+            return "\033[33;1m[host] $params{'message'}\033[0m";
         });
     }
     $hostd->storage->create_user('test', 'abc123');

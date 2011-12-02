@@ -229,6 +229,26 @@ sub _fetch_and_write_blob {
 
                 unless($ok) {
                     if($error =~ /conflict/) {
+                        WHOA: {
+                            my $count = 0;
+                            my $target;
+                            while(++$count <= 5) {
+                                $target = $self->_get_conflict_blob($blob)->path;
+                                if(link $blob->path, $target) {
+                                    last;
+                                }
+                            }
+                            if($count <= 5) {
+                                rename $conflict_file, $blob->path;
+                                $self->handle_fs_change($self->sd, {
+                                    blob => $self->sd->blob(path => $target),
+                                }, sub {}); ## XXX leary...
+                            } else {
+                                $self->log->error("flipping the fuck out");
+                            }
+                        }
+                        #
+                        # XXX put revision for blobs?
                         # XXX the blob has changed since we last saw an event
                         # for it; there's probably an event in the queue.  Move
                         # $blob to a conflict file, and $conflict_file to $blob

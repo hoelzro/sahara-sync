@@ -244,6 +244,7 @@ sub _fetch_and_write_blob {
     });
 }
 
+## include hostname or something?
 sub _get_conflict_blob {
     my ( $self, $blob ) = @_;
 

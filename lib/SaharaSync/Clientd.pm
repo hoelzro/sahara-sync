@@ -63,16 +63,6 @@ has poll_interval => (
     required => 1,
 );
 
-has inflight_operations => (
-    is      => 'ro',
-    default => sub { {} },
-);
-
-has delayed_operations => (
-    is      => 'rw',
-    default => sub { [] },
-);
-
 has dbh => (
     is      => 'ro',
     lazy    => 1,
@@ -147,23 +137,6 @@ CREATE TABLE IF NOT EXISTS local_revisions (
     is_deleted INTEGER NOT NULL
 )
 SQL
-}
-
-sub _run_delayed_operations {
-    my ( $self, $blob, $revision ) = @_;
-
-    delete $self->inflight_operations->{$blob->name};
-
-    my @delayed = @{$self->delayed_operations};
-    $self->delayed_operations([]);
-
-    # XXX how much you wanna bet that $delayed has actions at a distance?
-    foreach my $operation (@delayed) {
-        next if $operation->{'name'} eq $blob->name &&
-                $operation->{'revision'} eq $revision;
-
-        $self->handle_upstream_change($operation);
-    }
 }
 
 sub _get_last_sync {
@@ -319,8 +292,6 @@ sub handle_upstream_conflict {
 sub handle_fs_change {
     my ( $self, $sd, $event, $continuation ) = @_;
 
-    my $operations = $self->inflight_operations;
-
     ## if $event is just a metadata (ex. permissions) change, do something
     ## about it
 
@@ -352,7 +323,6 @@ sub handle_fs_change {
                     $self->log->info("Successfully updated $name; new revision is $revision");
                     $continuation->();
                     $self->_put_revision_for_blob($blob, $revision, 0);
-                    $self->_run_delayed_operations($blob, $revision);
                 } else {
                     # if a conflict occurs, an upstream change is coming down;
                     # we'll let them handle it
@@ -373,7 +343,6 @@ sub handle_fs_change {
                 $self->log->info("Successfully deleted $name; new revision is $revision");
                 $continuation->();
                 $self->_put_revision_for_blob($blob, $revision, 1);
-                $self->_run_delayed_operations($blob, $revision);
             } else {
                 if($error =~ /Conflict/) {
                     $self->log->info("Deleting '$name' failed: conflict");
@@ -389,8 +358,6 @@ sub handle_fs_change {
            }
         });
     }
-
-    $operations->{$blob->name} = 1;
 }
 
 sub handle_upstream_change {
@@ -407,11 +374,6 @@ sub handle_upstream_change {
 
     $self->log->info(sprintf("Blob %s was %s on the server (revision is %s)",
         $blob->name, $is_deleted ? 'deleted' : 'changed', $revision));
-
-    if($self->inflight_operations->{$blob->name}) {
-        push @{ $self->delayed_operations }, $change;
-        return;
-    }
 
     if($is_deleted) {
         $self->sd->unlink($blob, sub {

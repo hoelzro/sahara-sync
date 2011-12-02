@@ -244,7 +244,7 @@ sub _fetch_and_write_blob {
     });
 }
 
-sub _get_conflict_name {
+sub _get_conflict_blob {
     my ( $self, $blob ) = @_;
 
     my ( $year, $month, $day ) = (localtime)[5, 4, 3];

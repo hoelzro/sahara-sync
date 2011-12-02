@@ -334,10 +334,9 @@ sub handle_fs_change {
                     $self->_put_revision_for_blob($blob, $revision, 0);
                     $self->_run_delayed_operations($blob, $revision);
                 } else {
-                    if($error =~ /Conflict/) {
-                        $continuation->();
-                        $self->handle_upstream_conflict($blob);
-                    } else {
+                    # if a conflict occurs, an upstream change is coming down;
+                    # we'll let them handle it
+                    unless($error =~ /Conflict/) {
                         $self->log->warning("Updating $blob failed: $error");
                     }
                 }

@@ -253,8 +253,15 @@ sub _get_conflict_blob {
 
     my $name          = $blob->name;
     my $conflict_name = sprintf("$name - conflict %04d-%02d-%02d", $year, $month, $day);
+    $blob             = $self->sd->blob(name => $conflict_name);
 
-    return $self->sd->blob(name => $conflict_name);
+    my $counter = 1;
+    while(-e $blob->path) {
+        $conflict_name = sprintf("$name - conflict %04d-%02d-%02d %d", $year, $month, $day, $counter++);
+        $blob          = $self->sd->blob(name => $conflict_name);
+    }
+
+    return $blob;
 }
 
 sub handle_upstream_conflict {

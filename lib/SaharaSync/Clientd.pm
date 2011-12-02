@@ -217,7 +217,7 @@ sub _fetch_and_write_blob {
                                     blob => $self->sd->blob(path => $target),
                                 }, sub {}); ## XXX leary...
                             } else {
-                                $self->log->error("flipping the fuck out");
+                                $self->log->error("unable to resolve conflict");
                             }
                         }
                         #

@@ -381,8 +381,28 @@ sub handle_upstream_change {
 
             unless($ok) {
                 if($error =~ /conflict/) {
-                    # XXX $blob's contents have changed since last we saw
-                    #     move $blob to conflict_blob($blob)
+                    WHOA: {
+                        my $count = 0;
+                        my $target;
+                        while(++$count <= 5) {
+                            $target = $self->_get_conflict_blob($blob)->path;
+                            if(link $blob->path, $target) {
+                                last;
+                            }
+                        }
+                        my $root = $self->sd->root;
+                        if($count <= 5) {
+                            my $tempfile = File::Temp->new(DIR => $self->sd->_overlay, UNLINK => 0);
+                            close $tempfile;
+
+                            rename $blob->path, $tempfile->filename;
+                            $self->handle_fs_change($self->sd, {
+                                blob => $self->sd->blob(path => $target),
+                            }, sub {}); ## XXX leary...
+                        } else {
+                            $self->log->error("unable to resolve conflict");
+                        }
+                    }
                 } else {
                     # XXX I/O error
                 }

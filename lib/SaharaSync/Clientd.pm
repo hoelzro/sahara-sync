@@ -352,7 +352,7 @@ sub handle_fs_change {
 
                     
                     $self->_fetch_and_write_blob($blob);
-                } else {
+                } elsif($error !~ /not found/i) {
                     $self->log->warning("Deleting $name failed: $error");
                 }
            }

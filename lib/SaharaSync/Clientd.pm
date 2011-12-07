@@ -344,15 +344,11 @@ sub handle_fs_change {
                 $continuation->();
                 $self->_put_revision_for_blob($blob, $revision, 1);
             } else {
-                if($error =~ /Conflict/) {
-                    $self->log->info("Deleting '$name' failed: conflict");
+                # if a conflict occurs, an upstream change is coming down;
+                # we'll let them handle it
 
-                    $continuation->(); # XXX call after _fetch_and_write_blob
-                                       # finishes?
-
-                    
-                    $self->_fetch_and_write_blob($blob);
-                } elsif($error !~ /not found/i) {
+                # ignore not found blobs (for now)
+                unless($error =~ /conflict/i || $error =~ /not found/i) {
                     $self->log->warning("Deleting $name failed: $error");
                 }
            }

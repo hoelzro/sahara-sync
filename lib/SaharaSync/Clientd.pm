@@ -202,6 +202,7 @@ sub _fetch_and_write_blob {
 
                 unless($ok) {
                     if($error =~ /conflict/) {
+                        # XXX move whoa block to helper method
                         WHOA: {
                             # XXX is this ok?
                             if(-e $blob->path) {

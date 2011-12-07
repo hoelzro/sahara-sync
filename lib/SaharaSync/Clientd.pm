@@ -8,6 +8,7 @@ use autodie qw(mkdir);
 use AnyEvent::WebService::Sahara;
 use Carp qw(croak longmess);
 use DBI;
+use Errno qw(EEXIST);
 use File::Path qw(make_path);
 use File::Slurp qw(read_file);
 use File::Spec;
@@ -271,8 +272,13 @@ sub _handle_conflict {
                 $self->log->error("unable to resolve conflict");
             }
         } else {
-            # XXX race condition
-            rename $conflict_file, $blob->path;
+            unless(link $conflict_file, $blob->path) {
+                if($! == EEXIST) {
+                    $self->_handle_conflict($blob, $conflict_file);
+                } else {
+                    $self->log->error("unable to resolve conflict");
+                }
+            }
         }
     }
 }

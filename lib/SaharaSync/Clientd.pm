@@ -265,37 +265,6 @@ sub _get_conflict_blob {
     return $blob;
 }
 
-sub handle_upstream_conflict {
-    my ( $self, $blob ) = @_;
-
-    my $blob_name = $blob->name;
-
-    $self->log->info("Conflict: $blob_name");
-
-    my $conflict_blob = $self->_get_conflict_name($blob);
-
-    $self->sd->rename($blob, $conflict_blob, sub {
-        my ( $ok, $error ) = @_;
-
-        unless($ok) {
-            if($error =~ /conflict/i) {
-                # XXX this means that $blob has changed since last we saw an event for it,
-                # and we have yet to receive the event
-            } else {
-                # XXX an I/O error occurred; what to do?
-                # XXX this could be that $conflict_blob exists; if so, create
-                #     a new name and try again
-            }
-        }
-    });
-    $self->_fetch_and_write_blob($blob);
-    ## XXX do this after fetch and write completes?
-
-    $self->handle_fs_change($self->sd, {
-        blob => $conflict_blob,
-    }, sub {}); ## XXX leary...
-}
-
 sub handle_fs_change {
     my ( $self, $sd, $event, $continuation ) = @_;
 

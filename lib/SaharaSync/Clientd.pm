@@ -202,31 +202,7 @@ sub _fetch_and_write_blob {
 
                 unless($ok) {
                     if($error =~ /conflict/) {
-                        # XXX move whoa block to helper method
-                        WHOA: {
-                            # XXX is this ok?
-                            if(-e $blob->path) {
-                                my $count = 0;
-                                my $target;
-                                while(++$count <= 5) {
-                                    $target = $self->_get_conflict_blob($blob)->path;
-                                    if(link $blob->path, $target) {
-                                        last;
-                                    }
-                                }
-                                if($count <= 5) {
-                                    rename $conflict_file, $blob->path;
-                                    $self->handle_fs_change($self->sd, {
-                                        blob => $self->sd->blob(path => $target),
-                                    }, sub {}); ## XXX leary...
-                                } else {
-                                    $self->log->error("unable to resolve conflict");
-                                }
-                            } else {
-                                # XXX race condition
-                                rename $conflict_file, $blob->path;
-                            }
-                        }
+                        $self->_handle_conflict($blob, $conflict_file);
                         #
                         # XXX put revision for blobs?
                         # XXX the blob has changed since we last saw an event
@@ -263,6 +239,42 @@ sub _get_conflict_blob {
     }
 
     return $blob;
+}
+
+sub _handle_conflict {
+    my ( $self, $blob, $conflict_file ) = @_;
+
+    WHOA: {
+        # XXX is this ok?
+        if(-e $blob->path) {
+            my $count = 0;
+            my $target;
+            while(++$count <= 5) {
+                $target = $self->_get_conflict_blob($blob)->path;
+                if(link $blob->path, $target) {
+                    last;
+                }
+            }
+            if($count <= 5) {
+                if($conflict_file) {
+                    rename $conflict_file, $blob->path;
+                } else {
+                    my $tempfile = File::Temp->new(DIR => $self->sd->_overlay, UNLINK => 0);
+                    close $tempfile;
+
+                    rename $blob->path, $tempfile->filename;
+                }
+                $self->handle_fs_change($self->sd, {
+                    blob => $self->sd->blob(path => $target),
+                }, sub {}); ## XXX leary...
+            } else {
+                $self->log->error("unable to resolve conflict");
+            }
+        } else {
+            # XXX race condition
+            rename $conflict_file, $blob->path;
+        }
+    }
 }
 
 sub handle_fs_change {
@@ -353,28 +365,7 @@ sub handle_upstream_change {
 
             unless($ok) {
                 if($error =~ /conflict/) {
-                    WHOA: {
-                        my $count = 0;
-                        my $target;
-                        while(++$count <= 5) {
-                            $target = $self->_get_conflict_blob($blob)->path;
-                            if(link $blob->path, $target) {
-                                last;
-                            }
-                        }
-                        my $root = $self->sd->root;
-                        if($count <= 5) {
-                            my $tempfile = File::Temp->new(DIR => $self->sd->_overlay, UNLINK => 0);
-                            close $tempfile;
-
-                            rename $blob->path, $tempfile->filename;
-                            $self->handle_fs_change($self->sd, {
-                                blob => $self->sd->blob(path => $target),
-                            }, sub {}); ## XXX leary...
-                        } else {
-                            $self->log->error("unable to resolve conflict");
-                        }
-                    }
+                    $self->_handle_conflict($blob);
                 } else {
                     # XXX I/O error
                 }

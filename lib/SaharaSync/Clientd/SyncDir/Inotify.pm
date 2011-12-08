@@ -378,6 +378,7 @@ sub _verify_blob {
     $digest->addfile($old_path);
     $digest = $digest->hexdigest;
 
+    # XXX path is probably not the best name for the field
     my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob->name, $digest);
 SELECT COUNT(1) FROM file_stats WHERE path = ? AND checksum = ?
 SQL
@@ -405,7 +406,7 @@ sub on_change {
 
     return unless defined(wantarray);
 
-    ## $continuation?
+    ## XXX $continuation?
     $callback->($self, $_, sub {}) foreach @{ $self->_event_queue };
 
     weaken $self;

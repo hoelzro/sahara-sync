@@ -274,6 +274,7 @@ sub _handle_conflict {
         } else {
             unless(link $conflict_file, $blob->path) {
                 if($! == EEXIST) {
+                    # XXX is this the right thing to do?
                     $self->_handle_conflict($blob, $conflict_file);
                 } else {
                     $self->log->error("unable to resolve conflict");

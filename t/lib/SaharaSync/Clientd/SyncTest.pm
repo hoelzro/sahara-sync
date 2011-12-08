@@ -118,7 +118,7 @@ sub setup : Test(setup) {
 
     pipe $read, $write;
     $self->{'hostd'} = Test::TCP->new(
-        port => $self->port,
+        port => $self->port, # XXX Test::TCP's port would be better
         code => sub {
             my ( $port ) = @_;
 

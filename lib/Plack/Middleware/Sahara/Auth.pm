@@ -27,7 +27,11 @@ sub new {
 
             my $info = $store->load_user_info($username);
             return unless $info;
-            $log->info("Logging in as $username");
+            if(my $address = $env->{'REMOTE_ADDR'}) {
+                $log->info("Logging in as $username ($address)");
+            } else {
+                $log->info("Logging in as $username");
+            }
             return $info->{'password'} eq $password;
         },
         %options,

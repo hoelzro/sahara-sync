@@ -2,7 +2,7 @@ package Test::Sahara::Stream::Reader;
 
 use strict;
 use warnings;
-use parent 'Test::Class';
+use parent 'Test::Class::AnyEvent';
 use autodie qw(pipe);
 
 use Test::Exception;

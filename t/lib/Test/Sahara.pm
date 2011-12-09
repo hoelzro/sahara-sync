@@ -12,6 +12,7 @@ use MIME::Base64 ();
 use Plack::Builder;
 use Plack::Test ();
 use SaharaSync::Hostd ();
+use Tie::RefHash::Weak;
 
 use namespace::clean;
 
@@ -21,11 +22,13 @@ sub port {
     return 5982;
 }
 
-sub create_fresh_app {
+my %temp_app_storage;
+tie %temp_app_storage, 'Tie::RefHash::Weak';
+
+sub create_fresh_hostd {
     my ( undef, %options ) = @_;
 
     my $hostd;
-    my $app;
 
     unless($options{'storage'}) {
         $options{'storage'} = {};
@@ -57,10 +60,19 @@ sub create_fresh_app {
         $dbh->do($schema);
     }
     unless($options{'log'}) {
-        $options{'log'} = [{
-            type      => 'Null',
-            min_level => 'debug',
-        }];
+        if($ENV{'TEST_HOSTD_DEBUG'}) {
+            $options{'log'} = [{
+                type      => 'Screen',
+                stderr    => 1,
+                min_level => 'debug',
+                newline   => 1,
+            }],
+        } else {
+            $options{'log'} = [{
+                type      => 'Null',
+                min_level => 'debug',
+            }];
+        }
     }
 
     if($options{'storage'}{'type'} eq 'DBIWithFS' &&
@@ -71,36 +83,33 @@ sub create_fresh_app {
 
         $hostd = SaharaSync::Hostd->new(%options);
 
-        $app = builder {
-            # dummy middleware to keep a reference to $tempdir
-            enable sub {
-                my ( $app ) = @_;
-
-                ( undef ) = $tempdir;
-
-                return sub {
-                    my ( $env ) = @_;
-
-                    return $app->($env);
-                };
-            };
-
-            $hostd->to_app;
-        };
+        $temp_app_storage{$hostd} = $tempdir;
     } else {
         $hostd = SaharaSync::Hostd->new(%options);
-        $app   = $hostd->to_app;
     }
     
+    if($ENV{'TEST_HOSTD_DEBUG'}) {
+        $hostd->log->add_callback(sub {
+            my %params = @_;
+
+            return "\033[33;1m[host] $params{'message'}\033[0m";
+        });
+    }
     $hostd->storage->create_user('test', 'abc123');
 
-    return $app;
+    return $hostd;
+}
+
+sub create_fresh_app {
+    my ( $class, %options ) = @_;
+
+    return $class->create_fresh_hostd(%options)->to_app;
 }
 
 sub test_host {
     my ( $cb ) = @_;
 
-    return Plack::Test::test_psgi create_fresh_app, $cb;
+    return Plack::Test::test_psgi __PACKAGE__->create_fresh_app, $cb;
 }
 
 sub REQUEST {

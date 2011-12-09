@@ -22,10 +22,8 @@ use warnings;
 use lib 'lib';
 
 use Getopt::Long;
-use Plack::Runner;
-use Twiggy;
-use SaharaSync::Hostd;
 use SaharaSync::Hostd::Config;
+use SaharaSync::Hostd::Launcher;
 
 my $config_file;
 
@@ -38,13 +36,4 @@ unless($result && defined($config_file)) {
 }
 
 my $config = SaharaSync::Hostd::Config->new_from_file($config_file);
-my $hostd  = SaharaSync::Hostd->new($config);
-my $app    = $hostd->to_app;
-
-my $runner = Plack::Runner->new(
-    server => 'Twiggy',
-    env    => 'deployment',
-);
-$runner->parse_options('--port' => $hostd->port);
-$hostd->log->info('Starting host daemon');
-$runner->run($app);
+SaharaSync::Hostd::Launcher->run($config);

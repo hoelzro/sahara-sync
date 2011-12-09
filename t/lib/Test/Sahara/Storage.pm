@@ -128,9 +128,8 @@ sub test_store_blob : Test(34) {
         $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'), $BAD_REVISION);
     } 'SaharaSync::X::InvalidArgs', "store_blob should throw a SaharaSync::X::InvalidArgs exception if attempting to use a string for metadata";
 
-    throws_ok {
-        $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'), { revision => $BAD_REVISION });
-    } 'SaharaSync::X::InvalidArgs', "store_blob should throw a SaharaSync::X::InvalidArgs exception if attempting to create a blob using a revision";
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'), { revision => $BAD_REVISION });
+    ok !defined($revision), "store_blob should return undef if attempting to create a blob using a revision";
 
     $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'));
     ok $revision, "Storing a new blob should return that blob's revision";
@@ -138,13 +137,11 @@ sub test_store_blob : Test(34) {
     $revision2 = $store->store_blob('test', 'file2.txt', IO::String->new('Hello, World!'), undef);
     ok $revision2, "store_blob should accept either undef or no revision when creating a blob";
 
-    throws_ok {
-        $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, again.'));
-    } 'SaharaSync::X::InvalidArgs', "Updating a blob with no revision should throw a SaharaSync::X::InvalidArgs exception";
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Hello, again.'));
+    ok !defined($revision2), "Updating a blob with no revision should return undef";
 
-    throws_ok {
-        $revision = $store->store_blob('test', 'file.txt', IO::String->new('Hello, again.'), undef);
-    } 'SaharaSync::X::InvalidArgs', "Updating a blob with undef metadata should throw a SaharaSync::X::InvalidArgs exception";
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Hello, again.'), undef);
+    ok !defined($revision2), "Updating a blob with undef metadata should return undef";
 
     ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok defined($blob), "Fetching an existent blob should return a pair of truthy values";
@@ -366,7 +363,7 @@ sub test_strange_blob_names : Test(16) {
     ok !defined($metadata), 'file-looks-like-dir is not file-looks-like-dir/';
 }
 
-sub tset_create_user : Test(2) {
+sub test_create_user : Test(2) {
     my ( $self ) = @_;
 
     my $store = $self->store;
@@ -460,18 +457,16 @@ sub test_store_delete_store : Test(8) {
 
     my $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text'));
     my $revision2 = $store->delete_blob('test', 'file.txt', $revision);
-    throws_ok {
-        $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { revision => $revision2 });
-    } 'SaharaSync::X::InvalidArgs', 'Storing a new blob (but previously deleted) blob with a revision should throw a SaharaSync::X::InvalidArgs exception';
+    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { revision => $revision2 });
+    ok !defined($revision2), 'Storing a new blob (but previously deleted) blob with a revision should return undef';
     lives_ok {
         $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'));
     } 'Storing a new (but previously deleted) blob without a revision should succeed';
     ok $revision2, 'Storing a new (but previously deleted) blob without a revision should succeed';
     isnt $revision2, $revision, "A new (but previously deleted) blob's revision should differ from its original";
 
-    throws_ok {
-        $revision = $store->store_blob('test', 'file.txt', IO::String->new('More text!'));
-    } 'SaharaSync::X::InvalidArgs', 'Storing another revision to a previously deleted blob with no revision should throws_ok a SaharaSync::X::InvalidArgs exception';
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('More text!'));
+    ok !defined($revision), 'Storing another revision to a previously deleted blob with no revision should return undef';
 
     lives_ok {
         $revision = $store->store_blob('test', 'file.txt', IO::String->new('More text!'), { revision => $revision2 });
@@ -506,10 +501,9 @@ sub test_metadata : Test(15) {
     my ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok $blob;
     is_deeply($metadata, { foo => 1, revision => $revision }, "Adding metadata to a new blob should show up on subsequent fetches");
-    throws_ok {
-        $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { bar => 2 });
-    } 'SaharaSync::X::InvalidArgs', "Updating a blob with no revision should fail";
-    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { bar => 2, revision => $revision });
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { bar => 2 });
+    ok !defined($revision), "Updating a blob with no revision should fail";
+    $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { bar => 2, revision => $revision2 });
     ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
     ok $blob;
     is_deeply($metadata, { foo => 1, bar => 2, revision => $revision }, "Updating a blob preserves old metadata");

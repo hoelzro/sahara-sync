@@ -6,11 +6,12 @@ use Moose;
 use feature 'switch';
 
 use Carp qw(croak longmess);
+use Data::Dumper;
 use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
 use Plack::Request;
-use Scalar::Util qw(reftype);
+use Scalar::Util qw(reftype weaken);
 use UNIVERSAL;
 
 ## NOTE: I should probably just refactor the common functionality of
@@ -36,6 +37,12 @@ has storage => (
 has log => (
     is       => 'ro',
     required => 1,
+);
+
+has host => (
+    is      => 'ro',
+    isa     => 'Str',
+    default => '0.0.0.0',
 );
 
 has port => (
@@ -137,7 +144,11 @@ sub send_change_to_streams {
     };
 
     if($streams) {
-        foreach my $stream (@$streams) {
+        $self->log->debug("writing change to streaming clients: " . Dumper($changes));
+
+        my @copy = @$streams; # we make a copy, because the on_error handlers
+                              # could get called and change the original array
+        foreach my $stream (@copy) {
             my $meta = $stream->{'metadata'};
             $stream->{'stream'}->write_object({
                 map {
@@ -201,6 +212,7 @@ sub changes {
         unless($conns) {
             $conns = $connections->{$user} = [];
         }
+        weaken $conns;
 
         return sub {
             my ( $respond ) = @_;
@@ -209,6 +221,7 @@ sub changes {
             my $stream = SaharaSync::Stream::Writer->for_mimetype($mime_type,
                 writer => $writer,
             );
+            weaken $stream;
             push @$conns, {
                 stream   => $stream,
                 metadata => \@metadata,
@@ -221,10 +234,10 @@ sub changes {
                 my $h = $writer->{'handle'};
                 ## properly clean up connections (I don't think this will do the trick)
                 $h->on_error(sub {
-                    @$conns = grep { $_ ne $writer } @$conns;
+                    @$conns = grep { $_->{'stream'} != $stream } @$conns;
                 });
                 $h->on_eof(sub {
-                    @$conns = grep { $_ ne $writer } @$conns;
+                    @$conns = grep { $_->{'stream'} != $stream } @$conns;
                 });
             }
         };

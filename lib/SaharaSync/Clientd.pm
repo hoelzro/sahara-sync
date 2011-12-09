@@ -8,6 +8,7 @@ use autodie qw(mkdir);
 use AnyEvent::WebService::Sahara;
 use Carp qw(croak longmess);
 use DBI;
+use Errno qw(EEXIST);
 use File::Path qw(make_path);
 use File::Slurp qw(read_file);
 use File::Spec;
@@ -61,16 +62,6 @@ has log => (
 has poll_interval => (
     is       => 'ro',
     required => 1,
-);
-
-has inflight_operations => (
-    is      => 'ro',
-    default => sub { {} },
-);
-
-has delayed_operations => (
-    is      => 'ro',
-    default => sub { [] },
 );
 
 has dbh => (
@@ -149,23 +140,6 @@ CREATE TABLE IF NOT EXISTS local_revisions (
 SQL
 }
 
-sub _run_delayed_operations {
-    my ( $self, $blob, $revision ) = @_;
-
-    delete $self->inflight_operations->{$blob};
-
-    my $delayed = $self->delayed_operations;
-
-    foreach my $operation (@$delayed) {
-        next if $operation->{'name'} eq $blob &&
-                $operation->{'revision'} eq $revision;
-
-        $self->handle_upstream_change($operation);
-    }
-
-    @$delayed = ();
-}
-
 sub _get_last_sync {
     my ( $self ) = @_;
 
@@ -176,7 +150,7 @@ sub _get_revision_for_blob {
     my ( $self, $blob ) = @_;
 
     my $sth = $self->dbh->prepare('SELECT revision from local_revisions WHERE filename = ? AND is_deleted = 0 LIMIT 1');
-    $sth->execute($blob);
+    $sth->execute($blob->name);
 
     if(my ( $revision ) = $sth->fetchrow_array) {
         return $revision;
@@ -188,67 +162,192 @@ sub _put_revision_for_blob {
     my ( $self, $blob, $revision, $is_deleted ) = @_;
 
     $self->dbh->do('INSERT OR REPLACE INTO local_revisions VALUES (?, ?, ?)',
-        undef, $blob, $revision, $is_deleted);
+        undef, $blob->name, $revision, $is_deleted);
+}
+
+sub _fetch_and_write_blob {
+    my ( $self, $blob ) = @_;
+
+    my $ws = $self->ws_client;
+    my $sd = $self->sd;
+
+    $ws->get_blob($blob->name, sub {
+        my ( $ws, $h, $metadata ) = @_;
+
+        unless($h) {
+            my $error = $metadata;
+            if($error !~ /not found/i) { # XXX is there a better way to go about this?
+                $self->log->error("An error occurred while calling get_blob: $error");
+            }
+            return;
+        }
+
+        my $revision = $metadata->{'revision'};
+
+        my $w = $sd->open_write_handle($blob);
+
+        $h->on_read(sub {
+            my $buffer = $h->rbuf;
+            $h->rbuf = '';
+
+            $w->write($buffer);
+        });
+
+        $h->on_error(sub {
+            ## do something
+        });
+
+        $h->on_eof(sub {
+            $w->close(sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                unless($ok) {
+                    if($error =~ /conflict/) {
+                        $self->_handle_conflict($blob, $conflict_file);
+                        #
+                        # XXX put revision for blobs?
+                        # XXX the blob has changed since we last saw an event
+                        # for it; there's probably an event in the queue.  Move
+                        # $blob to a conflict file, and $conflict_file to $blob
+                    } else {
+                        # XXX I/O error
+                    }
+                }
+            });
+            undef $h;
+
+            $self->_put_revision_for_blob($blob, $revision, 0);
+        });
+    });
+}
+
+## include hostname or something?
+sub _get_conflict_blob {
+    my ( $self, $blob ) = @_;
+
+    my ( $year, $month, $day ) = (localtime)[5, 4, 3];
+    $year += 1900;
+    $month++;
+
+    my $name          = $blob->name;
+    my $conflict_name = sprintf("$name - conflict %04d-%02d-%02d", $year, $month, $day);
+    $blob             = $self->sd->blob(name => $conflict_name);
+
+    my $counter = 1;
+    while(-e $blob->path) {
+        $conflict_name = sprintf("$name - conflict %04d-%02d-%02d %d", $year, $month, $day, $counter++);
+        $blob          = $self->sd->blob(name => $conflict_name);
+    }
+
+    return $blob;
+}
+
+sub _handle_conflict {
+    my ( $self, $blob, $conflict_file ) = @_;
+
+    WHOA: {
+        # XXX is this ok?
+        if(-e $blob->path) {
+            my $count = 0;
+            my $target;
+            while(++$count <= 5) {
+                $target = $self->_get_conflict_blob($blob)->path;
+                if(link $blob->path, $target) {
+                    last;
+                }
+            }
+            if($count <= 5) {
+                if($conflict_file) {
+                    rename $conflict_file, $blob->path;
+                } else {
+                    my $tempfile = File::Temp->new(DIR => $self->sd->_overlay, UNLINK => 0);
+                    close $tempfile;
+
+                    rename $blob->path, $tempfile->filename;
+                }
+                $self->handle_fs_change($self->sd, {
+                    blob => $self->sd->blob(path => $target),
+                }, sub {}); ## XXX leary...
+            } else {
+                $self->log->error("unable to resolve conflict");
+            }
+        } else {
+            unless(link $conflict_file, $blob->path) {
+                if($! == EEXIST) {
+                    # XXX is this the right thing to do?
+                    $self->_handle_conflict($blob, $conflict_file);
+                } else {
+                    $self->log->error("unable to resolve conflict");
+                }
+            }
+        }
+    }
 }
 
 sub handle_fs_change {
-    my ( $self, @events ) = @_;
+    my ( $self, $sd, $event, $continuation ) = @_;
 
-    my $operations = $self->inflight_operations;
+    ## if $event is just a metadata (ex. permissions) change, do something
+    ## about it
 
-    foreach my $event (@events) {
-        ## if $event is just a metadata (ex. permissions) change, do something
-        ## about it
+    my $blob = $event->{'blob'};
+    my $path = $blob->path;
+    $self->log->info("$path changed on filesystem!");
 
-        my $path = $event->{'path'};
-        $self->log->info("$path changed on filesystem!");
+    ## make sure to send blobs names in Unix style file format
 
-        my $blob = File::Spec->abs2rel($path, $self->sync_dir);
-        ## make sure to send blobs names in Unix style file format
+    my $revision = $self->_get_revision_for_blob($blob);
 
-        my $revision = $self->_get_revision_for_blob($blob);
+    if(-f $path) {
+        $self->log->info(sprintf("Sending PUT %s/blobs/%s",
+            $self->upstream, $blob->name));
 
-        if(-f $path) {
-            $self->log->info(sprintf("Sending PUT %s/blobs/%s",
-                $self->upstream, $blob));
+        my %meta;
+        ## attach metadata (MIME Type, File Size, Contents Hash)
 
-            my %meta;
-            ## attach metadata (MIME Type, File Size, Contents Hash)
-
-            if(defined $revision) {
-                $meta{'revision'} = $revision;
-            }
-
-            $self->ws_client->put_blob($blob, IO::File->new($path, 'r'),
-                \%meta, sub {
-                    my ( $revision, $error ) = @_;
-
-                    if(defined $revision) {
-                        $self->log->info("Successfully updated $blob; new revision is $revision");
-                        $self->_put_revision_for_blob($blob, $revision, 0);
-                        $self->_run_delayed_operations($blob, $revision);
-                    } else {
-                        $self->log->warning("Updating $blob failed: $error");
-                    }
-            });
-        } else {
-            $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
-                $self->upstream, $blob));
-
-            $self->ws_client->delete_blob($blob, $revision, sub {
-                my ( $revision, $error ) = @_;
-
-                if(defined $revision) {
-                    $self->log->info("Successfully deleted $blob; new revision is $revision");
-                    $self->_put_revision_for_blob($blob, $revision, 1);
-                    $self->_run_delayed_operations($blob, $revision);
-                } else {
-                    $self->log->warning("Deleting $blob failed: $error");
-               }
-            });
+        if(defined $revision) {
+            $meta{'revision'} = $revision;
         }
 
-        $operations->{$blob} = 1;
+        $self->ws_client->put_blob($blob->name, IO::File->new($path, 'r'),
+            \%meta, sub {
+                my ( $ws, $revision, $error ) = @_;
+
+                if(defined $revision) {
+                    my $name = $blob->name;
+                    $self->log->info("Successfully updated $name; new revision is $revision");
+                    $continuation->();
+                    $self->_put_revision_for_blob($blob, $revision, 0);
+                } else {
+                    # if a conflict occurs, an upstream change is coming down;
+                    # we'll let them handle it
+                    unless($error =~ /Conflict/) {
+                        $self->log->warning("Updating $blob failed: $error");
+                    }
+                }
+        });
+    } else {
+        $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
+            $self->upstream, $blob->name));
+
+        $self->ws_client->delete_blob($blob->name, $revision, sub {
+            my ( $ws, $revision, $error ) = @_;
+
+            my $name = $blob->name;
+            if(defined $revision) {
+                $self->log->info("Successfully deleted $name; new revision is $revision");
+                $continuation->();
+                $self->_put_revision_for_blob($blob, $revision, 1);
+            } else {
+                # if a conflict occurs, an upstream change is coming down;
+                # we'll let them handle it
+
+                # ignore not found blobs (for now)
+                unless($error =~ /conflict/i || $error =~ /not found/i) {
+                    $self->log->warning("Deleting $name failed: $error");
+                }
+           }
+        });
     }
 }
 
@@ -260,43 +359,27 @@ sub handle_upstream_change {
         return;
     }
 
-    my $blob       = $change->{'name'};
+    my $blob       = $self->sd->blob(name => $change->{'name'});
     my $is_deleted = $change->{'is_deleted'};
     my $revision   = $change->{'revision'};
 
-    if($self->inflight_operations->{$blob}) {
-        push @{ $self->delayed_operations }, $change;
-        return;
-    }
+    $self->log->info(sprintf("Blob %s was %s on the server (revision is %s)",
+        $blob->name, $is_deleted ? 'deleted' : 'changed', $revision));
 
     if($is_deleted) {
-        $self->sd->unlink($blob);
-    } else {
-        $self->ws_client->get_blob($blob, sub {
-            my ( $h, $metadata ) = @_;
+        $self->sd->unlink($blob, sub {
+            my ( $ok, $error ) = @_;
 
-            ## handle error
-
-            my $w = $self->sd->open_write_handle($blob);
-
-            $h->on_read(sub {
-                my $buffer = $h->rbuf;
-                $h->rbuf = '';
-
-                $w->write($buffer);
-            });
-
-            $h->on_error(sub {
-                ## do something
-            });
-
-            $h->on_eof(sub {
-                $w->close;
-                undef $h;
-
-                $self->_put_revision_for_blob($blob, $revision, $is_deleted ? 1 : 0);
-            });
+            unless($ok) {
+                if($error =~ /conflict/) {
+                    $self->_handle_conflict($blob);
+                } else {
+                    # XXX I/O error
+                }
+            }
         });
+    } else {
+        $self->_fetch_and_write_blob($blob);
     }
 
     ## lock the file
@@ -337,10 +420,25 @@ sub run {
     $self->_sync_dir_guard($guard);
 
     $self->ws_client->changes($last_revision, [], sub {
+        shift; # shift off ws_client
         return $self->handle_upstream_change(@_);
     });
 
     my $cond = AnyEvent->condvar;
+    my $int = AnyEvent->signal(
+        signal => 'INT',
+        cb     => sub {
+            $cond->send;
+        },
+    );
+
+    my $term = AnyEvent->signal(
+        signal => 'TERM',
+        cb     => sub {
+            $cond->send;
+        },
+    );
+
     $cond->recv;
 }
 

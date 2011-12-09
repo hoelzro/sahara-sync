@@ -2,10 +2,13 @@ use strict;
 use warnings;
 use parent 'SaharaSync::Clientd::SyncTest';
 
+use File::Temp;
 use Test::More;
+use SaharaSync::Clientd::SyncDir;
 
+my $tempdir = File::Temp->newdir;
 my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
-    root => File::Temp->newdir->dirname,
+    root => $tempdir->dirname,
 );
 
 if(defined $sd) {

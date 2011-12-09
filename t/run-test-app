@@ -1,0 +1,30 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use autodie qw(open);
+
+use EV;
+use SaharaSync::Hostd::Launcher;
+use Test::More;
+use Test::Sahara ();
+
+my $port = $ENV{'_HOSTD_PORT'};
+
+my $num_errors = 0;
+my $pipe;
+open $pipe, '>&3';
+
+$EV::DIED = sub {
+    $num_errors++;
+    diag($@);
+};
+
+note("test hostd is running as PID $$");
+
+SaharaSync::Hostd::Launcher->run(Test::Sahara->create_fresh_hostd(
+    port => $port,
+    host => '127.0.0.1',
+));
+
+print $pipe $num_errors;

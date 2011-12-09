@@ -1,13 +1,14 @@
 use strict;
 use warnings;
 use autodie qw(chmod open rename);
-use parent 'Test::Class';
+use parent 'Test::Class::AnyEvent';
 
 use AnyEvent;
 use Cwd;
 use File::Path qw(make_path);
 use File::Slurp qw(append_file read_file write_file);
 use File::Temp;
+use List::MoreUtils qw(all);
 use SaharaSync::Clientd::SyncDir;
 use Test::Deep::NoTest qw(bag cmp_details deep_diag);
 use Test::More;
@@ -31,12 +32,15 @@ sub create_sync_dir {
 
     $self->{'seen_events'} = [];
     $self->{'watch_guard'} = $sd->on_change(sub {
-        my ( @events ) = @_;
+        my ( $sd, $event, $continuation ) = @_;
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
-            push @{ $self->{'seen_events'} }, $path;
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
+
+        unless(defined $continuation) {
+            use Carp qw(longmess);
+            diag(longmess());
         }
+        $continuation->();
     });
 
     return $sd;
@@ -98,13 +102,28 @@ sub expect_changes {
     }
 }
 
-sub test_self_changes :Test(3) {
+sub octal {
+    my ( $n ) = @_;
+
+    return sprintf('0%o', $n);
+}
+
+sub blob {
+    my ( $self, $filename ) = @_;
+
+    return $self->sd->blob(name => $filename);
+}
+
+sub test_self_changes :Test(5) {
     my ( $self ) = @_;
 
     my $sd = $self->sd;
-    my $h  = $sd->open_write_handle('foo.txt');
+    my $h  = $sd->open_write_handle($self->blob('foo.txt'));
     $h->write("Hello, World!\n");
-    $h->close;
+    $h->close(sub {
+        my ( $ok, $error ) = @_;
+        ok $ok or diag $error;
+    });
 
     $self->expect_changes([]);
     my $contents = read_file 'foo.txt';
@@ -113,9 +132,12 @@ sub test_self_changes :Test(3) {
 
     write_file 'bar.txt', "Bar\n";
 
-    $h = $sd->open_write_handle('baz.txt');
+    $h = $sd->open_write_handle($self->blob('baz.txt'));
     $h->write("Baz\n");
-    $h->close;
+    $h->close(sub {
+        my ( $ok, $error ) = @_;
+        ok $ok or diag $error;
+    });
 
     $self->expect_changes(['bar.txt']);
 }
@@ -174,13 +196,17 @@ sub test_file_changes :Test(4) {
     $self->expect_changes(['foo.txt']);
 }
 
-sub test_moves : Test(6) {
+sub test_moves : Test(8) {
     my ( $self ) = @_;
 
     my $sd = $self->sd;
-    my $h  = $sd->open_write_handle('foo.txt');
+    my $h  = $sd->open_write_handle($self->blob('foo.txt'));
     $h->write('Foo');
-    $h->close;
+    $h->close(sub {
+        my ( $ok, $error ) = @_;
+
+        ok $ok or diag $error;
+    });
 
     rename 'foo.txt', 'bar.txt';
 
@@ -188,9 +214,13 @@ sub test_moves : Test(6) {
     # as a delete + create; we may change that later
     $self->expect_changes(['foo.txt', 'bar.txt']);
 
-    $h = $sd->open_write_handle('baz.txt');
+    $h = $sd->open_write_handle($self->blob('baz.txt'));
     $h->write('Baz');
-    $h->close;
+    $h->close(sub {
+        my ( $ok, $error ) = @_;
+
+        ok $ok or diag $error;
+    });
 
     rename 'bar.txt', 'baz.txt';
 
@@ -258,27 +288,31 @@ sub test_preservation :Test(2) {
             0700,
             0400,
         );
-        plan tests => @test_perms * 4;
+        plan tests => @test_perms * 5;
 
         foreach my $perm (@test_perms) {
             chmod $perm, 'foo.txt';
 
-            $h = $sd->open_write_handle('foo.txt');
+            $h = $sd->open_write_handle($self->blob('foo.txt'));
             $h->write("Test text 2\n");
-            $h->close;
+            $h->close(sub {
+                my ( $ok, $error ) = @_;
+
+                ok $ok or diag $error;
+            });
 
             $self->expect_changes([]);
 
             my ( $mode, $uid, $gid ) = (stat 'foo.txt')[2, 4, 5];
             $mode &= 0777;
-            is $mode, $perm;
+            is octal($mode), octal($perm);
             is $uid, $<;
             is $gid, $group;
         }
     };
 }
 
-sub test_on_change_guard :Test(4) {
+sub test_on_change_guard :Test(7) {
     my ( $self ) = @_;
 
     my $fh;
@@ -286,12 +320,11 @@ sub test_on_change_guard :Test(4) {
     $self->{'watch_guard'} = undef;
 
     $self->sd->on_change(sub {
-        my ( @events ) = @_;
+        my ( $sd, $event, $continuation ) = @_;
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
+
+        $continuation->();
     });
 
     write_file 'foo', "hello\n";
@@ -300,18 +333,19 @@ sub test_on_change_guard :Test(4) {
 
     unlink 'foo';
 
-    my $guard = $self->sd->on_change(sub {
-        my ( @events ) = @_;
+    $self->expect_changes([]);
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
+    my $guard = $self->sd->on_change(sub {
+        my ( $sd, $event, $continuation ) = @_;
+
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
+
+        $continuation->();
     });
 
     write_file 'bar', "hello\n";
 
-    $self->expect_changes(['bar']);
+    $self->expect_changes(['foo', 'bar']);
 
     undef $guard;
 
@@ -322,14 +356,17 @@ sub test_on_change_guard :Test(4) {
     unlink 'bar';
     unlink 'baz';
 
-    $guard = $self->sd->on_change(sub {
-        my ( @events ) = @_;
+    $self->expect_changes([]);
 
-        foreach my $event (@events) {
-            my $path = File::Spec->abs2rel($event->{'path'}, $self->sd->root);
-            push @{ $self->{'seen_events'} }, $path;
-        }
+    $guard = $self->sd->on_change(sub {
+        my ( $sd, $event, $continuation ) = @_;
+
+        push @{ $self->{'seen_events'} }, $event->{'blob'}->name;
+
+        $continuation->();
     });
+
+    $self->expect_changes(['foo', 'bar', 'baz']);
 
     $self->sd(undef);
 
@@ -341,7 +378,7 @@ sub test_on_change_guard :Test(4) {
 sub test_handle_cancel :Test(2) {
     my ( $self ) = @_;
 
-    my $h = $self->sd->open_write_handle('foo.txt');
+    my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
     $h->write("Hey you guys");
     $h->cancel;
 
@@ -349,7 +386,7 @@ sub test_handle_cancel :Test(2) {
     ok(! -f "foo.txt");
 }
 
-sub test_delete_file :Test(3) {
+sub test_delete_file :Test(5) {
     my ( $self ) = @_;
 
     my $sd = $self->sd;
@@ -359,7 +396,12 @@ sub test_delete_file :Test(3) {
 
     $self->expect_changes(['foo.txt']);
 
-    $sd->unlink('foo.txt');
+    $sd->unlink($self->blob('foo.txt'), sub {
+        my ( $ok, $error ) = @_;
+
+        ok $ok;
+        ok !defined($error);
+    });
 
     $self->expect_changes([]);
     ok ! -e 'foo.txt';
@@ -409,12 +451,16 @@ sub test_offline_static :Test(2) {
     $self->expect_changes([]);
 }
 
-sub test_self_updates :Test(2) {
+sub test_self_updates :Test(3) {
     my ( $self) = @_;
 
-    my $h = $self->sd->open_write_handle('foo.txt');
+    my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
     $h->write("Hello!\n");
-    $h->close;
+    $h->close(sub {
+        my ( $ok, $error ) = @_;
+
+        ok $ok or diag $error;
+    });
 
     $self->sd(undef);
 
@@ -425,8 +471,304 @@ sub test_self_updates :Test(2) {
     $self->expect_changes([]);
 }
 
-my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
-    root => File::Temp->newdir->dirname,
+sub test_move_file :Test(6) {
+    my ( $self ) = @_;
+
+    my $sd = $self->sd;
+
+    write_file 'foo.txt', "hello\n";
+
+    $self->expect_changes(['foo.txt']);
+
+    $sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
+        my ( $ok, $error ) = @_;
+
+        ok $ok or diag $error;
+    });
+
+    $self->expect_changes([]);
+    ok -e 'bar.txt';
+    ok !(-e 'foo.txt');
+    my $content = read_file 'bar.txt';
+    is $content, "hello\n";
+}
+
+sub perform_conflict_test {
+    my ( $self, %params ) = @_;
+
+    local $self->{'seen_conflicts'} = []; # we're expecting some, so ignore them
+
+    my @actions = @params{qw/action1 action2/};
+
+    my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
+    $h->write("In foo.txt\n");
+    $h->close(sub {
+        my ( $ok, $error ) = @_;
+
+        ok $ok or diag $error;
+    });
+
+    $_->() foreach @actions;
+    $self->expect_changes($params{'changes'} || ['foo.txt']);
+}
+
+sub test_update_update_conflict :Tests(8) {
+    my ( $self ) = @_;
+
+    my $conflict_file;
+    $self->perform_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub {
+            my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
+            $h->write("Conflict!");
+            $h->close(sub {
+                my ( $ok, $error );
+                ( $ok, $error, $conflict_file ) = @_;
+
+                my $content = read_file('foo.txt');
+                is $content, "In foo.txt\nNext line";
+                ok $conflict_file;
+                $content = read_file($conflict_file);
+                is $content, "Conflict!";
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
+        },
+    );
+
+    ok ! -e $conflict_file;
+}
+
+sub test_update_delete_conflict :Test(6) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub { $self->sd->unlink($self->blob('foo.txt'), sub {
+            my ( $ok, $error, $conflict_file ) = @_;
+
+            my $contents = read_file('foo.txt');
+            is $contents, "In foo.txt\nNext line";
+
+            ok !$ok;
+            like $error, qr/conflict/i;
+            ok !defined($conflict_file);
+        }) },
+    );
+}
+
+sub test_update_rename_conflict :Test(7) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { append_file 'foo.txt', "Next line" },
+        action2 => sub {
+            $self->sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                my $contents = read_file('foo.txt');
+                is $contents, "In foo.txt\nNext line";
+
+                ok ! -e 'bar.txt';
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+                ok !defined($conflict_file);
+            });
+        },
+    );
+}
+
+sub test_delete_update_conflict :Test(8) {
+    my ( $self ) = @_;
+
+    my $conflict_file;
+    $self->perform_conflict_test(
+        action1 => sub { unlink 'foo.txt' },
+        action2 => sub {
+            my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
+            $h->write("Conflict!");
+            $h->close(sub {
+                my ( $ok, $error );
+                ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok $conflict_file;
+                my $content = read_file($conflict_file);
+                is $content, "Conflict!";
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
+        },
+    );
+
+    ok ! -e $conflict_file;
+}
+
+sub test_delete_delete_conflict :Test(6) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { unlink 'foo.txt' },
+        action2 => sub {
+            $self->sd->unlink($self->blob('foo.txt'), sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok !$ok;
+                like $error, qr/conflict/i;
+                ok !defined($conflict_file);
+            });
+        },
+    );
+}
+
+sub test_delete_rename_conflict :Test(7) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { unlink 'foo.txt' },
+        action2 => sub {
+            $self->sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok ! -e 'bar.txt';
+
+                ok !$ok;
+                like $error, qr/conflict/;
+                ok !defined($conflict_file);
+            });
+        },
+    );
+}
+
+sub test_rename_update :Test(9) {
+    my ( $self ) = @_;
+
+    my $conflict_file;
+    $self->perform_conflict_test(
+        action1 => sub { rename 'foo.txt', 'bar.txt' },
+        action2 => sub {
+            my $h = $self->sd->open_write_handle($self->blob('foo.txt'));
+            $h->write('Conflict!');
+            $h->close(sub {
+                my ( $ok, $error );
+                ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                my $content = read_file('bar.txt');
+                is $content, "In foo.txt\n";
+
+                ok $conflict_file;
+                $content = read_file($conflict_file);
+                is $content, 'Conflict!';
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
+        },
+        changes => [qw/foo.txt bar.txt/],
+    );
+
+    ok ! -e $conflict_file;
+}
+
+sub test_rename_delete :Test(7) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { rename 'foo.txt', 'bar.txt' },
+        action2 => sub {
+            $self->sd->unlink($self->blob('foo.txt'), sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                my $content = read_file('bar.txt');
+                is $content, "In foo.txt\n";
+
+                ok !defined($conflict_file);
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
+        },
+        changes => [qw/foo.txt bar.txt/],
+    );
+}
+
+sub test_rename_rename :Test(8) {
+    my ( $self ) = @_;
+
+    $self->perform_conflict_test(
+        action1 => sub { rename 'foo.txt', 'bar.txt' },
+        action2 => sub {
+            $self->sd->rename($self->blob('foo.txt'), $self->blob('baz.txt'), sub {
+                my ( $ok, $error, $conflict_file ) = @_;
+
+                ok ! -e 'foo.txt';
+                ok ! -e 'baz.txt';
+                my $content = read_file('bar.txt');
+                is $content, "In foo.txt\n";
+
+                ok !defined($conflict_file);
+
+                ok !$ok;
+                like $error, qr/conflict/i;
+            });
+        },
+        changes => [qw/foo.txt bar.txt/],
+    );
+}
+
+sub test_rename_existing_file :Test(6) {
+    my ( $self ) = @_;
+
+    write_file 'foo.txt', "In foo.txt\n";
+    write_file 'bar.txt', "In bar.txt\n";
+
+    $self->expect_changes(['foo.txt', 'bar.txt']);
+
+    $self->sd->rename($self->blob('foo.txt'), $self->blob('bar.txt'), sub {
+        my ( $ok, $error, $conflict_file ) = @_;
+
+        ok !$ok;
+        like $error, qr/file exists/i;
+        ok !defined($conflict_file);
+
+        my $content = read_file 'foo.txt', err_mode => 'quiet';
+        is $content, "In foo.txt\n";
+        $content = read_file 'bar.txt', err_mode => 'quiet';
+        is $content, "In bar.txt\n";
+    });
+}
+
+sub test_rename_with_open_handle_same :Test(1) {
+}
+
+sub test_unlink_with_open_handle_same :Test(1) {
+}
+
+sub test_open_with_open_handle_same :Test(1) {
+}
+
+sub test_rename_with_open_handle_diff :Test(1) {
+}
+
+sub test_unlink_with_open_handle_diff :Test(1) {
+}
+
+sub test_open_with_open_handle_diff :Test(1) {
+}
+
+sub test_rename_in_conflict_handler :Test(1) {
+}
+
+my $tempdir = File::Temp->newdir;
+my $sd      = SaharaSync::Clientd::SyncDir->create_syncdir(
+    root => $tempdir->dirname,
 );
 
 if(defined $sd) {

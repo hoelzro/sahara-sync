@@ -25,6 +25,8 @@ use Getopt::Long;
 use SaharaSync::Hostd::Config;
 use SaharaSync::Hostd::Launcher;
 
+$0 = 'sahara sync: host';
+
 my $config_file;
 
 my $result = GetOptions(

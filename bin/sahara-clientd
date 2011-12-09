@@ -24,6 +24,8 @@ use lib 'lib';
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
 
+$0 = 'sahara sync: client';
+
 my $config  = SaharaSync::Clientd::Config->new_with_options;
 my $clientd = SaharaSync::Clientd->new($config);
 $clientd->run;

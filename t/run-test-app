@@ -20,6 +20,8 @@ $EV::DIED = sub {
     diag($@);
 };
 
+note("test hostd is running as PID $$");
+
 SaharaSync::Hostd::Launcher->run(Test::Sahara->create_fresh_hostd(
     port => $port,
     host => '127.0.0.1',

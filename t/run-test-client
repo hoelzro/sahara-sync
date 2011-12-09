@@ -78,6 +78,8 @@ $EV::DIED = sub {
     diag($@);
 };
 
+note("test client $client_num is running as PID $$");
+
 $daemon->run;
 
 my $pipe;

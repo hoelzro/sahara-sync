@@ -11,7 +11,7 @@ use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
 use Plack::Request;
-use Scalar::Util qw(reftype);
+use Scalar::Util qw(reftype weaken);
 use UNIVERSAL;
 
 ## NOTE: I should probably just refactor the common functionality of
@@ -212,6 +212,7 @@ sub changes {
         unless($conns) {
             $conns = $connections->{$user} = [];
         }
+        weaken $conns;
 
         return sub {
             my ( $respond ) = @_;
@@ -220,6 +221,7 @@ sub changes {
             my $stream = SaharaSync::Stream::Writer->for_mimetype($mime_type,
                 writer => $writer,
             );
+            weaken $stream;
             push @$conns, {
                 stream   => $stream,
                 metadata => \@metadata,

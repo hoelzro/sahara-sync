@@ -4,7 +4,7 @@ use utf8;
 
 use Test::Builder;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
-use Test::More tests => 80;
+use Test::More tests => 86;
 use Test::Sahara ':methods';
 
 my $BAD_REVISION = '0' x 40;
@@ -71,6 +71,7 @@ test_host sub {
     $res = $cb->(GET_AUTHD '/blobs/test.txt');
     is $res->code, 200, "Fetching an existent blob should result in a 200";
     is $res->content, 'Hello, World!', "The contents of an existent blob should match its last PUT";
+    is $res->header('Content-Length'), length('Hello, World!'), "Content-Length should be populated on a GET request";
     is $res->header('ETag'), $last_revision, "The ETag of an existent blob should match the one returned from its last PUT";
     metadata_ok($res, {}, "Fetching a blob with no metadata should return no metadata");
 
@@ -83,6 +84,7 @@ test_host sub {
     $res = $cb->(GET_AUTHD '/blobs/test.txt', 'If-None-Match' => $last_revision);
     is $res->code, 304, "Conditional GET of an unmodified blob should result in a 304";
     is $res->content, '', "Conditional GET of an unmodified blob should yield no body";
+    ok !defined($res->header('Content-Length')), "Content-Length should not be provided on a conditional GET";
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt', 'If-None-Match' => $last_revision);
     is $res->code, 304, "Conditional HEAD of an unmodified blob should result in a 304";
@@ -90,6 +92,7 @@ test_host sub {
     $res = $cb->(GET_AUTHD '/blobs/test.txt', 'If-None-Match' => $BAD_REVISION);
     is $res->code, 200, "Conditional GET of a modified blob should result in a 200";
     is $res->content, 'Hello, World!', "Conditional GET of a modified blob should yield that blob's body";
+    is $res->header('Content-Length'), length('Hello, World!'), "Content-Length should be populated on a GET request";
     is $res->header('ETag'), $last_revision, "Conditional GET of a modified blob should yield its ETag";
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt', 'If-None-Match' => $BAD_REVISION);
@@ -149,6 +152,7 @@ test_host sub {
     $res = $cb->(GET_AUTHD '/blobs/test.txt');
     is $res->code, 200, "Fetching an existent blob should result in a 200";
     is $res->content, 'Hello, World (again)', "The contents for an existent blob should match its last PUT";
+    is $res->header('Content-Length'), length('Hello, World (again)'), "Content-Length should be populated on a GET request";
     is $res->header('ETag'), $last_revision, "Fetching an existent blob should yield the ETag header";
 
     $res = $cb->(HEAD_AUTHD '/blobs/test.txt');
@@ -170,6 +174,7 @@ test_host sub {
 
     $res = $cb->(GET_AUTHD '/blobs/test.txt');
     is $res->code, 200, "Fetching a blob with metadata should succeed";
+    is $res->header('Content-Length'), length('Hello'), "Content-Length should be populated on a GET request";
     metadata_ok($res, { foobar => 17 }, "Fetching a blob with metadata should return the metadata");
     $last_revision = $res->header('ETag');
 
@@ -209,6 +214,7 @@ test_host sub {
 
     $res = $cb->(GET_AUTHD '/blobs/test.txt');
     is $res->code, 200;
+    is $res->header('Content-Length'), length('wunderschön'), "Content-Length should be populated on a GET request";
     is $res->content, 'wunderschön', "UTF-8 blobs should be preserved";
     metadata_ok($res, { 'germanword' => 'über' }, 'UTF-8 metadata values should be preserved');
     # we don't include UTF-8 metadata keys, because right now we're using headers as the metadata transport,

@@ -32,7 +32,13 @@ sub catchup {
 }
 
 sub port {
-    return Test::Sahara->port;
+    my $self = shift;
+
+    if(@_) {
+        $self->{'port'} = shift;
+    }
+
+    return $self->{'port'};
 }
 
 sub create_fresh_client {
@@ -116,9 +122,10 @@ sub setup : Test(setup) {
 
     my ( $read, $write );
 
+    $self->port(undef);
+
     pipe $read, $write;
     $self->{'hostd'} = Test::TCP->new(
-        port => $self->port, # XXX Test::TCP's port would be better
         code => sub {
             my ( $port ) = @_;
 
@@ -130,6 +137,7 @@ sub setup : Test(setup) {
             exec $^X, 't/run-test-app';
         },
     );
+    $self->port($self->{'hostd'}->port);
 
     close $write;
     my $pipe = IO::Handle->new;

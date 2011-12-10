@@ -52,7 +52,9 @@ sub create_fresh_app {
 }
 
 sub port {
-    return Test::Sahara->port;
+    my ( $self ) = @_;
+
+    return $self->server->port;
 }
 
 sub expected_capabilities {
@@ -68,7 +70,6 @@ sub setup : Test(setup) {
 
     my $app = $self->create_fresh_app;
     $self->server(Test::TCP->new(
-        port => $self->port,
         code => sub {
             my ( $port ) = @_;
 

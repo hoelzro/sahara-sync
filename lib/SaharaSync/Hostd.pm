@@ -251,7 +251,10 @@ sub changes {
 
         return [
             200,
-            ['Content-Type' => "$mime_type; charset=utf-8"],
+            [
+                'Content-Type'   => "$mime_type; charset=utf-8",
+                'Content-Length' => length($body),
+            ],
             [ $body ],
         ];
     }
@@ -285,6 +288,8 @@ sub blobs {
                         $k =~ s/^(.)/uc $1/ge;
                         $res->header("X-Sahara-$k", $v);
                     }
+                    my $blob_length = ( $handle->stat )[7];
+                    $res->content_length($blob_length);
                     $res->content_type('application/octet-stream');
                     $res->body($handle);
                 }

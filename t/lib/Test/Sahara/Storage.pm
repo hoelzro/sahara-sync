@@ -787,6 +787,20 @@ sub test_change_ordering : Test {
     };
 }
 
+sub test_blob_length : Test {
+    my ( $self ) = @_;
+
+    my $store = $self->store;
+
+    my $blob;
+    my $metadata;
+
+    $store->store_blob('test', 'file.txt', IO::String->new('Hello, World!'));
+
+    ( $blob, $metadata ) = $store->fetch_blob('test', 'file.txt');
+    is(($blob->stat)[7], length('Hello, World!'), '$blob->stat should return at least the length of the blob');
+}
+
 1;
 
 __END__

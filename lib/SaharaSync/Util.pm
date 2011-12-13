@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Carp qw(croak);
+use DateTime::Format::Strptime;
 use Log::Dispatch;
 use namespace::clean;
 
@@ -75,6 +76,17 @@ sub load_logger {
     my $logger = Log::Dispatch->new;
     $logger->add($_)  foreach @loggers;
     $logger->warn($_) foreach @messages;
+
+    my $formatter = DateTime::Format::Strptime->new(
+        pattern => '%F %T',
+    );
+    $logger->add_callback(sub {
+        my %params = @_;
+
+        my $timestamp = $formatter->format_datetime(DateTime->now);
+
+        return "[$timestamp] $params{'message'}";
+    });
 
     return $logger;
 }

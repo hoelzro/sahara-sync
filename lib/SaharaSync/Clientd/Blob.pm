@@ -1,5 +1,8 @@
 package SaharaSync::Clientd::Blob;
 
+use overload
+    '""' => \&to_string;
+
 use Moose;
 
 has name => (
@@ -17,6 +20,12 @@ sub path {
     my ( $self ) = @_;
 
     return File::Spec->catfile($self->_root, $self->name);
+}
+
+sub to_string {
+    my ( $self ) = @_;
+
+    return $self->name;
 }
 
 __PACKAGE__->meta->make_immutable;

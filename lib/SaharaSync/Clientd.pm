@@ -428,6 +428,7 @@ sub run {
     my $int = AnyEvent->signal(
         signal => 'INT',
         cb     => sub {
+            $log->info('Received SIGINT; cleaning up and exiting');
             $cond->send;
         },
     );
@@ -435,6 +436,7 @@ sub run {
     my $term = AnyEvent->signal(
         signal => 'TERM',
         cb     => sub {
+            $log->info('Received SIGTERM; cleaning up and exiting');
             $cond->send;
         },
     );

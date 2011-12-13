@@ -19,7 +19,6 @@
 
 use strict;
 use warnings;
-use lib 'lib';
 
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;

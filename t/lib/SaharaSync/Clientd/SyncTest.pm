@@ -86,6 +86,42 @@ sub create_fresh_client {
     return ( $client, $pipe );
 }
 
+sub create_fresh_host {
+    my ( $self, %opts ) = @_;
+
+    if($self->{'hostd'} || $self->{'hostd_pipe'}) {
+        confess "create_fresh_host called without checking the host first";
+    }
+
+    my ( $read, $write );
+
+    pipe $read, $write;
+    my $hostd = Test::TCP->new(
+        $opts{'port'} ? ( port => $opts{'port'} ) : (),
+
+        code => sub {
+            my ( $port ) = @_;
+
+            close $read;
+            dup2 fileno($write), 3 or die $!;
+            close $write;
+
+            $ENV{'_HOSTD_PORT'} = $port;
+
+            exec $^X, 't/run-test-app';
+        },
+    );
+
+    close $write;
+    my $pipe = IO::Handle->new;
+    $pipe->fdopen(fileno($read), 'r');
+    close $read;
+
+    $pipe->blocking(0);
+
+    return ( $hostd, $pipe );
+}
+
 sub get_conflict_blob {
     my ( $self, $blob ) = @_;
 
@@ -119,37 +155,34 @@ sub check_clients {
     }
 }
 
+# This method runs a test, and cleans up the host object/pipe
+sub check_host {
+    my ( $self ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    delete $self->{'hostd'};
+
+    my $pipe   = delete $self->{'hostd_pipe'};
+    my $buffer = '';
+    my $bytes  = $pipe->sysread($buffer, 1);
+    $pipe->close;
+
+    if($bytes == 1) {
+        is $buffer, 0, 'No errors should occur in the host';
+    } else {
+        fail 'The host should write a status byte upon safe exit';
+    }
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 
-    my ( $read, $write );
-
     $self->port(undef);
 
-    pipe $read, $write;
-    $self->{'hostd'} = Test::TCP->new(
-        code => sub {
-            my ( $port ) = @_;
+    @{$self}{qw/hostd hostd_pipe/} = $self->create_fresh_host;
 
-            close $read;
-            dup2 fileno($write), 3 or die $!;
-            close $write;
-
-            $ENV{'_HOSTD_PORT'} = $port;
-
-            exec $^X, 't/run-test-app';
-        },
-    );
     $self->port($self->{'hostd'}->port);
-
-    close $write;
-    my $pipe = IO::Handle->new;
-    $pipe->fdopen(fileno($read), 'r');
-    close $read;
-
-    $pipe->blocking(0);
-
-    $self->{'hostd_pipe'} = $pipe;
 
     my $temp1 = File::Temp->newdir;
     my $temp2 = File::Temp->newdir;
@@ -164,18 +197,9 @@ sub teardown : Test(teardown => 5) {
     my ( $self ) = @_;
 
     $self->check_clients; # stop client daemons first (4 tests)
-    delete $self->{'hostd'};
-    delete @{$self}{qw/temp1 temp2/};
-    my $pipe   = delete $self->{'hostd_pipe'};
-    my $buffer = '';
-    my $bytes  = $pipe->sysread($buffer, 1);
-    $pipe->close;
+    $self->check_host;    # stop host daemon (1 test)
 
-    if($bytes == 1) {
-        is $buffer, 0, 'No errors should occur in the host';
-    } else {
-        fail 'The host should write a status byte upon safe exit';
-    }
+    delete @{$self}{qw/temp1 temp2/};
 }
 
 sub test_create_file :Test(5) {

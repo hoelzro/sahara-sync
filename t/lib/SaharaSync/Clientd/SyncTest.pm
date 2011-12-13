@@ -155,7 +155,7 @@ sub check_clients {
     }
 }
 
-# This method runs a test, and cleans up the host object/pipe
+# This method runs two tests, and cleans up the host object/pipe
 sub check_host {
     my ( $self ) = @_;
 
@@ -168,10 +168,13 @@ sub check_host {
     my $bytes  = $pipe->sysread($buffer, 1);
     $pipe->close;
 
-    if($bytes == 1) {
-        is $buffer, 0, 'No errors should occur in the host';
-    } else {
-        fail 'The host should write a status byte upon safe exit';
+    my $ok = 1;
+
+    $ok = is($bytes, 1, 'The host should write a status byte upon safe exit') && $ok;
+    $ok = is($buffer, 0, 'No errors should occur in the host') && $ok;
+
+    unless($ok) {
+        diag("Host check in method " . $self->current_method . " failed");
     }
 }
 
@@ -193,7 +196,7 @@ sub setup : Test(setup) {
     $self->{'temp2'}   = $temp2;
 }
 
-sub teardown : Test(teardown => 5) {
+sub teardown : Test(teardown => 6) {
     my ( $self ) = @_;
 
     $self->check_clients; # stop client daemons first (4 tests)
@@ -603,7 +606,7 @@ sub test_update_delete_conflict :Test(4) {
     is $content, "Updated content";
 }
 
-sub test_hostd_unavailable_after_change :Test(3) {
+sub test_hostd_unavailable_after_change :Test(4) {
     my ( $self ) = @_;
 
     my $temp1   = $self->{'temp1'};

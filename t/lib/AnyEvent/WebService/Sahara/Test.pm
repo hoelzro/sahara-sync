@@ -37,10 +37,12 @@ sub server {
 }
 
 sub create_client {
-    my ( $self ) = @_;
+    my ( $self, $port ) = @_;
+
+    $port ||= $self->port;
 
     return AnyEvent::WebService::Sahara->new(
-        url           => 'http://localhost:' . $self->port,
+        url           => 'http://localhost:' . $port,
         user          => 'test',
         password      => 'abc123',
         poll_interval => $self->client_poll_time,

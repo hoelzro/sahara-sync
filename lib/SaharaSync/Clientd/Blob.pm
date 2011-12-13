@@ -38,6 +38,12 @@ __END__
 
 =head1 SYNOPSIS
 
+  my $sd   = get_sync_dir();
+  my $blob = $sd->blob(name => $name);
+  if(-f $blob->path) {
+    upload($blob->path, as => $blob->name);
+  }
+
 =head1 DESCRIPTION
 
 Blob objects represent files in a clientd's sync directory.  They
@@ -57,6 +63,12 @@ the client's sync dir root.
 
 =head2 path
 
-Returns the absolute path to this blob.
+Returns the absolute path to this blob.  Useful for filesystem operations.
+
+=head2 to_string
+
+Returns the name of this blob.  Used for interpolating a variable
+holding a blob for logging and the like, so don't rely on this.  Use
+L</name> if you want the name.
 
 =cut

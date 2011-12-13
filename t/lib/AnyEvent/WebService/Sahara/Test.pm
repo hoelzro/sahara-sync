@@ -7,6 +7,7 @@ use utf8;
 
 use Test::More;
 use Test::Sahara ':methods';
+use Test::Sahara::Proxy;
 use Test::TCP qw(empty_port);
 
 use AnyEvent::WebService::Sahara;
@@ -1145,6 +1146,70 @@ sub test_guard_request_in_flight : Test(2) {
 
     $cond->recv;
     ok !$change_seen;
+}
+
+sub test_unavailable_hostd : Test(1) {
+    my ( $self ) = @_;
+
+    my $proxy   = Test::Sahara::Proxy->new(remote => $self->port);
+    my $client1 = $self->create_client;
+    my $client2 = $self->create_client($proxy->port);
+    my @client2_changes;
+    my $revision;
+    my $timer;
+
+    my $cond = AnyEvent->condvar;
+
+    $client2->changes(undef, [], sub {
+        my ( undef, $change ) = @_;
+
+        push @client2_changes, $change;
+        $cond->send;
+    });
+
+    # give the client time to actually establish a stream
+    # if need be
+    $timer = AnyEvent->timer(
+        after => 1,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $cond->recv;
+    $cond = AnyEvent->condvar;
+
+    $proxy->kill_connections;
+
+    $client1->put_blob('file.txt', IO::String->new('Content'), {}, sub {
+        ( undef, $revision ) = @_;
+
+        $timer = AnyEvent->timer(
+            after => $self->client_poll_time + 5,
+            cb    => sub {
+                $cond->send;
+            },
+        );
+    });
+
+    $cond->recv;
+    $cond = AnyEvent->condvar;
+
+    $proxy->resume_connections;
+
+    $timer = AnyEvent->timer(
+        after => $self->client_poll_time + 5,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $cond->recv;
+
+    is_deeply \@client2_changes, [{
+        name     => 'file.txt',
+        revision => $revision,
+    }], 'change should show up on client2 even after connection loss';
 }
 
 ## check non-change callbacks being called after destruction?

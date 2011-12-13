@@ -603,4 +603,36 @@ sub test_update_delete_conflict :Test(4) {
     is $content, "Updated content";
 }
 
+sub test_hostd_unavailable_after_change :Test(3) {
+    my ( $self ) = @_;
+
+    my $temp1   = $self->{'temp1'};
+    my $temp2   = $self->{'temp2'};
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+
+    kill SIGSTOP => $client2->pid;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
+    
+    $self->catchup; # let the changes sync up
+
+    $self->check_host; # kills the host
+
+    $self->catchup; # wait for the host daemon to shutdown
+
+    kill SIGCONT => $client2->pid;
+
+    $self->catchup; # wait for a sync period
+
+    @{$self}{qw/hostd hostd_pipe/} = $self->create_fresh_host(port => $self->port);
+
+    $self->catchup; # wait for the change to come in
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Content\n", 'changes should be synced even when the link goes down';
+}
+
 1;

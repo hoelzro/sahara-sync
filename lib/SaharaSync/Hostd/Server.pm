@@ -26,6 +26,7 @@ sub start {
 sub stop {
     my ( $self ) = @_;
 
+    delete $self->twiggy->{'listen_guards'}; # naughty, touching internals
     $self->twiggy(undef);
 }
 

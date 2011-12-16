@@ -64,6 +64,7 @@ sub create_fresh_client {
             close $read;
 
             dup2 fileno($write), 3 or die $!;
+            close $write;
 
             $ENV{'_CLIENTD_PORT'}          = $port;
             $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $self->port;
@@ -131,6 +132,7 @@ sub setup : Test(setup) {
 
             close $read;
             dup2 fileno($write), 3 or die $!;
+            close $write;
 
             $ENV{'_HOSTD_PORT'} = $port;
 

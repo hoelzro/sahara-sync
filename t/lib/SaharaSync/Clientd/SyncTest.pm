@@ -110,6 +110,7 @@ sub check_clients {
     foreach my $pipe (delete @{$self}{qw/client1_pipe client2_pipe/}) {
         my $buffer = '';
         my $bytes  = $pipe->sysread($buffer, 1);
+        $pipe->close;
         $ok = is($bytes, 1, 'The client should write a status byte upon safe exit') && $ok;
         $ok = is($buffer, 0, 'No errors should occur in the clients')               && $ok;
     }
@@ -168,6 +169,7 @@ sub teardown : Test(teardown => 5) {
     my $pipe   = delete $self->{'hostd_pipe'};
     my $buffer = '';
     my $bytes  = $pipe->sysread($buffer, 1);
+    $pipe->close;
 
     if($bytes == 1) {
         is $buffer, 0, 'No errors should occur in the host';

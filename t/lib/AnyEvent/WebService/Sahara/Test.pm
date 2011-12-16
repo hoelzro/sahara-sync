@@ -1163,8 +1163,11 @@ sub test_unavailable_hostd : Test(1) {
     $client2->changes(undef, [], sub {
         my ( undef, $change ) = @_;
 
-        push @client2_changes, $change;
-        $cond->send;
+        # XXX test for when an error occurs
+        if(defined $change) {
+            push @client2_changes, $change;
+            $cond->send;
+        }
     });
 
     # give the client time to actually establish a stream

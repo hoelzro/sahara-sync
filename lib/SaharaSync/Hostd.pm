@@ -11,7 +11,7 @@ use IO::String;
 use Log::Dispatch;
 use Plack::Builder;
 use Plack::Request;
-use Scalar::Util qw(reftype);
+use Scalar::Util qw(reftype weaken);
 use UNIVERSAL;
 
 ## NOTE: I should probably just refactor the common functionality of
@@ -230,6 +230,9 @@ sub changes {
             # this is REALLY naughty!
             if(reftype($writer) eq 'HASH') {
                 my $h = $writer->{'handle'};
+                weaken($conns);
+                weaken($stream);
+
                 ## properly clean up connections (I don't think this will do the trick)
                 $h->on_error(sub {
                     @$conns = grep { $_->{'stream'} != $stream } @$conns;
@@ -493,6 +496,20 @@ sub to_app {
             };
         };
     };
+}
+
+sub DESTROY {
+    my ( $self ) = @_;
+
+    my $connections = $self->connections;
+
+    foreach my $streams (values %$connections) {
+        foreach my $stream (@$streams) {
+            # long, confusing dereferencing here...
+            # very specific to Twiggy's internals
+            $stream->{'stream'}->writer->{'handle'}->destroy;
+        }
+    }
 }
 
 1;

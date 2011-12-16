@@ -100,7 +100,11 @@ sub test_uncaught_exception_psgi : Test {
             };
 
             my $runner = Plack::Runner->new;
-            $runner->parse_options("--port=$port", '--env=deployment');
+            $runner->parse_options(
+                "--port=$port",
+                '--env=deployment',
+                '--host=127.0.0.1',
+            );
             $runner->run($app);
         },
     );
@@ -145,7 +149,11 @@ sub test_caught_exception_psgi : Test {
             };
 
             my $runner = Plack::Runner->new;
-            $runner->parse_options("--port=$port", '--env=deployment');
+            $runner->parse_options(
+                "--port=$port",
+                '--env=deployment',
+                '--host=127.0.0.1',
+            );
             $runner->run($app);
         },
     );

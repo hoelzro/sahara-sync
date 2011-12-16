@@ -236,9 +236,11 @@ sub changes {
                 ## properly clean up connections (I don't think this will do the trick)
                 $h->on_error(sub {
                     @$conns = grep { $_->{'stream'} != $stream } @$conns;
+                    $h->destroy;
                 });
                 $h->on_eof(sub {
                     @$conns = grep { $_->{'stream'} != $stream } @$conns;
+                    $h->destroy;
                 });
             }
         };

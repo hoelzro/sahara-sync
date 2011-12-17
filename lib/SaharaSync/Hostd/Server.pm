@@ -21,6 +21,7 @@ sub start {
     my ( $self, $app ) = @_;
 
     $self->twiggy->register_service($app);
+    return;
 }
 
 sub stop {
@@ -28,6 +29,7 @@ sub stop {
 
     delete $self->twiggy->{'listen_guards'}; # naughty, touching internals
     $self->twiggy(undef);
+    return;
 }
 
 __PACKAGE__->meta->make_immutable;

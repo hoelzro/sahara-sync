@@ -53,6 +53,7 @@ sub run {
     $hostd->log->info('Starting host daemon');
     $cond->recv;
     $server->stop;
+    return;
 }
 
 1;

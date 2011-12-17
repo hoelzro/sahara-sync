@@ -218,7 +218,7 @@ sub _get_user_id {
     return $user_id;
 }
 
-sub create_user {
+sub create_user { ## no critic (Subroutines::RequireFinalReturn)
     my ( $self, $username, $password ) = @_;
 
     my $stmts = $self->_statements;
@@ -237,7 +237,7 @@ sub create_user {
     }
 }
 
-sub remove_user {
+sub remove_user { ## no critic (Subroutines::RequireFinalReturn)
     my ( $self, $username ) = @_;
 
     my $path = File::Spec->catdir($self->storage_path, $username);

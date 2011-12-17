@@ -67,7 +67,7 @@ sub new_from_file {
     if(@$configs) {
         return $class->new((values %{ $configs->[0] })[0]);
     } else {
-
+        croak "Could not load config from file '$filename'";
     }
 }
 

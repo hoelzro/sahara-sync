@@ -1,14 +1,14 @@
 ## no critic (RequireUseStrict)
 package SaharaSync::Hostd::Plugin::Store;
 
+## use critic (RequireUseStrict)
+use Moose::Role;
+
 use Carp qw(croak);;
 use Encode qw(encode_utf8 decode_utf8);
 use SaharaSync::X::BadContext;
 use SaharaSync::X::InvalidArgs;
 use namespace::clean;
-
-## use critic (RequireUseStrict)
-use Moose::Role;
 
 requires 'create_user';
 requires 'remove_user';

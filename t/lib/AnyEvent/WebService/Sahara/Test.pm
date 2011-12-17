@@ -94,7 +94,7 @@ sub cleanup : Test(teardown) {
     $self->server(undef);
 }
 
-sub test_bad_connection : Test(10) {
+sub test_bad_connection : Test(8) {
     my $cond;
     my $bad_port = empty_port;
     my $client = AnyEvent::WebService::Sahara->new(
@@ -144,6 +144,8 @@ sub test_bad_connection : Test(10) {
     });
     $cond->recv;
 
+    # we need to re-evaluate what to do here
+=pod
     $cond = AnyEvent->condvar;
     $client->changes(undef, [], sub {
         my ( $c, $change, $error ) = @_;
@@ -154,6 +156,7 @@ sub test_bad_connection : Test(10) {
     });
 
     $cond->recv;
+=cut
 }
 
 sub test_bad_credentials : Test(18) {

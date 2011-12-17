@@ -135,24 +135,35 @@ sub get_conflict_blob {
     return sprintf("%s - conflict %04d-%02d-%02d", $blob, $year, $month, $day);
 }
 
-# This is four tests in a single method
-# It also cleans up the client pipes and the client objects
+# This is two tests in one method
+# It also cleans up the client pipe and object
+sub check_client {
+    my ( $self, $client_num ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    delete $self->{'client' . $client_num};
+    my $pipe   = delete $self->{'client' . $client_num . '_pipe'};
+    my $buffer = '';
+    my $bytes  = $pipe->sysread($buffer, 1);
+    $pipe->close;
+
+    my $ok = 1;
+    $ok = is($bytes, 1, 'The client should write a status byte upon safe exit') && $ok;
+    $ok = is($buffer, 0, 'No errors should occur in the client')                && $ok;
+
+    return $ok;
+}
+
+# four tests in one
 sub check_clients {
     my ( $self ) = @_;
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
 
-    delete @{$self}{qw/client1 client2/};
+    my $ok = $self->check_client(1);
+       $ok = $self->check_client(2) && $ok;
 
-    my $ok = 1;
-
-    foreach my $pipe (delete @{$self}{qw/client1_pipe client2_pipe/}) {
-        my $buffer = '';
-        my $bytes  = $pipe->sysread($buffer, 1);
-        $pipe->close;
-        $ok = is($bytes, 1, 'The client should write a status byte upon safe exit') && $ok;
-        $ok = is($buffer, 0, 'No errors should occur in the clients')               && $ok;
-    }
     unless($ok) {
         diag("Client check in method " . $self->current_method . " failed");
     }

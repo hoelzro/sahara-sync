@@ -11,6 +11,9 @@ verbose = [%p] %f:%l - %m. (%e) (Severity: %s)\n
 [-Variables::ProhibitPunctuationVars]
 [-Lax::ProhibitEmptyQuotes::ExceptAsFallback]
 
+# disable for the time being; I'm still getting used to this perlcritic thing
+[-CodeLayout::RequireTidyCode]
+
 [Lax::ProhibitLeadingZeros::ExceptChmod]
 [Subroutines::ProhibitUnusedPrivateSubroutines]
     private_name_regex = _(?!build)\w+ # be Moose-friendly
@@ -21,5 +24,6 @@ verbose = [%p] %f:%l - %m. (%e) (Severity: %s)\n
 # Dist::Zilla generates them for us
 [-Documentation::RequirePodLinksIncludeText]
 [-Documentation::RequirePodSections]
+[-Documentation::PodSpelling]
 [-Modules::RequireVersionVar]
 [-Miscellanea::ProhibitUselessNoCritic]

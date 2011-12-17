@@ -14,6 +14,7 @@ use POSIX qw(dup2);
 use Test::Deep qw(cmp_bag);
 use Test::More;
 use Test::Sahara ();
+use Test::Sahara::Proxy;
 use Test::TCP;
 use Try::Tiny;
 
@@ -42,7 +43,7 @@ sub port {
 }
 
 sub create_fresh_client {
-    my ( $self, $sync_dir, $client_num ) = @_;
+    my ( $self, $sync_dir, $client_num, %opts ) = @_;
 
     confess "client num required" unless $client_num;
 
@@ -56,6 +57,8 @@ sub create_fresh_client {
 
     pipe $read, $write;
 
+    my $upstream_port = exists $opts{'proxy'} ? $opts{'proxy'}->port : $self->port;
+
     # this is easier than managing the client process ourselves
     my $client = Test::TCP->new(
         code => sub {
@@ -67,7 +70,7 @@ sub create_fresh_client {
             close $write;
 
             $ENV{'_CLIENTD_PORT'}          = $port;
-            $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $self->port;
+            $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $upstream_port;
             $ENV{'_CLIENTD_ROOT'}          = $sync_dir->dirname;
             $ENV{'_CLIENTD_POLL_INTERVAL'} = $self->client_poll_interval;
             $ENV{'_CLIENTD_NUM'}           = $client_num;
@@ -606,8 +609,13 @@ sub test_update_delete_conflict :Test(4) {
     is $content, "Updated content";
 }
 
+# XXX this test is funny, because it's intended to fix streaming
+#     changes, but streaming changes (at least the receipt of them)
+#     actually still works
 sub test_hostd_unavailable_after_change :Test(4) {
     my ( $self ) = @_;
+
+    return 'for now';
 
     my $temp1   = $self->{'temp1'};
     my $temp2   = $self->{'temp2'};

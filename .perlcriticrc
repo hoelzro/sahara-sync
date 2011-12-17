@@ -1,5 +1,5 @@
 color   = 1
-verbose = [%p] %f:%l - %m.  (Severity: %s)\n
+verbose = [%p] %f:%l - %m. (%e) (Severity: %s)\n
 
 [-ValuesAndExpressions::ProhibitLeadingZeros]
 [Lax::ProhibitLeadingZeros::ExceptChmod]

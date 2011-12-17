@@ -6,9 +6,13 @@ use Moose::Role;
 
 use Carp qw(croak);;
 use Encode qw(encode_utf8 decode_utf8);
+use Readonly;
 use SaharaSync::X::BadContext;
 use SaharaSync::X::InvalidArgs;
 use namespace::clean;
+
+Readonly my $MAX_METADATA_KEY_LEN   = 255;
+Readonly my $MAX_METADATA_VALUE_LEN = 255;
 
 requires 'create_user';
 requires 'remove_user';
@@ -53,12 +57,12 @@ before store_blob => sub {
     if(defined $metadata) {
         foreach my $k (keys %$metadata) {
             my $v = delete $metadata->{$k};
-            if(length $k > 255) {
+            if(length $k > $MAX_METADATA_KEY_LEN) {
                 SaharaSync::X::InvalidArgs->throw({
                     message => "Metadata key is too long",
                 });
             }
-            if(defined $v && length $v > 255) {
+            if(defined $v && length $v > $MAX_METADATA_VALUE_LEN) {
                 SaharaSync::X::InvalidArgs->throw({
                     message => "Metadata value is too long",
                 });

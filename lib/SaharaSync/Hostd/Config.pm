@@ -9,12 +9,15 @@ use MooseX::Types::Structured qw(Dict Optional);
 
 use Carp qw(croak);
 use Config::Any;
+use Readonly;
 
 use namespace::clean -except => 'meta';
 
+Readonly my $MAX_PORT_NUMBER = 2 ** 16 - 1;
+
 subtype PortNumber,
     as Int,
-    where { $_ >= 0 && $_ < 2 ** 16 },
+    where { $_ >= 0 && $_ <= $MAX_PORT_NUMBER },
     message { "Invalid port number" };
 
 subtype ContainsType,

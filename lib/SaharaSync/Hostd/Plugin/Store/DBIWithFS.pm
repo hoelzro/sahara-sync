@@ -10,6 +10,7 @@ use File::Path qw(make_path remove_tree);
 use File::Spec;
 use IO::File;
 use MIME::Base64 qw(encode_base64);
+use Readonly;
 
 use SaharaSync::X::BadUser;
 use SaharaSync::X::BadRevision;
@@ -19,6 +20,8 @@ use SaharaSync::X::NoSuchBlob;
 use namespace::clean;
 
 use Moose;
+
+Readonly my $BLOB_IO_CHUNK_SIZE = 1024;
 
 with 'SaharaSync::Hostd::Plugin::Store';
 
@@ -190,13 +193,13 @@ sub _save_blob_to_disk {
         croak "Unable to open '$path': $!" unless $f;
 
         do {
-            $n = $src->read($buf, 1024);
+            $n = $src->read($buf, $BLOB_IO_CHUNK_SIZE);
             croak "read failed: $!" unless defined $n;
             if($n) {
                 $digest->add($buf);
                 $f->syswrite($buf, $n) || croak "write failed: $!";
             }
-        } while $n;
+        } while $n; ## no critic (ControlStructures::ProhibitPostfixControls)
         $f->close;
     } else {
         $digest->add("\0");
@@ -437,7 +440,7 @@ sub fetch_changed_blobs {
     }
 
     if(@$metadata) {
-        my $in_clause = 'AND m.meta_key IN (' . join(',', map { '?' } @$metadata) . ')';
+        my $in_clause = 'AND m.meta_key IN (' . join(q{,}, map { q{?} } @$metadata) . ')';
 
         my $dbh = $self->dbh;
         $sth    = $dbh->prepare(<<"END_SQL");

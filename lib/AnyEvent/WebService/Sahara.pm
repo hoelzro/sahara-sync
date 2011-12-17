@@ -515,29 +515,50 @@ sub _non_streaming_changes {
 sub changes {
     my ( $self, $since, $metadata, $cb ) = @_;
 
-    my $cond = AnyEvent->condvar;
-    my $caps;
-    my $error;
-
     my $guards = $self->{'change_guards'};
+    weaken($self);
     weaken($guards);
     my $guard;
-    $guard = $self->capabilities(sub {
-        ( undef, $caps, $error ) = @_;
 
-        if($caps) {
-            my $old_guard = $guard;
+    my $poll_interval = $self->{'poll_interval'};
 
-            if(any { $_ eq 'streaming' } @$caps) {
-                $guard = $self->_streaming_changes($since, $metadata, $cb);
+    my $start;
+    $start = sub {
+        my $old_guard = $guard;
+
+        $guard = $self->capabilities(sub {
+            my ( undef, $caps, $error ) = @_;
+
+            if($caps) {
+                my $old_guard = $guard;
+
+                if(any { $_ eq 'streaming' } @$caps) {
+                    $guard = $self->_streaming_changes($since, $metadata, $cb);
+                } else {
+                    $guard = $self->_non_streaming_changes($since, $metadata, $cb);
+                }
+                $guards->{$guard} = delete $guards->{$old_guard};
             } else {
-                $guard = $self->_non_streaming_changes($since, $metadata, $cb);
+                if($error->is_fatal) {
+                    $cb->($self, undef, $error);
+                } else {
+                    my $timer;
+                    $timer = AnyEvent->timer(
+                        after => $poll_interval,
+                        cb    => sub {
+                            undef $timer;
+                            $start->();
+                        },
+                    );
+                }
             }
+        });
+
+        if($old_guard) {
             $guards->{$guard} = delete $guards->{$old_guard};
-        } else {
-            $cb->($self, undef, $error);
         }
-    });
+    };
+    $start->();
 
     $guards->{$guard} = guard {
         undef $guard;

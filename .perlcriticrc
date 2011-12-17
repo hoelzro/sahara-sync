@@ -4,6 +4,22 @@ color   = 1
 verbose = [%p] %f:%l - %m. (%e) (Severity: %s)\n
 
 [-ValuesAndExpressions::ProhibitLeadingZeros]
+[-ControlStructures::ProhibitUnlessBlocks]
+[-References::ProhibitDoubleSigils]
+[-Miscellanea::RequireRcsKeywords]
+[-ValuesAndExpressions::ProhibitEmptyQuotes]
+[-Variables::ProhibitPunctuationVars]
+[-Lax::ProhibitEmptyQuotes::ExceptAsFallback]
+
 [Lax::ProhibitLeadingZeros::ExceptChmod]
 [Subroutines::ProhibitUnusedPrivateSubroutines]
     private_name_regex = _(?!build)\w+ # be Moose-friendly
+[ControlStructures::ProhibitPostfixControls]
+    allow = if unless
+
+# These are disabled for the "default" profile, because
+# Dist::Zilla generates them for us
+[-Documentation::RequirePodLinksIncludeText]
+[-Documentation::RequirePodSections]
+[-Modules::RequireVersionVar]
+[-Miscellanea::ProhibitUselessNoCritic]

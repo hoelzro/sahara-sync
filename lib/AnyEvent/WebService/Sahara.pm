@@ -453,18 +453,10 @@ sub _streaming_changes {
     ( $guard, $handle_ref ) = $self->_raw_streaming_request($url, $meta,
         $wrapped_cb, $handle_error);
 
-    my $guards = $self->{'change_guards'};
-    weaken($guards);
-    $guards->{$guard} = guard {
+    return guard {
         undef $$handle_ref;
         undef $guard;
     };
-
-    if(defined wantarray) {
-        return guard {
-            delete $guards->{$guard} if $guards && $guard;
-        };
-    }
 }
 
 sub _non_streaming_changes {
@@ -514,18 +506,10 @@ sub _non_streaming_changes {
         },
     );
 
-    my $guards = $self->{'change_guards'};
-    weaken($guards);
-    $guards->{$timer_guard} = guard {
-        undef $timer_guard;
+    return guard {
         undef $req_guard;
+        undef $timer_guard;
     };
-
-    if(defined wantarray) {
-        return guard {
-            delete $guards->{$timer_guard} if $guards && $timer_guard;
-        };
-    }
 }
 
 sub changes {
@@ -535,25 +519,36 @@ sub changes {
     my $caps;
     my $error;
 
-    $self->capabilities(sub {
+    my $guards = $self->{'change_guards'};
+    weaken($guards);
+    my $guard;
+    $guard = $self->capabilities(sub {
         ( undef, $caps, $error ) = @_;
 
-        $cond->send;
+        if($caps) {
+            my $old_guard = $guard;
+
+            if(any { $_ eq 'streaming' } @$caps) {
+                $guard = $self->_streaming_changes($since, $metadata, $cb);
+            } else {
+                $guard = $self->_non_streaming_changes($since, $metadata, $cb);
+            }
+            $guards->{$guard} = delete $guards->{$old_guard};
+        } else {
+            $cb->($self, undef, $error);
+        }
     });
 
-    ## synchronous code alert!
-    $cond->recv;
+    $guards->{$guard} = guard {
+        undef $guard;
+    };
 
-    unless($caps) {
-        $cb->($self, undef, $error);
-        return;
+    if(defined wantarray) {
+        return guard {
+            delete $guards->{$guard} if $guards && $guard;
+        };
     }
-
-    if(any { $_ eq 'streaming' } @$caps) {
-        return $self->_streaming_changes($since, $metadata, $cb);
-    } else {
-        return $self->_non_streaming_changes($since, $metadata, $cb);
-    }
+    return;
 }
 
 1;

@@ -11,8 +11,8 @@ use SaharaSync::X::BadContext;
 use SaharaSync::X::InvalidArgs;
 use namespace::clean;
 
-Readonly my $MAX_METADATA_KEY_LEN   = 255;
-Readonly my $MAX_METADATA_VALUE_LEN = 255;
+Readonly my $MAX_METADATA_KEY_LEN   => 255;
+Readonly my $MAX_METADATA_VALUE_LEN => 255;
 
 requires 'create_user';
 requires 'remove_user';

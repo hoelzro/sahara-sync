@@ -13,7 +13,7 @@ use Readonly;
 
 use namespace::clean -except => 'meta';
 
-Readonly my $MAX_PORT_NUMBER = 2 ** 16 - 1;
+Readonly my $MAX_PORT_NUMBER => 2 ** 16 - 1;
 
 subtype PortNumber,
     as Int,

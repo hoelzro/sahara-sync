@@ -21,7 +21,7 @@ use namespace::clean;
 
 use Moose;
 
-Readonly my $BLOB_IO_CHUNK_SIZE = 1024;
+Readonly my $BLOB_IO_CHUNK_SIZE => 1024;
 
 with 'SaharaSync::Hostd::Plugin::Store';
 

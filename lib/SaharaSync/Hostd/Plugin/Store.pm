@@ -70,7 +70,7 @@ before store_blob => sub {
     }
 
 
-    unless(UNIVERSAL::can($contents, 'read') || ref($contents) eq 'GLOB') {
+    unless(eval { $contents->can('read') } || ref($contents) eq 'GLOB') {
         SaharaSync::X::InvalidArgs->throw({
             message => "store_blob contents must support the read operation",
         });

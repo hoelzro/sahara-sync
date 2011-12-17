@@ -15,7 +15,7 @@ sub run {
 
     my $hostd;
 
-    if(UNIVERSAL::isa($config, 'SaharaSync::Hostd')) {
+    if(eval { $config->isa('SaharaSync::Hostd') }) {
         $hostd = $config;
     } else {
         $hostd = SaharaSync::Hostd->new($config);

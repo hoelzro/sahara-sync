@@ -2,6 +2,7 @@
 package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 
 ## use critic (RequireUseStrict)
+use Carp qw(croak);
 use Carp::Clan qw(^SaharaSync::Hostd::Plugin::Store ^Class::MOP::Method);
 use Digest::SHA;
 use DBI;
@@ -77,7 +78,7 @@ sub _build_statements {
         insert_user         => 'INSERT INTO users (username, password) VALUES (?, ?)',
         remove_user         => 'DELETE FROM users WHERE username = ?',
         get_password        => 'SELECT password FROM users WHERE username = ? LIMIT 1',
-        fetch_info_for_blob => <<SQL,
+        fetch_info_for_blob => <<'END_SQL',
 SELECT u.username IS NOT NULL, b.blob_id, b.revision
 FROM users AS u
 LEFT JOIN blobs AS b
@@ -86,65 +87,65 @@ AND b.blob_name = ?
 AND b.is_deleted = 0
 WHERE u.username = ?
 LIMIT 1
-SQL
+END_SQL
         metadata_for_blob      => 'SELECT meta_key, meta_value FROM metadata WHERE blob_id = ?',
-        revision_info_for_blob => <<SQL,
+        revision_info_for_blob => <<'END_SQL',
 SELECT is_deleted, blob_id, revision FROM blobs
 WHERE user_id   = ?
 AND   blob_name = ?
 LIMIT 1
-SQL
-        update_revision => <<SQL,
+END_SQL
+        update_revision => <<'END_SQL',
 UPDATE blobs
 SET is_deleted = 0,
     revision   = ?
 WHERE blob_id = ?
-SQL
+END_SQL
         insert_blob     => 'INSERT INTO blobs (user_id, blob_name, revision) VALUES (?, ?, ?)',
         update_revlog   => 'INSERT INTO revision_log (blob_id, blob_revision) VALUES(?, ?)',
         insert_metadata => 'INSERT INTO metadata (blob_id, meta_key, meta_value) VALUES (?, ?, ?)',
 
-        revision_info_for_existing_blob => <<SQL,
+        revision_info_for_existing_blob => <<'END_SQL',
 SELECT blob_id, revision FROM blobs
 WHERE user_id    = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
 LIMIT 1
-SQL
-        mark_blob_deleted => <<SQL,
+END_SQL
+        mark_blob_deleted => <<'END_SQL',
 UPDATE blobs
 SET is_deleted = 1,
     revision   = ?
 WHERE user_id    = ?
 AND   blob_name  = ?
 AND   is_deleted = 0
-SQL
-        delete_metadata => <<SQL,
+END_SQL
+        delete_metadata => <<'END_SQL',
 DELETE FROM metadata WHERE blob_id = ?
-SQL
-        get_revision_id => <<SQL,
+END_SQL
+        get_revision_id => <<'END_SQL',
 SELECT r.revision_id FROM revision_log AS r
 INNER JOIN blobs AS b
 ON b.blob_id = r.blob_id
 WHERE b.user_id       = ?
 AND   r.blob_revision = ?
 LIMIT 1
-SQL
-        get_latest_revs => <<SQL,
+END_SQL
+        get_latest_revs => <<'END_SQL',
 SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON  r.blob_id = b.blob_id
 WHERE b.user_id     = ?
 AND   r.revision_id > ?
 ORDER BY r.revision_id DESC
-SQL
-        get_all_revs => <<SQL,
+END_SQL
+        get_all_revs => <<'END_SQL',
 SELECT b.is_deleted, b.blob_name, b.revision FROM revision_log AS r
 INNER JOIN blobs AS b
 ON r.blob_id = b.blob_id
 WHERE b.user_id = ?
 ORDER BY r.revision_id DESC
-SQL
+END_SQL
     );
 
     foreach my $k (keys %statements) {
@@ -161,7 +162,11 @@ sub _blob_to_disk_name {
 }
 
 sub _save_blob_to_disk {
-    my ( $self, $user, $blob, $revision, $metadata, $src ) = @_;
+    my ( $self, $user, $blob, %options ) = @_;
+
+    my $revision = $options{'revision'} || '';
+    my $metadata = $options{'metadata'};
+    my $src      = $options{'handle'};
 
     my $disk_name      = $self->_blob_to_disk_name($blob);
     my $path           = File::Spec->catfile($self->storage_path, $user, $disk_name);
@@ -196,7 +201,7 @@ sub _save_blob_to_disk {
     } else {
         $digest->add("\0");
 
-        unlink($path) || die "Unable to delete '$path': $!";
+        unlink($path) || croak "Unable to delete '$path': $!";
     }
 
     return $digest->hexdigest;
@@ -318,19 +323,30 @@ sub store_blob {
     if(defined $current_revision) {
         if($is_deleted) {
             return if defined $revision;
-            $revision = $self->_save_blob_to_disk($user, $blob, $current_revision, $metadata, $handle);
+            $revision = $self->_save_blob_to_disk($user, $blob,
+                revision => $current_revision,
+                metadata => $metadata,
+                handle   => $handle,
+            );
         } else {
             return unless defined $revision;
             unless($revision eq $current_revision) {
                 return;
             }
-            $revision = $self->_save_blob_to_disk($user, $blob, $revision, $metadata, $handle);
+            $revision = $self->_save_blob_to_disk($user, $blob,
+                revision => $revision,
+                metadata => $metadata,
+                handle   => $handle,
+            );
         }
         $dbh->begin_work;
         $stmts->{'update_revision'}->execute($revision, $blob_id);
     } else {
         return if defined $revision;
-        $revision = $self->_save_blob_to_disk($user, $blob, '', $metadata, $handle);
+        $revision = $self->_save_blob_to_disk($user, $blob, 
+            metadata => $metadata,
+            handle   => $handle,
+        );
         $dbh->begin_work;
         $stmts->{'insert_blob'}->execute($user_id, $blob, $revision);
         $blob_id = $dbh->last_insert_id(undef, 'public', 'blobs', undef);
@@ -369,7 +385,9 @@ sub delete_blob {
         return;
     }
 
-    $revision = $self->_save_blob_to_disk($user, $blob, $revision);
+    $revision = $self->_save_blob_to_disk($user, $blob,
+        revision => $revision,
+    );
 
     $dbh->begin_work;
     $stmts->{'mark_blob_deleted'}->execute($revision, $user_id, $blob);
@@ -422,13 +440,13 @@ sub fetch_changed_blobs {
         my $in_clause = 'AND m.meta_key IN (' . join(',', map { '?' } @$metadata) . ')';
 
         my $dbh = $self->dbh;
-        $sth    = $dbh->prepare(<<SQL);
+        $sth    = $dbh->prepare(<<"END_SQL");
 SELECT b.blob_name, m.meta_key, m.meta_value FROM blobs AS b
 INNER JOIN metadata AS m
 ON    m.blob_id = b.blob_id
 WHERE b.user_id = ?
 $in_clause
-SQL
+END_SQL
 
         $sth->execute($user_id, @$metadata);
         while(my ( $blob, $key, $value ) = $sth->fetchrow_array) {

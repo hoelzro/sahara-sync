@@ -3,3 +3,5 @@ verbose = [%p] %f:%l - %m.  (Severity: %s)\n
 
 [-ValuesAndExpressions::ProhibitLeadingZeros]
 [Lax::ProhibitLeadingZeros::ExceptChmod]
+[Subroutines::ProhibitUnusedPrivateSubroutines]
+    private_name_regex = _(?!build)\w+ # be Moose-friendly

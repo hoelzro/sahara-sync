@@ -340,20 +340,8 @@ sub _handle_change {
     $cb->($self, $change);
 }
 
-sub _streaming_changes {
-    my ( $self, $since, $metadata, $cb ) = @_;
-
-    my $meta = {
-        want_body_handle => 1,
-        headers => {
-            'X-Sahara-Last-Sync' => $since,
-        },
-    };
-
-    my $url = 'changes';
-    if($metadata && @$metadata) {
-        $url = [ $url, { metadata => $metadata } ];
-    }
+sub _raw_streaming_request {
+    my ( $self, $url, $meta, $cb, $on_eof ) = @_;
 
     my $h;
 
@@ -379,7 +367,9 @@ sub _streaming_changes {
 
         $h->on_eof(sub {
             $reader->feed(undef);
+            $h->destroy;
             undef $h;
+            $on_eof->();
         });
     }, sub {
         my ( $self, $ok, $error ) = @_;
@@ -387,10 +377,67 @@ sub _streaming_changes {
         $cb->(@_) unless $ok;
     });
 
+    return ( $guard, \$h );
+}
+
+sub _streaming_changes {
+    my ( $self, $since, $metadata, $cb ) = @_;
+
+    my $meta = {
+        want_body_handle => 1,
+        headers => {
+            'X-Sahara-Last-Sync' => $since,
+        },
+    };
+
+    my $url = 'changes';
+    if($metadata && @$metadata) {
+        $url = [ $url, { metadata => $metadata } ];
+    }
+
+    my ( $guard, $handle_ref, $handle_error );
+
+    my $wrapped_cb;
+
+    weaken($self);
+    $handle_error = sub {
+        my $timer;
+        $timer = AnyEvent->timer(
+            after => $self->{'poll_interval'},
+            cb    => sub {
+                # XXX check that we're still interested in a relationship
+                #     with the host
+                undef $timer;
+                undef $$handle_ref;
+                ( $guard, $handle_ref ) = $self->_raw_streaming_request($url,
+                    $meta, $wrapped_cb, $handle_error);
+            },
+        );
+    };
+
+    do {
+        my $handle_error_copy = $handle_error;
+        weaken($handle_error_copy);
+        $wrapped_cb = sub {
+            my ( undef, $ok, $error ) = @_;
+
+            my $is_fatal = defined($error) && $error =~ /unauthorized/i;
+
+            if($ok || $is_fatal) {
+                goto &$cb;
+            } else {
+                $handle_error_copy->();
+            }
+        };
+    };
+
+    ( $guard, $handle_ref ) = $self->_raw_streaming_request($url, $meta,
+        $wrapped_cb, $handle_error);
+
     my $guards = $self->{'change_guards'};
     weaken($guards);
     $guards->{$guard} = guard {
-        undef $h;
+        undef $$handle_ref;
         undef $guard;
     };
 

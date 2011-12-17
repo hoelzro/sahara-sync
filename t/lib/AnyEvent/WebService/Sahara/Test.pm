@@ -1254,6 +1254,7 @@ sub test_hostd_unavailable_at_start :Test(1) {
     });
 
     $cond->recv;
+    $cond = AnyEvent->condvar;
 
     $proxy->resume_connections;
 

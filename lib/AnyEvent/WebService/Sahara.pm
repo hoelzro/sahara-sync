@@ -215,7 +215,7 @@ sub do_request {
 sub capabilities {
     my ( $self, $cb ) = @_;
 
-    $self->do_request(HEAD => '', sub {
+    return $self->do_request(HEAD => '', sub {
         my ( $data, $headers ) = @_;
 
         my $capabilities = $headers->{'x-sahara-capabilities'};

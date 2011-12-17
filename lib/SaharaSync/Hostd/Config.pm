@@ -18,12 +18,12 @@ Readonly my $MAX_PORT_NUMBER = 2 ** 16 - 1;
 subtype PortNumber,
     as Int,
     where { $_ >= 0 && $_ <= $MAX_PORT_NUMBER },
-    message { "Invalid port number" };
+    message { 'Invalid port number' };
 
 subtype ContainsType,
     as HashRef,
     where { exists $_->{'type'} },
-    message { "Must contain 'type' key" };
+    message { q{Must contain 'type' key} };
 
 subtype LogConfigs,
     as ArrayRef[ContainsType];

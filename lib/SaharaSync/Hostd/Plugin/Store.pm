@@ -50,7 +50,7 @@ before store_blob => sub {
 
     if(defined($metadata) && ref($metadata) ne 'HASH') {
         SaharaSync::X::InvalidArgs->throw({
-            message => "store_blob metadata must be a hash reference",
+            message => 'store_blob metadata must be a hash reference',
         });
     }
 
@@ -59,12 +59,12 @@ before store_blob => sub {
             my $v = delete $metadata->{$k};
             if(length $k > $MAX_METADATA_KEY_LEN) {
                 SaharaSync::X::InvalidArgs->throw({
-                    message => "Metadata key is too long",
+                    message => 'Metadata key is too long',
                 });
             }
             if(defined $v && length $v > $MAX_METADATA_VALUE_LEN) {
                 SaharaSync::X::InvalidArgs->throw({
-                    message => "Metadata value is too long",
+                    message => 'Metadata value is too long',
                 });
             }
             $k = encode_utf8($k);
@@ -76,7 +76,7 @@ before store_blob => sub {
 
     unless(eval { $contents->can('read') } || ref($contents) eq 'GLOB') {
         SaharaSync::X::InvalidArgs->throw({
-            message => "store_blob contents must support the read operation",
+            message => 'store_blob contents must support the read operation',
         });
     }
 };
@@ -86,7 +86,7 @@ before delete_blob => sub {
 
     unless(defined $revision) {
         SaharaSync::X::InvalidArgs->throw({
-            message => "Revision must be defined",
+            message => 'Revision must be defined',
         });
     }
 };

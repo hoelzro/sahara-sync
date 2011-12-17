@@ -58,7 +58,7 @@ sub BUILDARGS {
             mysql_server_prepare => 1,
         });
     }
-    
+
     my $dbh = $args{'dbh'};
     if($dbh->{'Driver'}{'Name'} eq 'SQLite') {
         $dbh->do('PRAGMA foreign_keys = ON');
@@ -187,7 +187,7 @@ sub _save_blob_to_disk {
             $digest->add($k);
             $digest->add($v);
         }
-        $digest->add("\1");
+        $digest->add("\1"); ## no critic (ValuesAndExpressions::ProhibitInterpolationOfLiterals)
 
         my $f = IO::File->new($path, 'w');
         croak "Unable to open '$path': $!" unless $f;
@@ -346,7 +346,7 @@ sub store_blob {
         $stmts->{'update_revision'}->execute($revision, $blob_id);
     } else {
         return if defined $revision;
-        $revision = $self->_save_blob_to_disk($user, $blob, 
+        $revision = $self->_save_blob_to_disk($user, $blob,
             metadata => $metadata,
             handle   => $handle,
         );

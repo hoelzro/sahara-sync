@@ -343,9 +343,8 @@ sub _debug_event {
     my $mask = $event->mask;
 
     foreach my $name (@Linux::Inotify2::EXPORT) {
-        no strict 'refs';
-
-        my $m = &{"Linux::Inotify2::$name"};
+        my $glob = $Linux::Inotify2::{$name};
+        my $m    = *{$glob}{'CODE'}->();
 
         if($mask & $m) {
             push @masks, $name;

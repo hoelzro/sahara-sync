@@ -50,23 +50,23 @@ subtype SaharaUri,
 coerce SaharaUri,
     from Str,
     via {
-        return undef unless m!^https?://!;
+        return unless m!^https?://!;
         return URI->new($_);
     };
 
 coerce SaharaUri,
     from HashRef,
     via {
-        return undef unless $_->{'host'};
+        return unless $_->{'host'};
         $_->{'scheme'} = 'http' unless exists $_->{'scheme'};
         $_->{'port'}   = 5982   unless exists $_->{'port'};
 
-        return undef unless $_->{'scheme'} =~ m!^https?!;
-        return undef unless $_->{'port'} >= 0;
-        return undef unless $_->{'port'} < 2 ** 16;
+        return unless $_->{'scheme'} =~ m!^https?!;
+        return unless $_->{'port'} >= 0;
+        return unless $_->{'port'} < 2 ** 16;
 
         my @keys = grep { $_ ne 'scheme' && $_ ne 'port' && $_ ne 'host' } keys(%$_);
-        return undef if @keys;
+        return if @keys;
 
         return URI->new(sprintf("%s://%s:%d", @{$_}{qw/scheme host port/}));
     };

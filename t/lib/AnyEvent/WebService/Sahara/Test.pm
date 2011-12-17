@@ -1215,6 +1215,60 @@ sub test_unavailable_hostd : Test(1) {
     }], 'change should show up on client2 even after connection loss';
 }
 
+sub test_hostd_unavailable_at_start :Test(1) {
+    my ( $self ) = @_;
+
+    my $proxy   = Test::Sahara::Proxy->new(remote => $self->port);
+    $proxy->kill_connections;
+
+    my $client1 = $self->create_client;
+    my $client2 = $self->create_client($proxy->port);
+    my @client2_changes;
+    my $revision;
+    my $timer;
+
+    my $cond = AnyEvent->condvar;
+
+    $client2->changes(undef, [], sub {
+        my ( undef, $change ) = @_;
+
+        # XXX test for when an error occurs
+        if(defined $change) {
+            push @client2_changes, $change;
+            $cond->send;
+        }
+    });
+
+    $client1->put_blob('file.txt', IO::String->new('Content'), {}, sub {
+        ( undef, $revision ) = @_;
+
+        $timer = AnyEvent->timer(
+            after => $self->client_poll_time + 5,
+            cb    => sub {
+                $cond->send;
+            },
+        );
+    });
+
+    $cond->recv;
+
+    $proxy->resume_connections;
+
+    $timer = AnyEvent->timer(
+        after => $self->client_poll_time + 5,
+        cb    => sub {
+            $cond->send;
+        },
+    );
+
+    $cond->recv;
+
+    is_deeply \@client2_changes, [{
+        name     => 'file.txt',
+        revision => $revision,
+    }], 'change should show up on client2 even after failing to establish an initial connection';
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

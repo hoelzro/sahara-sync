@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use AnyEvent::HTTP;
+use AnyEvent::WebService::Sahara::Error;
 use Carp qw(croak);
 use Guard qw(guard);
 use List::MoreUtils qw(any);
@@ -134,6 +135,32 @@ sub add_auth {
     $headers->{'Authorization'} = $header;
 }
 
+sub _check_for_error {
+    my ( $self, $data, $headers ) = @_;
+
+    my $status = $headers->{'Status'};
+
+    if($status > 400) {
+        my $reason = $headers->{'Reason'};
+        $reason = $reasons{$status} if $status > 590 && exists $reasons{$status};
+
+        return AnyEvent::WebService::Sahara::Error->new(
+            code    => $status,
+            message => $reason,
+        );
+    } elsif($status == 400) {
+        # 400 errors are special, because we overload them
+        # not ideal, I know.
+
+        return AnyEvent::WebService::Sahara::Error->new(
+            code    => $status,
+            message => $data,
+        );
+    } else {
+        return;
+    }
+}
+
 # calling syntax: $self->do_request($method => @path, $opt_meta, $prepare, $cb)
 sub do_request {
     my ( $self, $method, $segments, $meta, $prepare, $cb );
@@ -172,20 +199,14 @@ sub do_request {
     $handler = sub {
         my ( $data, $headers ) = @_;
 
-        my $status = $headers->{'Status'};
+        my $error = $self->_check_for_error($data, $headers);
 
-        if($status > 400) {
-            my $reason = $headers->{'Reason'};
-            $reason = $reasons{$status} if $status > 590 && exists $reasons{$status};
-            $cb->($self, undef, $reason);
-        } elsif($status == 400) {
-            # 400 errors are special, because we overload them
-            # not ideal, I know.
-
-            $cb->($self, undef, $data);
+        if($error) {
+            $cb->($self, undef, $error);
         } else {
             $cb->($self, $prepare->($data, $headers));
         }
+
     };
 
     return http_request $method => $url, %$meta, $handler;
@@ -421,9 +442,7 @@ sub _streaming_changes {
         $wrapped_cb = sub {
             my ( undef, $ok, $error ) = @_;
 
-            my $is_fatal = defined($error) && $error =~ /unauthorized/i;
-
-            if($ok || $is_fatal) {
+            if($ok || $error->is_fatal) {
                 goto &$cb;
             } else {
                 $handle_error_copy->();

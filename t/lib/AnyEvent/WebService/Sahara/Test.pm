@@ -1157,9 +1157,11 @@ sub delay {
     my ( $self, $timeout ) = @_;
 
     my $cond  = AnyEvent->condvar;
-    my $timer = AnyEvent->timer(
+    my $timer;
+    $timer = AnyEvent->timer(
         after => $timeout,
         cb    => sub {
+            $timer = undef;
             $cond->send;
         },
     );

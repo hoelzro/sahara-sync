@@ -1290,6 +1290,7 @@ sub test_unavailable_hostd :Test(1) {
     my ( $self ) = @_;
 
     $self->_perform_unavailable_test(
+        name              => 'change should show up on client2 even after connection loss',
         kill_connection   => $POST_CONNECTION,
         resume_connection => $POST_PUT_BLOB,
     );

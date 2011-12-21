@@ -1283,7 +1283,7 @@ sub _perform_unavailable_test {
     is_deeply \@client2_changes, [{
         name     => 'file.txt',
         revision => $revision,
-    }], 'change should show up on client2 even after connection loss';
+    }], $opts{'name'};
 }
 
 sub test_unavailable_hostd :Test(1) {

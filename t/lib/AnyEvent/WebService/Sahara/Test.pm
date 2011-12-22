@@ -1194,7 +1194,7 @@ sub _run_phase {
     }
 
     if($should_delay) {
-        $self->delay(1);
+        $self->delay($self->client_poll_time + 5);
     }
 }
 

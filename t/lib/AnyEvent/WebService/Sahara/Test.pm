@@ -1306,8 +1306,6 @@ sub test_hostd_unavailable_at_start :Test(1) {
     );
 }
 
-}
-
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

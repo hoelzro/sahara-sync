@@ -1213,6 +1213,9 @@ sub _perform_unavailable_test {
         ];
     }
 
+    my $put_metadata     = $opts{'put_metadata'}     || {};
+    my $changes_metadata = $opts{'changes_metadata'} || [];
+
     local $Test::Builder::Level = $Test::Builder::Level + 1;
 
     my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
@@ -1233,7 +1236,7 @@ sub _perform_unavailable_test {
     );
 
     my @client2_changes;
-    $client2->changes(undef, [], sub {
+    $client2->changes(undef, $changes_metadata, sub {
         my ( undef, $change ) = @_;
 
         # XXX test for when an error occurs
@@ -1258,7 +1261,7 @@ sub _perform_unavailable_test {
         proxy => $proxy,
         opts  => \%opts,
     );
-    $client1->put_blob('file.txt', IO::String->new('Content'), {}, sub {
+    $client1->put_blob('file.txt', IO::String->new('Content'), $put_metadata, sub {
         ( undef, $revision ) = @_;
 
         my $timer;
@@ -1280,9 +1283,18 @@ sub _perform_unavailable_test {
         opts  => \%opts,
     );
 
+    my $expected_changes = {
+        map {
+            exists $put_metadata->{$_}
+                ? ( $_ => $put_metadata->{$_} )
+                : ()
+        } @{$changes_metadata}
+    };
+
     is_deeply \@client2_changes, [{
         name     => 'file.txt',
         revision => $revision,
+        %{$expected_changes},
     }], $opts{'name'};
 }
 

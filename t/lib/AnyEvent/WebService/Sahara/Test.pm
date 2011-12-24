@@ -1330,6 +1330,16 @@ sub test_unavailable_hostd_metadata :Test(1) {
     );
 }
 
+sub test_unavailable_hostd_last_sync :Test(1) {
+    my ( $self ) = @_;
+
+    $self->_perform_unavailable_test(
+        name              => 'last synced revision should work when resuming connection',
+        kill_connection   => $POST_PUT_BLOB,
+        resume_connection => $POST_PUT_BLOB,
+    );
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

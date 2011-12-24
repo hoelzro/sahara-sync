@@ -376,6 +376,7 @@ sub _raw_streaming_request {
         $reader->on_read_object(sub {
             my ( undef, $object ) = @_;
 
+            $meta->{'headers'}{'X-Sahara-Last-Sync'} = $object->{'revision'};
             $self->_handle_change($cb, $object);
         });
 

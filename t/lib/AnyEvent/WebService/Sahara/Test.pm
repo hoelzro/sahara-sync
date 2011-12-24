@@ -1318,6 +1318,18 @@ sub test_hostd_unavailable_at_start :Test(1) {
     );
 }
 
+sub test_unavailable_hostd_metadata :Test(1) {
+    my ( $self ) = @_;
+
+    $self->_perform_unavailable_test(
+        name              => 'metadata should be correct when resuming connection',
+        changes_metadata  => ['foo', 'bar'],
+        put_metadata      => { foo => 17, baz => 18 },
+        kill_connection   => $POST_CONNECTION,
+        resume_connection => $POST_PUT_BLOB,
+    );
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

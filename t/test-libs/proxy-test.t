@@ -7,7 +7,7 @@ use warnings;
 use HTTP::Request;
 use LWP::UserAgent;
 use Plack::Runner;
-use Test::More tests => 1;
+use Test::More tests => 3;
 use Test::Sahara::Proxy;
 use Test::TCP;
 
@@ -42,3 +42,15 @@ my $req = HTTP::Request->new(GET => 'http://localhost:' . $proxy->port);
 my $res = $ua->request($req);
 
 ok($res->is_success, 'going through a proxy should succeed');
+
+$proxy->kill_connections;
+
+$res = $ua->request($req);
+
+ok(!$res->is_success, 'going through a deactivated proxy should fail');
+
+$proxy->resume_connections;
+
+$res = $ua->request($req);
+
+ok($res->is_success, 'going through a reactivated proxy should fail');

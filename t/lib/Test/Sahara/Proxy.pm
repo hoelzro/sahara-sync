@@ -4,7 +4,12 @@ use strict;
 use warnings;
 use parent 'Class::Accessor::Fast';
 
+use IO::Socket::INET ();
+use Readonly ();
 use Test::TCP ();
+use Time::HiRes ();
+
+Readonly::Scalar my $WAIT_TIME_IN_USECONDS => 10_000;
 
 __PACKAGE__->mk_accessors(qw/_tcp/);
 
@@ -33,16 +38,49 @@ sub port {
     return $self->_tcp->port;
 }
 
+sub _poke_port {
+    my ( $self ) = @_;
+
+    my $port = $self->_tcp->port;
+    my $sock = IO::Socket::INET->new(
+        PeerHost => '127.0.0.1',
+        PeerPort => $port,
+        Proto    => 'tcp',
+    );
+
+    return $sock ? 1 : 0;
+}
+
+sub _wait_for_shutdown {
+    my ( $self ) = @_;
+
+    while($self->_poke_port) {
+        Time::HiRes::usleep $WAIT_TIME_IN_USECONDS;
+    }
+}
+
+sub _wait_for_startup {
+    my ( $self ) = @_;
+
+    while(! $self->_poke_port) {
+        Time::HiRes::usleep $WAIT_TIME_IN_USECONDS;
+    }
+}
+
 sub kill_connections {
     my ( $self ) = @_;
 
     kill USR1 => $self->_tcp->pid;
+
+    $self->_wait_for_shutdown();
 }
 
 sub resume_connections {
     my ( $self ) = @_;
 
     kill USR2 => $self->_tcp->pid;
+
+    $self->_wait_for_startup();
 }
 
 1;

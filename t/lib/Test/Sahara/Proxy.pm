@@ -49,7 +49,7 @@ sub _poke_port {
     $ua->timeout($WAIT_TIME_IN_USECONDS / 1_000_000);
 
     my $res = $ua->request($req);
-    return $res->is_success;
+    return $res->code < 500; # client errors (like 404) are still valid
 }
 
 sub _wait_for_shutdown {

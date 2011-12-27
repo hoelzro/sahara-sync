@@ -4,12 +4,14 @@ use strict;
 use warnings;
 use parent 'Class::Accessor::Fast';
 
+use Carp ();
 use IO::Socket::INET ();
 use Readonly ();
 use Test::TCP ();
 use Time::HiRes ();
 
 Readonly::Scalar my $WAIT_TIME_IN_USECONDS => 10_000;
+Readonly::Scalar my $MAX_RETRIES           => 100;
 
 __PACKAGE__->mk_accessors(qw/_tcp/);
 
@@ -54,17 +56,23 @@ sub _poke_port {
 sub _wait_for_shutdown {
     my ( $self ) = @_;
 
-    while($self->_poke_port) {
+    for ( 1 .. $MAX_RETRIES ) {
+        return if ! $self->_poke_port;
         Time::HiRes::usleep $WAIT_TIME_IN_USECONDS;
     }
+
+    Carp::croak "Unable to shutdown socket operations after one second";
 }
 
 sub _wait_for_startup {
     my ( $self ) = @_;
 
-    while(! $self->_poke_port) {
+    for ( 1 .. $MAX_RETRIES ) {
+        return if $self->_poke_port;
         Time::HiRes::usleep $WAIT_TIME_IN_USECONDS;
     }
+
+    Carp::croak "Unable to resume socket operations after one second";
 }
 
 sub kill_connections {

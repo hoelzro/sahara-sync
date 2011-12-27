@@ -5,7 +5,7 @@ use warnings;
 use parent 'Class::Accessor::Fast';
 
 use Carp ();
-use IO::Socket::INET ();
+use LWP::UserAgent ();
 use Readonly ();
 use Test::TCP ();
 use Time::HiRes ();
@@ -44,13 +44,12 @@ sub _poke_port {
     my ( $self ) = @_;
 
     my $port = $self->_tcp->port;
-    my $sock = IO::Socket::INET->new(
-        PeerHost => '127.0.0.1',
-        PeerPort => $port,
-        Proto    => 'tcp',
-    );
+    my $req  = HTTP::Request->new(GET => "http://localhost:$port/");
+    my $ua   = LWP::UserAgent->new;
+    $ua->timeout($WAIT_TIME_IN_USECONDS / 1_000_000);
 
-    return $sock ? 1 : 0;
+    my $res = $ua->request($req);
+    return $res->is_success;
 }
 
 sub _wait_for_shutdown {

@@ -38,6 +38,7 @@ my $server = Test::TCP->new(
 my $proxy = Test::Sahara::Proxy->new(remote => $server->port);
 
 my $ua  = LWP::UserAgent->new;
+$ua->timeout(3);
 my $req = HTTP::Request->new(GET => 'http://localhost:' . $proxy->port);
 my $res = $ua->request($req);
 

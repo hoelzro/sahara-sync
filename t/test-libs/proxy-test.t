@@ -53,4 +53,4 @@ $proxy->resume_connections;
 
 $res = $ua->request($req);
 
-ok($res->is_success, 'going through a reactivated proxy should fail');
+ok($res->is_success, 'going through a reactivated proxy should not fail');

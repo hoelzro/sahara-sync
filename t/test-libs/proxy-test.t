@@ -8,7 +8,7 @@ use AnyEvent::HTTP;
 use Plack::Builder;
 use Plack::Runner;
 use Time::HiRes qw(usleep);
-use Test::More tests => 7;
+use Test::More tests => 10;
 use Test::Sahara::Proxy;
 use Test::TCP;
 
@@ -144,3 +144,18 @@ is_deeply \@lines, [ 1 .. 10 ], 'streaming response contents should be ok';
     }
 });
 is_deeply \@lines, [ 1 .. 5 ], 'streaming response should be interrupted by kill_connections';
+
+$proxy->resume_connections;
+
+@lines = do_streaming_request($url, sub {
+    my ( $line ) = @_;
+
+    if($line == 5) {
+        $proxy->kill_connections(preserve_existing => 1);
+    }
+});
+is_deeply \@lines, [ 1 .. 10 ], 'streaming response should not be interrupted when preserve_existing is used';
+
+$status = do_request($url);
+
+isnt $status, 200, 'preserve_existing should forbid new connections';

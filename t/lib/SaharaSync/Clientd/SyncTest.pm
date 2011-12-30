@@ -730,6 +730,46 @@ sub test_hostd_unavailable_last_sync :Test(6) {
     is $content, "Updated content\n", 'changes should be synced even when the link goes down';
 }
 
+sub test_hostd_unavailable_get_blob :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    $self->catchup;
+
+    $self->check_client(2);
+
+    my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
+
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2,
+        proxy => $proxy,
+    );
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+
+    $self->catchup;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Updated Content\n");
+
+    $self->catchup;
+
+    $proxy->resume_connections;
+
+    $self->catchup;
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
+}
+
 # XXX metadata + sync test (when we actually start providing metadata)
 
 1;

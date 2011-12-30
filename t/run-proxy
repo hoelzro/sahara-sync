@@ -13,9 +13,16 @@ my %handles;
 my $proxy;
 
 sub kill_proxy {
+    my %opts = @_;
+
+    my $preserve_existing = $opts{'preserve_existing'};
+
     undef $proxy;
-    $_->destroy foreach values %handles;
-    %handles = ();
+
+    unless($preserve_existing) {
+        $_->destroy foreach values %handles;
+        %handles = ();
+    }
 }
 
 sub resume_proxy {
@@ -107,6 +114,13 @@ my $usr1 = AnyEvent->signal(
         } else {
             resume_proxy();
         }
+    },
+);
+
+my $usr2 = AnyEvent->signal(
+    signal => 'USR2',
+    cb     => sub {
+        kill_proxy(preserve_existing => 1);
     },
 );
 

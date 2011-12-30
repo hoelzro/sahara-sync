@@ -75,9 +75,15 @@ sub _wait_for_startup {
 }
 
 sub kill_connections {
-    my ( $self ) = @_;
+    my ( $self, %opts ) = @_;
 
-    kill USR1 => $self->_tcp->pid;
+    my $preserve_existing = $opts{'preserve_existing'};
+
+    if($preserve_existing) {
+        kill USR2 => $self->_tcp->pid;
+    } else {
+        kill USR1 => $self->_tcp->pid;
+    }
 
     Time::HiRes::usleep(250_000);
 

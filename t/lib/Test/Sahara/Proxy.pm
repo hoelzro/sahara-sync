@@ -87,7 +87,7 @@ sub kill_connections {
 sub resume_connections {
     my ( $self ) = @_;
 
-    kill USR2 => $self->_tcp->pid;
+    kill USR1 => $self->_tcp->pid;
 
     Time::HiRes::usleep(250_000);
 

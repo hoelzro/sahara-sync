@@ -7,7 +7,20 @@ use AnyEvent::Handle;
 use AnyEvent::Socket;
 use Test::More;
 
+my $port   = $ENV{'_PROXY_PORT'};
+my $remote = $ENV{'_PROXY_REMOTE_PORT'};
 my %handles;
+my $proxy;
+
+sub kill_proxy {
+    undef $proxy;
+    $_->destroy foreach values %handles;
+    %handles = ();
+}
+
+sub resume_proxy {
+    $proxy = create_proxy($port, $remote);
+}
 
 sub create_proxy {
     my ( $port, $remote ) = @_;
@@ -83,24 +96,17 @@ sub create_proxy {
 }
 
 my $cond = AnyEvent->condvar;
-my $port   = $ENV{'_PROXY_PORT'};
-my $remote = $ENV{'_PROXY_REMOTE_PORT'};
 
-my $proxy = create_proxy($port, $remote);
+$proxy = create_proxy($port, $remote);
 
 my $usr1 = AnyEvent->signal(
     signal => 'USR1',
     cb     => sub {
-        undef $proxy;
-        $_->destroy foreach values %handles;
-        %handles = ();
-    },
-);
-
-my $usr2 = AnyEvent->signal(
-    signal => 'USR2',
-    cb     => sub {
-        $proxy = create_proxy($port, $remote);
+        if($proxy) {
+            kill_proxy();
+        } else {
+            resume_proxy();
+        }
     },
 );
 

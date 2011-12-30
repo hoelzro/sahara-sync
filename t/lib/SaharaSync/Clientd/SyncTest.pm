@@ -620,25 +620,34 @@ sub test_update_delete_conflict :Test(4) {
     is $content, "Updated content";
 }
 
-sub test_hostd_unavailable_after_change :Test(6) {
+# shuts down client 2 and re-establishes it to talk through a proxy
+sub setup_proxied_client {
     my ( $self ) = @_;
 
-    my $temp1   = $self->{'temp1'};
-    my $temp2   = $self->{'temp2'};
-
-    $self->catchup; # wait for the child to establish signal handlers
+    $self->catchup; # wait for child to establish signal handlers
 
     $self->check_client(2);
 
     my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
 
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2,
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($self->{'temp2'}, 2,
         proxy => $proxy,
     );
-    my $client1 = $self->{'client1'};
-    my $client2 = $self->{'client2'};
 
     $self->catchup; # let client 2 get situated
+
+    return $proxy;
+}
+
+sub test_hostd_unavailable_after_change :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    my $proxy   = $self->setup_proxied_client;
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
 
     $proxy->kill_connections;
 
@@ -658,8 +667,9 @@ sub test_hostd_unavailable_after_change :Test(6) {
 
 sub test_hostd_unavailable_at_start :Test(6) {
     my ( $self ) = @_;
-    my $temp1   = $self->{'temp1'};
-    my $temp2   = $self->{'temp2'};
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
 
     $self->catchup; # wait for the child to establish signal handlers
 
@@ -696,19 +706,10 @@ sub test_hostd_unavailable_last_sync :Test(6) {
     my $temp1 = $self->{'temp1'};
     my $temp2 = $self->{'temp2'};
 
-    $self->catchup; # wait for the child to establish signal handlers
+    my $proxy = $self->setup_proxied_client;
 
-    $self->check_client(2);
-
-    my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
-
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2,
-        proxy => $proxy,
-    );
     my $client1 = $self->{'client1'};
     my $client2 = $self->{'client2'};
-
-    $self->catchup; # let client 2 get situated
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
     
@@ -736,19 +737,10 @@ sub test_hostd_unavailable_get_blob :Test(6) {
     my $temp1 = $self->{'temp1'};
     my $temp2 = $self->{'temp2'};
 
-    $self->catchup;
+    my $proxy = $self->setup_proxied_client;
 
-    $self->check_client(2);
-
-    my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
-
-    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2,
-        proxy => $proxy,
-    );
     my $client1 = $self->{'client1'};
     my $client2 = $self->{'client2'};
-
-    $self->catchup;
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
 

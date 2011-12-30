@@ -770,6 +770,54 @@ sub test_hostd_unavailable_get_blob :Test(6) {
     is $content, "Updated content\n", 'changes should be synced even when the link goes down';
 }
 
+sub test_put_blob_client_error :Test {
+    my ( $self ) = @_;
+}
+
+sub test_put_blob_bad_perms :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+sub test_put_blob_host_error :Test {
+    my ( $self ) = @_;
+}
+
+sub test_put_blob_host_error_offline :Test {
+    my ( $self ) = @_;
+}
+
+sub test_put_blob_bad_perms_offline :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+sub test_delete_blob_client_error :Test {
+    my ( $self ) = @_;
+}
+
+sub test_delete_blob_bad_perms :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+sub test_delete_blob_host_error :Test {
+    my ( $self ) = @_;
+}
+
+sub test_delete_blob_host_error_offline :Test {
+    my ( $self ) = @_;
+}
+
+sub test_delete_blob_bad_perms_offline :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
 # XXX metadata + sync test (when we actually start providing metadata)
 
 1;

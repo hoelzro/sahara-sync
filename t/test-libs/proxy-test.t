@@ -29,6 +29,46 @@ sub do_request {
     return $headers->{'Status'};
 }
 
+sub do_streaming_request {
+    my ( $url, $callback ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    my $cond = AnyEvent->condvar;
+    my @lines;
+
+    http_get "$url/streaming", timeout => 3, want_body_handle => 1, sub {
+        my ( $h, $headers ) = @_;
+
+        is $headers->{'Status'}, 200, 'streaming response should succeed';
+
+        $h->on_read(sub {
+            $h->push_read(line => sub {
+                my ( undef, $line ) = @_;
+
+                push @lines, $line;
+                $callback->($line) if $callback;
+            });
+        });
+
+        $h->on_error(sub {
+            my ( undef, undef, $error ) = @_;
+
+            fail "Unexpected error: $error";
+            $h->destroy;
+            $cond->send;
+        });
+
+        $h->on_eof(sub {
+            $h->destroy;
+            $cond->send;
+        });
+    };
+    $cond->recv;
+
+    return @lines;
+}
+
 my $non_streaming = sub {
     my ( $env ) = @_;
 
@@ -76,6 +116,7 @@ my $server = Test::TCP->new(
 my $proxy = Test::Sahara::Proxy->new(remote => $server->port);
 my $url   = 'http://localhost:' . $proxy->port;
 my $status;
+my @lines;
 
 $status = do_request($url);
 is $status, 200, 'going through a proxy should succeed';
@@ -92,69 +133,14 @@ $status = do_request($url);
 
 is $status, 200, 'going through a reactivated proxy should not fail';
 
-my @lines;
-my $cond = AnyEvent->condvar;
-http_get "$url/streaming", timeout => 3, want_body_handle => 1, sub {
-    my ( $h, $headers ) = @_;
-
-    is $headers->{'Status'}, 200, 'streaming response should succeed';
-
-    $h->on_read(sub {
-        $h->push_read(line => sub {
-            my ( undef, $line ) = @_;
-
-            push @lines, $line;
-        });
-    });
-
-    $h->on_error(sub {
-        my ( undef, undef, $error ) = @_;
-
-        fail "Unexpected error: $error";
-        $h->destroy;
-        $cond->send;
-    });
-
-    $h->on_eof(sub {
-        $h->destroy;
-        $cond->send;
-    });
-};
-$cond->recv;
-
+@lines = do_streaming_request($url);
 is_deeply \@lines, [ 1 .. 10 ], 'streaming response contents should be ok';
 
-@lines = ();
-$cond  = AnyEvent->condvar;
-http_get "$url/streaming", timeout => 3, want_body_handle => 1, sub {
-    my ( $h, $headers ) = @_;
+@lines = do_streaming_request($url, sub {
+    my ( $line ) = @_;
 
-    is $headers->{'Status'}, 200, 'streaming response should succeed';
-
-    $h->on_read(sub {
-        $h->push_read(line => sub {
-            my ( undef, $line ) = @_;
-
-            push @lines, $line;
-            if($line == 5) {
-                $proxy->kill_connections;
-            }
-        });
-    });
-
-    $h->on_error(sub {
-        my ( undef, undef, $error ) = @_;
-
-        fail "Unexpected error: $error";
-        $h->destroy;
-        $cond->send;
-    });
-
-    $h->on_eof(sub {
-        $h->destroy;
-        $cond->send;
-    });
-};
-$cond->recv;
-
+    if($line == 5) {
+        $proxy->kill_connections;
+    }
+});
 is_deeply \@lines, [ 1 .. 5 ], 'streaming response should be interrupted by kill_connections';

@@ -8,7 +8,7 @@ use AnyEvent::HTTP;
 use Plack::Builder;
 use Plack::Runner;
 use Time::HiRes qw(usleep);
-use Test::More tests => 5;
+use Test::More tests => 7;
 use Test::Sahara::Proxy;
 use Test::TCP;
 
@@ -123,3 +123,38 @@ http_get "$url/streaming", timeout => 3, want_body_handle => 1, sub {
 $cond->recv;
 
 is_deeply \@lines, [ 1 .. 10 ], 'streaming response contents should be ok';
+
+@lines = ();
+$cond  = AnyEvent->condvar;
+http_get "$url/streaming", timeout => 3, want_body_handle => 1, sub {
+    my ( $h, $headers ) = @_;
+
+    is $headers->{'Status'}, 200, 'streaming response should succeed';
+
+    $h->on_read(sub {
+        $h->push_read(line => sub {
+            my ( undef, $line ) = @_;
+
+            push @lines, $line;
+            if($line == 5) {
+                $proxy->kill_connections;
+            }
+        });
+    });
+
+    $h->on_error(sub {
+        my ( undef, undef, $error ) = @_;
+
+        fail "Unexpected error: $error";
+        $h->destroy;
+        $cond->send;
+    });
+
+    $h->on_eof(sub {
+        $h->destroy;
+        $cond->send;
+    });
+};
+$cond->recv;
+
+is_deeply \@lines, [ 1 .. 5 ], 'streaming response should be interrupted by kill_connections';

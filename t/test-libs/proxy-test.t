@@ -4,12 +4,28 @@ use warnings;
 # yo dawg, I herd you like tests, so I put a test suite in yo test suite
 # so you can test while you test!
 
-use HTTP::Request;
-use LWP::UserAgent;
+use AnyEvent::HTTP;
 use Plack::Runner;
 use Test::More tests => 3;
 use Test::Sahara::Proxy;
 use Test::TCP;
+
+sub do_request {
+    my ( $url ) = @_;
+
+    my $cond  = AnyEvent->condvar;
+    my $headers;
+
+    http_get $url, timeout => 3, sub {
+        ( undef, $headers ) = @_;
+
+        $cond->send;
+    };
+
+    $cond->recv;
+
+    return $headers->{'Status'};
+}
 
 my $psgi_app = sub {
     my ( $env ) = @_;
@@ -36,22 +52,20 @@ my $server = Test::TCP->new(
 );
 
 my $proxy = Test::Sahara::Proxy->new(remote => $server->port);
+my $url   = 'http://localhost:' . $proxy->port;
+my $status;
 
-my $ua  = LWP::UserAgent->new;
-$ua->timeout(3);
-my $req = HTTP::Request->new(GET => 'http://localhost:' . $proxy->port);
-my $res = $ua->request($req);
-
-ok($res->is_success, 'going through a proxy should succeed');
+$status = do_request($url);
+is $status, 200, 'going through a proxy should succeed';
 
 $proxy->kill_connections;
 
-$res = $ua->request($req);
+$status = do_request($url);
 
-ok(!$res->is_success, 'going through a deactivated proxy should fail');
+isnt $status, 200, 'going through a deactivated proxy should fail';
 
 $proxy->resume_connections;
 
-$res = $ua->request($req);
+$status = do_request($url);
 
-ok($res->is_success, 'going through a reactivated proxy should not fail');
+is $status, 200, 'going through a reactivated proxy should not fail';

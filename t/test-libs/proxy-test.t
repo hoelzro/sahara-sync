@@ -5,8 +5,10 @@ use warnings;
 # so you can test while you test!
 
 use AnyEvent::HTTP;
+use Plack::Builder;
 use Plack::Runner;
-use Test::More tests => 3;
+use Time::HiRes qw(usleep);
+use Test::More tests => 5;
 use Test::Sahara::Proxy;
 use Test::TCP;
 
@@ -27,7 +29,7 @@ sub do_request {
     return $headers->{'Status'};
 }
 
-my $psgi_app = sub {
+my $non_streaming = sub {
     my ( $env ) = @_;
 
     return [
@@ -35,6 +37,26 @@ my $psgi_app = sub {
         ['Content-Type' => 'text/plain'],
         ['OK'],
     ];
+};
+
+my $streaming = sub {
+    my ( $env ) = @_;
+
+    return sub {
+        my ( $respond ) = @_;
+
+        my $writer = $respond->( [200, ['Content-Type' => 'text/plain'] ]);
+
+        foreach my $number ( 1 .. 10 ) {
+            $writer->write($number . "\n");
+            usleep 100_000;
+        }
+    };
+};
+
+my $psgi_app = builder {
+    mount '/streaming' => $streaming;
+    mount '/'          => $non_streaming;
 };
 
 my $server = Test::TCP->new(
@@ -69,3 +91,35 @@ $proxy->resume_connections;
 $status = do_request($url);
 
 is $status, 200, 'going through a reactivated proxy should not fail';
+
+my @lines;
+my $cond = AnyEvent->condvar;
+http_get "$url/streaming", timeout => 3, want_body_handle => 1, sub {
+    my ( $h, $headers ) = @_;
+
+    is $headers->{'Status'}, 200, 'streaming response should succeed';
+
+    $h->on_read(sub {
+        $h->push_read(line => sub {
+            my ( undef, $line ) = @_;
+
+            push @lines, $line;
+        });
+    });
+
+    $h->on_error(sub {
+        my ( undef, undef, $error ) = @_;
+
+        fail "Unexpected error: $error";
+        $h->destroy;
+        $cond->send;
+    });
+
+    $h->on_eof(sub {
+        $h->destroy;
+        $cond->send;
+    });
+};
+$cond->recv;
+
+is_deeply \@lines, [ 1 .. 10 ], 'streaming response contents should be ok';

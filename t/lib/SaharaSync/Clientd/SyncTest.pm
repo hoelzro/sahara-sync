@@ -639,6 +639,18 @@ sub setup_proxied_client {
     return $proxy;
 }
 
+# restarts the given client
+# XXX we should probably preserve whether or not the client goes through a proxy
+sub restart_client {
+    my ( $self, $client_num ) = @_;
+
+    $self->check_client(2);
+
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($self->{'temp2'}, 2);
+
+    $self->catchup; # let the new client get situated
+}
+
 sub test_hostd_unavailable_after_change :Test(6) {
     my ( $self ) = @_;
 
@@ -772,12 +784,60 @@ sub test_put_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_put_blob_host_error :Test {
+sub test_put_blob_host_error :Test(6) {
     my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated Content\n");
+
+    $self->catchup;
+
+    $proxy->resume_connections;
+
+    $self->catchup;
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
 }
 
-sub test_put_blob_host_error_offline :Test {
+sub test_put_blob_host_error_offline :Test(6) {
     my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated Content\n");
+
+    $self->catchup;
+
+    $self->restart_client(2);
+
+    $proxy->resume_connections;
+
+    $self->catchup; # XXX retry time?
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
 }
 
 sub test_put_blob_bad_perms_offline :Test {
@@ -796,12 +856,60 @@ sub test_delete_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_delete_blob_host_error :Test {
+sub test_delete_blob_host_error :Test(6) {
     my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    unlink(File::Spec->catfile($temp2, 'foo.txt'));
+
+    $self->catchup;
+
+    $proxy->resume_connections;
+
+    $self->catchup;
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
 }
 
-sub test_delete_blob_host_error_offline :Test {
+sub test_delete_blob_host_error_offline :Test(6) {
     my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    unlink(File::Spec->catfile($temp2, 'foo.txt'));
+
+    $self->catchup;
+
+    $self->restart_client(2);
+
+    $proxy->resume_connections;
+
+    $self->catchup; # XXX retry time?
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
 }
 
 sub test_delete_blob_bad_perms_offline :Test {

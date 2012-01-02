@@ -856,7 +856,7 @@ sub test_delete_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_delete_blob_host_error :Test(6) {
+sub test_delete_blob_host_error :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -878,9 +878,7 @@ sub test_delete_blob_host_error :Test(6) {
     $self->catchup;
 
     my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
+    is_deeply \@files, [];
 }
 
 sub test_delete_blob_host_error_offline :Test(6) {
@@ -907,9 +905,7 @@ sub test_delete_blob_host_error_offline :Test(6) {
     $self->catchup; # XXX retry time?
 
     my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
+    is_deeply \@files, [];
 }
 
 sub test_delete_blob_bad_perms_offline :Test {

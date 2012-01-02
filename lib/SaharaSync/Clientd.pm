@@ -70,6 +70,11 @@ has dbh => (
     builder => '_build_dbh',
 );
 
+has reconnect_queue => (
+    is      => 'ro',
+    default => sub { [] },
+);
+
 ## make sure we handle SIGINT, SIGTERM
 
 my $client;
@@ -163,6 +168,31 @@ sub _put_revision_for_blob {
 
     $self->dbh->do('INSERT OR REPLACE INTO local_revisions VALUES (?, ?, ?)',
         undef, $blob->name, $revision, $is_deleted);
+}
+
+sub _wait_for_reconnect {
+    my ( $self, $method, @args ) = @_;
+
+    my $queue = $self->reconnect_queue;
+
+    push @{$queue}, [
+        $method,
+        @args,
+    ];
+}
+
+sub _flush_reconnect_queue {
+    my ( $self ) = @_;
+
+    my $queue = $self->reconnect_queue;
+    my @copy  = @{$queue};
+    @{$queue} = ();
+
+    foreach my $operation (@copy) {
+        my ( $method, @args ) = @{$operation};
+
+        $self->$method(@args);
+    }
 }
 
 sub _fetch_and_write_blob {
@@ -423,6 +453,13 @@ sub run {
         shift; # shift off ws_client
         return $self->handle_upstream_change(@_);
     });
+
+    my $reconnect_timer = AnyEvent->timer(
+        interval => $self->poll_interval,
+        cb       => sub {
+            $self->_flush_reconnect_queue;
+        },
+    );
 
     my $cond = AnyEvent->condvar;
     my $int = AnyEvent->signal(

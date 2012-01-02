@@ -255,6 +255,67 @@ sub _fetch_and_write_blob {
     });
 }
 
+sub _upload_blob_to_hostd {
+    my ( $self, $blob, $on_success ) = @_;
+
+    $self->log->info(sprintf("Sending PUT %s/blobs/%s",
+        $self->upstream, $blob->name));
+
+    my %meta;
+    ## attach metadata (MIME Type, File Size, Contents Hash)
+
+    my $revision = $self->_get_revision_for_blob($blob);
+    if(defined $revision) {
+        $meta{'revision'} = $revision;
+    }
+
+    $self->ws_client->put_blob($blob->name, IO::File->new($blob->path, 'r'),
+        \%meta, sub {
+            my ( $ws, $revision, $error ) = @_;
+
+            if(defined $revision) {
+                my $name = $blob->name;
+                $self->log->info("Successfully updated $name; new revision is $revision");
+                $on_success->();
+                $self->_put_revision_for_blob($blob, $revision, 0);
+            } else {
+                # if a conflict occurs, an upstream change is coming down;
+                # we'll let them handle it
+                unless($error =~ /Conflict/) {
+                    $self->log->warning("Updating $blob failed: $error");
+                }
+            }
+    });
+}
+
+sub _delete_blob_on_hostd {
+    my ( $self, $blob, $on_success ) = @_;
+
+    $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
+        $self->upstream, $blob->name));
+
+    my $revision = $self->_get_revision_for_blob($blob);
+
+    $self->ws_client->delete_blob($blob->name, $revision, sub {
+        my ( $ws, $revision, $error ) = @_;
+
+        my $name = $blob->name;
+        if(defined $revision) {
+            $self->log->info("Successfully deleted $name; new revision is $revision");
+            $on_success->();
+            $self->_put_revision_for_blob($blob, $revision, 1);
+        } else {
+            # if a conflict occurs, an upstream change is coming down;
+            # we'll let them handle it
+
+            # ignore not found blobs (for now)
+            unless($error =~ /conflict/i || $error =~ /not found/i) {
+                $self->log->warning("Deleting $name failed: $error");
+            }
+       }
+    });
+}
+
 ## include hostname or something?
 sub _get_conflict_blob {
     my ( $self, $blob ) = @_;
@@ -330,58 +391,10 @@ sub handle_fs_change {
 
     ## make sure to send blobs names in Unix style file format
 
-    my $revision = $self->_get_revision_for_blob($blob);
-
     if(-f $path) {
-        $self->log->info(sprintf("Sending PUT %s/blobs/%s",
-            $self->upstream, $blob->name));
-
-        my %meta;
-        ## attach metadata (MIME Type, File Size, Contents Hash)
-
-        if(defined $revision) {
-            $meta{'revision'} = $revision;
-        }
-
-        $self->ws_client->put_blob($blob->name, IO::File->new($path, 'r'),
-            \%meta, sub {
-                my ( $ws, $revision, $error ) = @_;
-
-                if(defined $revision) {
-                    my $name = $blob->name;
-                    $self->log->info("Successfully updated $name; new revision is $revision");
-                    $continuation->();
-                    $self->_put_revision_for_blob($blob, $revision, 0);
-                } else {
-                    # if a conflict occurs, an upstream change is coming down;
-                    # we'll let them handle it
-                    unless($error =~ /Conflict/) {
-                        $self->log->warning("Updating $blob failed: $error");
-                    }
-                }
-        });
+        $self->_upload_blob_to_hostd($blob, $continuation);
     } else {
-        $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
-            $self->upstream, $blob->name));
-
-        $self->ws_client->delete_blob($blob->name, $revision, sub {
-            my ( $ws, $revision, $error ) = @_;
-
-            my $name = $blob->name;
-            if(defined $revision) {
-                $self->log->info("Successfully deleted $name; new revision is $revision");
-                $continuation->();
-                $self->_put_revision_for_blob($blob, $revision, 1);
-            } else {
-                # if a conflict occurs, an upstream change is coming down;
-                # we'll let them handle it
-
-                # ignore not found blobs (for now)
-                unless($error =~ /conflict/i || $error =~ /not found/i) {
-                    $self->log->warning("Deleting $name failed: $error");
-                }
-           }
-        });
+        $self->_delete_blob_on_hostd($blob, $continuation);
     }
 }
 

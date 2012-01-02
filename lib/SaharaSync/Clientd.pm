@@ -279,10 +279,14 @@ sub _upload_blob_to_hostd {
                 $on_success->();
                 $self->_put_revision_for_blob($blob, $revision, 0);
             } else {
-                # if a conflict occurs, an upstream change is coming down;
-                # we'll let them handle it
-                unless($error =~ /Conflict/) {
-                    $self->log->warning("Updating $blob failed: $error");
+                if($error->is_fatal) {
+                    # if a conflict occurs, an upstream change is coming down;
+                    # we'll let them handle it
+                    unless($error =~ /Conflict/) {
+                        $self->log->warning("Updating $blob failed: $error");
+                    }
+                } else {
+                    $self->_wait_for_reconnect(\&_upload_blob_to_hostd, $blob, $on_success);
                 }
             }
     });
@@ -305,12 +309,16 @@ sub _delete_blob_on_hostd {
             $on_success->();
             $self->_put_revision_for_blob($blob, $revision, 1);
         } else {
-            # if a conflict occurs, an upstream change is coming down;
-            # we'll let them handle it
+            if($error->is_fatal) {
+                # if a conflict occurs, an upstream change is coming down;
+                # we'll let them handle it
 
-            # ignore not found blobs (for now)
-            unless($error =~ /conflict/i || $error =~ /not found/i) {
-                $self->log->warning("Deleting $name failed: $error");
+                # ignore not found blobs (for now)
+                unless($error =~ /conflict/i || $error =~ /not found/i) {
+                    $self->log->warning("Deleting $name failed: $error");
+                }
+            } else {
+                $self->_wait_for_reconnect(\&_delete_blob_on_hostd, $blob, $on_success);
             }
        }
     });

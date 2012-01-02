@@ -206,8 +206,12 @@ sub _fetch_and_write_blob {
 
         unless($h) {
             my $error = $metadata;
-            if($error !~ /not found/i) { # XXX is there a better way to go about this?
-                $self->log->error("An error occurred while calling get_blob: $error");
+            if($error->is_fatal) {
+                if($error !~ /not found/i) { # XXX is there a better way to go about this?
+                    $self->log->error("An error occurred while calling get_blob: $error");
+                }
+            } else {
+                $self->_wait_for_reconnect(\&_fetch_and_write_blob, $blob);
             }
             return;
         }

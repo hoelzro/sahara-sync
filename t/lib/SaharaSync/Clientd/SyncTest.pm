@@ -808,7 +808,7 @@ sub test_put_blob_host_error :Test(6) {
     my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
     is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
     my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
+    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
 }
 
 sub test_put_blob_host_error_offline :Test(6) {

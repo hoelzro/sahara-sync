@@ -276,7 +276,7 @@ sub _upload_blob_to_hostd {
             if(defined $revision) {
                 my $name = $blob->name;
                 $self->log->info("Successfully updated $name; new revision is $revision");
-                $on_success->();
+                $on_success->() if $on_success;
                 $self->_put_revision_for_blob($blob, $revision, 0);
             } else {
                 if($error->is_fatal) {
@@ -286,9 +286,10 @@ sub _upload_blob_to_hostd {
                         $self->log->warning("Updating $blob failed: $error");
                     }
                 } else {
-                    $on_success->(); # XXX this name sucks
-                                     #     acknowledge would be better
-                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob, sub {});
+                    $on_success->() if $on_success; # XXX this name sucks
+                                                    #     acknowledge would be
+                                                    #     better
+                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob);
                 }
             }
     });
@@ -308,7 +309,7 @@ sub _delete_blob_on_hostd {
         my $name = $blob->name;
         if(defined $revision) {
             $self->log->info("Successfully deleted $name; new revision is $revision");
-            $on_success->();
+            $on_success->() if $on_success;
             $self->_put_revision_for_blob($blob, $revision, 1);
         } else {
             if($error->is_fatal) {
@@ -320,8 +321,9 @@ sub _delete_blob_on_hostd {
                     $self->log->warning("Deleting $name failed: $error");
                 }
             } else {
-                $on_success->(); # XXX see comment on the on_success name above
-                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob, sub {});
+                $on_success->() if $on_success; # XXX see comment on the
+                                                #     on_success name above
+                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob);
             }
        }
     });

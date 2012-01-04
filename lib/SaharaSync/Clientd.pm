@@ -256,7 +256,9 @@ sub _fetch_and_write_blob {
 }
 
 sub _upload_blob_to_hostd {
-    my ( $self, $blob, $on_success ) = @_;
+    my ( $self, $blob_name, $on_success ) = @_;
+
+    my $blob = $self->sd->blob(name => $blob_name);
 
     $self->log->info(sprintf("Sending PUT %s/blobs/%s",
         $self->upstream, $blob->name));
@@ -289,14 +291,16 @@ sub _upload_blob_to_hostd {
                     $on_success->() if $on_success; # XXX this name sucks
                                                     #     acknowledge would be
                                                     #     better
-                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob);
+                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob_name);
                 }
             }
     });
 }
 
 sub _delete_blob_on_hostd {
-    my ( $self, $blob, $on_success ) = @_;
+    my ( $self, $blob_name, $on_success ) = @_;
+
+    my $blob = $self->sd->blob(name => $blob_name);
 
     $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
         $self->upstream, $blob->name));
@@ -323,7 +327,7 @@ sub _delete_blob_on_hostd {
             } else {
                 $on_success->() if $on_success; # XXX see comment on the
                                                 #     on_success name above
-                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob);
+                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob_name);
             }
        }
     });
@@ -405,9 +409,9 @@ sub handle_fs_change {
     ## make sure to send blobs names in Unix style file format
 
     if(-f $path) {
-        $self->_upload_blob_to_hostd($blob, $continuation);
+        $self->_upload_blob_to_hostd($blob->name, $continuation);
     } else {
-        $self->_delete_blob_on_hostd($blob, $continuation);
+        $self->_delete_blob_on_hostd($blob->name, $continuation);
     }
 }
 

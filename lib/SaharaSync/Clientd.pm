@@ -211,7 +211,7 @@ sub _fetch_and_write_blob {
                     $self->log->error("An error occurred while calling get_blob: $error");
                 }
             } else {
-                $self->_wait_for_reconnect(\&_fetch_and_write_blob, $blob);
+                $self->_wait_for_reconnect('_fetch_and_write_blob', $blob);
             }
             return;
         }
@@ -286,7 +286,7 @@ sub _upload_blob_to_hostd {
                         $self->log->warning("Updating $blob failed: $error");
                     }
                 } else {
-                    $self->_wait_for_reconnect(\&_upload_blob_to_hostd, $blob, $on_success);
+                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob, $on_success);
                 }
             }
     });
@@ -318,7 +318,7 @@ sub _delete_blob_on_hostd {
                     $self->log->warning("Deleting $name failed: $error");
                 }
             } else {
-                $self->_wait_for_reconnect(\&_delete_blob_on_hostd, $blob, $on_success);
+                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob, $on_success);
             }
        }
     });

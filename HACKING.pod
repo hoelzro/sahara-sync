@@ -1,0 +1,55 @@
+=head1 Hacking on Sahara Sync
+
+So you want to help out, huh?
+
+=head1 Source Code
+
+Our Git repository is located on Github, at
+L<https://github.com/hoelzro/sahara-sync>.
+
+=head1 Testing
+
+Testing is very important to Sahara Sync.  Tests are under t/.
+
+=over
+
+=item New tests should use Test::Class, and the meat of them should be located in t/lib.
+
+=item TODO: Go over test directory structure
+
+=back
+
+=head1 Issue Tracker
+
+We track issues on Github.
+
+=over
+
+=item Go over labels
+
+=back
+
+=head1 Git Branching Practices
+
+master is always stable (the test suite should always pass); for
+new features or bug fixes, a new branch should be created from
+master.  One-off commits that don't break anything don't need their
+own branch.  When it comes time to merge your new feature or fix in,
+make sure you merge with --no-ff, as we want an explicit merge commit
+for those.
+
+=head1 Non-Perl tasks
+
+=over
+
+=item Testing
+
+=item Components
+
+=item Clientd Ports
+
+=item Documentation
+
+=back
+
+=cut

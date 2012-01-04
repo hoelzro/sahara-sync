@@ -70,11 +70,6 @@ has dbh => (
     builder => '_build_dbh',
 );
 
-has reconnect_queue => (
-    is      => 'ro',
-    default => sub { [] },
-);
-
 ## make sure we handle SIGINT, SIGTERM
 
 my $client;
@@ -143,6 +138,13 @@ CREATE TABLE IF NOT EXISTS local_revisions (
     is_deleted INTEGER NOT NULL
 )
 SQL
+
+    $dbh->do(<<SQL);
+CREATE TABLE IF NOT EXISTS reconnect_queue (
+    method_name TEXT NOT NULL,
+    blob_name   TEXT NOT NULL
+)
+SQL
 }
 
 sub _get_last_sync {
@@ -171,35 +173,41 @@ sub _put_revision_for_blob {
 }
 
 sub _wait_for_reconnect {
-    my ( $self, $method, @args ) = @_;
+    my ( $self, $method, $blob_name ) = @_;
 
-    my $queue = $self->reconnect_queue;
-
-    push @{$queue}, [
-        $method,
-        @args,
-    ];
+    $self->dbh->do('INSERT INTO reconnect_queue VALUES (?, ?)',
+        undef, $method, $blob_name);
 }
 
 sub _flush_reconnect_queue {
     my ( $self ) = @_;
 
-    my $queue = $self->reconnect_queue;
-    my @copy  = @{$queue};
-    @{$queue} = ();
+    my $sth = $self->dbh->prepare('SELECT method_name, blob_name FROM reconnect_queue');
+    $sth->execute;
 
-    foreach my $operation (@copy) {
-        my ( $method, @args ) = @{$operation};
+    # XXX potential problems with this implementation:
+    # 
+    # - if each operation submits an HTTP request, they all get fired in a shotgun blast
+    # - is there a race condition with the SELECT + loop + DELETE?
+    # - there is a a potential problem if we do half of the operations and then die (our next run will pick up operations we've executed)
+    # - redundant operations can exist in the DB (like put_blob('foo.txt'), put_blob('foo.txt'))
+    #   - what if I do put_blob('foo.txt') + delete_blob('foo.txt')? or the reverse?
+    # - if any of the operations throw an exception, we may re-execute operations
+    # - think of what issues can occur if there are multiple entries in the queue
 
-        $self->$method(@args);
+    while(my ( $method, $blob_name ) = $sth->fetchrow_array) {
+        $self->$method($blob_name);
     }
+
+    $self->dbh->do('DELETE FROM reconnect_queue');
 }
 
 sub _fetch_and_write_blob {
-    my ( $self, $blob ) = @_;
+    my ( $self, $blob_name ) = @_;
 
-    my $ws = $self->ws_client;
-    my $sd = $self->sd;
+    my $ws   = $self->ws_client;
+    my $sd   = $self->sd;
+    my $blob = $sd->blob(name => $blob_name);
 
     $ws->get_blob($blob->name, sub {
         my ( $ws, $h, $metadata ) = @_;
@@ -211,7 +219,7 @@ sub _fetch_and_write_blob {
                     $self->log->error("An error occurred while calling get_blob: $error");
                 }
             } else {
-                $self->_wait_for_reconnect('_fetch_and_write_blob', $blob);
+                $self->_wait_for_reconnect('_fetch_and_write_blob', $blob_name);
             }
             return;
         }
@@ -443,7 +451,7 @@ sub handle_upstream_change {
             }
         });
     } else {
-        $self->_fetch_and_write_blob($blob);
+        $self->_fetch_and_write_blob($blob->name);
     }
 
     ## lock the file

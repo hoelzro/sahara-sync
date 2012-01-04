@@ -286,7 +286,9 @@ sub _upload_blob_to_hostd {
                         $self->log->warning("Updating $blob failed: $error");
                     }
                 } else {
-                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob, $on_success);
+                    $on_success->(); # XXX this name sucks
+                                     #     acknowledge would be better
+                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob, sub {});
                 }
             }
     });
@@ -318,7 +320,8 @@ sub _delete_blob_on_hostd {
                     $self->log->warning("Deleting $name failed: $error");
                 }
             } else {
-                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob, $on_success);
+                $on_success->(); # XXX see comment on the on_success name above
+                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob, sub {});
             }
        }
     });

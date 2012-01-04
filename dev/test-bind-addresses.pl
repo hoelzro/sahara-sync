@@ -10,7 +10,7 @@ use Regexp::Common qw(net);
 my $BIND_ADDR = qr/inet_addr\("(?<address>$RE{net}{IPv4})"\)/;
 
 foreach my $test (@ARGV) {
-    my $command = "strace -f -e bind perl $test";
+    my $command = "strace -f -e bind perl -Ilib -It/lib $test";
 
     my ( $read, $write );
     pipe $read, $write;

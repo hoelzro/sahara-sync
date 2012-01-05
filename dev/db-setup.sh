@@ -10,6 +10,7 @@ info=${info% *}
 
 if [[ "$info" -eq 0 ]]; then
     echo -e "\033[31mUsage: . $0\033[0m"
+    exit 1
 fi
 
 export TEST_PGDATABASE=sahara-test

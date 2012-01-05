@@ -17,7 +17,7 @@ Testing is very important to Sahara Sync.  Tests are under t/.
 
 =item *
 
-New tests should use Test::Class, and the meat of them should be located in t/lib.
+New tests should use L<Test::Class>, and the meat of them should be located in t/lib.
 
 =item *
 

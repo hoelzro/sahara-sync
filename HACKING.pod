@@ -11,6 +11,8 @@ L<https://github.com/hoelzro/sahara-sync>.
 
 Testing is very important to Sahara Sync.  Tests are under t/.
 
+=head2 Testing Practices
+
 =over
 
 =item New tests should use Test::Class, and the meat of them should be located in t/lib.
@@ -18,6 +20,74 @@ Testing is very important to Sahara Sync.  Tests are under t/.
 =item TODO: Go over test directory structure
 
 =back
+
+=head2 Envrironment variables
+
+Various environment variables can be used to change how Sahara Sync's test
+suite is run, or what kind of information you can get from the tests.
+
+=head3 PostgreSQL variables
+
+To run the hostd storage tests against a PostgreSQL server, you can
+set the following environment variables to denote where that server is.
+If you want to use the C<sahara-test> database on your "default" server
+(wherever your PG* environment variables are leading), you can simply run
+the C<dev/db-setup.sh> script. (Note: the C<dev/db-setup.sh> script will also
+initialize the database schema for you)
+
+=over
+
+=item TEST_PGDATABASE
+
+=item TEST_PGUSER
+
+=item TEST_PGPASS
+
+=item TEST_PGHOST
+
+=item TEST_PGPORT
+
+=head3 MySQL variables
+
+=back
+
+To run the hostd storage tests against a MySQL server, you can
+set the following environment variables to denote where that server is.
+If you want to use the C<sahara-test> database on your local server as
+the root MySQL user, you can simply run the C<dev/db-setup.sh> script. (Note:
+the C<dev/db-setup.sh> script will also initialize the database schema for
+you)
+
+=over
+
+=item TEST_MYDATABASE
+
+=item TEST_MYUSER
+
+=item TEST_MYPASS
+
+=item TEST_MYHOST
+
+=item TEST_MYPORT
+
+=back
+
+=head3 Diagnostic variables
+
+These variables, when set to 1, tell the hostd or the client processes being
+run in the tests to print logging information to standard error.  The output
+is color-coded so you can distinguish between them.
+
+=over
+
+=item TEST_HOSTD_DEBUG
+
+=item TEST_CLIENTD_DEBUG
+
+=back
+
+Also, since we use L<Test::Class> for a lot of things, you can use
+C<TEST_METHOD> to restrict which test is run.
 
 =head1 Issue Tracker
 

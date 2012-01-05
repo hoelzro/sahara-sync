@@ -15,9 +15,13 @@ Testing is very important to Sahara Sync.  Tests are under t/.
 
 =over
 
-=item New tests should use Test::Class, and the meat of them should be located in t/lib.
+=item *
 
-=item TODO: Go over test directory structure
+New tests should use Test::Class, and the meat of them should be located in t/lib.
+
+=item *
+
+TODO: Go over test directory structure
 
 =back
 
@@ -37,15 +41,25 @@ initialize the database schema for you)
 
 =over
 
-=item TEST_PGDATABASE
+=item *
 
-=item TEST_PGUSER
+TEST_PGDATABASE
 
-=item TEST_PGPASS
+=item *
 
-=item TEST_PGHOST
+TEST_PGUSER
 
-=item TEST_PGPORT
+=item *
+
+TEST_PGPASS
+
+=item *
+
+TEST_PGHOST
+
+=item *
+
+TEST_PGPORT
 
 =head3 MySQL variables
 
@@ -60,15 +74,25 @@ you)
 
 =over
 
-=item TEST_MYDATABASE
+=item *
 
-=item TEST_MYUSER
+TEST_MYDATABASE
 
-=item TEST_MYPASS
+=item *
 
-=item TEST_MYHOST
+TEST_MYUSER
 
-=item TEST_MYPORT
+=item *
+
+TEST_MYPASS
+
+=item *
+
+TEST_MYHOST
+
+=item *
+
+TEST_MYPORT
 
 =back
 
@@ -80,9 +104,13 @@ is color-coded so you can distinguish between them.
 
 =over
 
-=item TEST_HOSTD_DEBUG
+=item *
 
-=item TEST_CLIENTD_DEBUG
+TEST_HOSTD_DEBUG
+
+=item *
+
+TEST_CLIENTD_DEBUG
 
 =back
 

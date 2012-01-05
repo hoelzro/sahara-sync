@@ -15,7 +15,7 @@ fi
 export TEST_PGDATABASE=sahara-test
 export TEST_MYHOST=127.0.0.1
 export TEST_MYUSER=root
-export TEST_MYDATABASE=sahara
+export TEST_MYDATABASE=sahara-test
 
 dropdb $TEST_PGDATABASE 2>/dev/null
 createdb $TEST_PGDATABASE
@@ -23,7 +23,7 @@ createdb $TEST_PGDATABASE
 psql -X -f schema.psql $TEST_PGDATABASE
 
 mysql -h $TEST_MYHOST -u $TEST_MYUSER <<SQL
-drop database if exists $TEST_MYDATABASE;
-create database $TEST_MYDATABASE;
+drop database if exists \`$TEST_MYDATABASE\`;
+create database \`$TEST_MYDATABASE\`;
 SQL
 mysql -h $TEST_MYHOST -u $TEST_MYUSER $TEST_MYDATABASE < schema.mysql

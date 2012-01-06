@@ -11,6 +11,7 @@ use Carp qw(croak);
 use Guard qw(guard);
 use List::MoreUtils qw(any);
 use MIME::Base64 qw(encode_base64);
+use Readonly;
 use Scalar::Util qw(weaken);
 use URI;
 use URI::QueryParam;
@@ -20,6 +21,7 @@ use SaharaSync::Stream::Reader;
 use namespace::clean;
 
 my $DEFAULT_SCHEME = 'http';
+Readonly::Scalar my $DEFAULT_CHANGES_TIMEOUT => 900; # 15 minutes
 
 # override has to ensure consistency among different operating systems
 my %reasons = (
@@ -410,6 +412,7 @@ sub _streaming_changes {
         headers => {
             'X-Sahara-Last-Sync' => $since,
         },
+        timeout => $DEFAULT_CHANGES_TIMEOUT,
     };
 
     my $url = 'changes';

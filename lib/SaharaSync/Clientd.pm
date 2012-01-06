@@ -138,6 +138,14 @@ CREATE TABLE IF NOT EXISTS local_revisions (
     is_deleted INTEGER NOT NULL
 )
 SQL
+
+    $dbh->do(<<SQL);
+CREATE TABLE IF NOT EXISTS reconnect_queue (
+    id          INTEGER NOT NULL PRIMARY KEY,
+    method_name TEXT    NOT NULL,
+    blob_name   TEXT    NOT NULL
+)
+SQL
 }
 
 sub _get_last_sync {
@@ -165,20 +173,60 @@ sub _put_revision_for_blob {
         undef, $blob->name, $revision, $is_deleted);
 }
 
-sub _fetch_and_write_blob {
-    my ( $self, $blob ) = @_;
+sub _wait_for_reconnect {
+    my ( $self, $method, $blob_name ) = @_;
 
-    my $ws = $self->ws_client;
-    my $sd = $self->sd;
+    $self->log->info("enqueueing operation '$method' for blob '$blob_name'");
+
+    $self->dbh->do('INSERT INTO reconnect_queue (method_name, blob_name) VALUES (?, ?)',
+        undef, $method, $blob_name);
+}
+
+sub _flush_reconnect_queue {
+    my ( $self ) = @_;
+
+    my $sth        = $self->dbh->prepare('SELECT id, method_name, blob_name FROM reconnect_queue');
+    my $delete_sth = $self->dbh->prepare('DELETE FROM reconnect_queue WHERE id = ?');
+    $sth->execute;
+
+    # XXX potential problems with this implementation:
+    # 
+    # - if each operation submits an HTTP request, they all get fired in a shotgun blast
+    # - is there a race condition with the SELECT + loop + DELETE?
+    # - there is a a potential problem if we do half of the operations and then die (our next run will pick up operations we've executed)
+    # - redundant operations can exist in the DB (like put_blob('foo.txt'), put_blob('foo.txt'))
+    #   - what if I do put_blob('foo.txt') + delete_blob('foo.txt')? or the reverse?
+    # - if any of the operations throw an exception, we may re-execute operations
+    # - think of what issues can occur if there are multiple entries in the queue
+
+    while(my ( $id, $method, $blob_name ) = $sth->fetchrow_array) {
+        $self->log->info("running queued operation '$method' on blob '$blob_name'");
+        $self->$method($blob_name, sub {
+            $delete_sth->execute($id);
+        });
+    }
+}
+
+sub _fetch_and_write_blob {
+    my ( $self, $blob_name, $on_complete ) = @_;
+
+    my $ws   = $self->ws_client;
+    my $sd   = $self->sd;
+    my $blob = $sd->blob(name => $blob_name);
 
     $ws->get_blob($blob->name, sub {
         my ( $ws, $h, $metadata ) = @_;
 
         unless($h) {
             my $error = $metadata;
-            if($error !~ /not found/i) { # XXX is there a better way to go about this?
-                $self->log->error("An error occurred while calling get_blob: $error");
+            if($error->is_fatal) {
+                if($error !~ /not found/i) { # XXX is there a better way to go about this?
+                    $self->log->error("An error occurred while calling get_blob: $error");
+                }
+            } else {
+                $self->_wait_for_reconnect('_fetch_and_write_blob', $blob_name);
             }
+            $on_complete->() if $on_complete;
             return;
         }
 
@@ -217,7 +265,85 @@ sub _fetch_and_write_blob {
             undef $h;
 
             $self->_put_revision_for_blob($blob, $revision, 0);
+            $on_complete->() if $on_complete;
         });
+    });
+}
+
+sub _upload_blob_to_hostd {
+    my ( $self, $blob_name, $on_complete ) = @_;
+
+    my $blob = $self->sd->blob(name => $blob_name);
+
+    $self->log->info(sprintf("Sending PUT %s/blobs/%s",
+        $self->upstream, $blob->name));
+
+    my %meta;
+    ## attach metadata (MIME Type, File Size, Contents Hash)
+
+    my $revision = $self->_get_revision_for_blob($blob);
+    if(defined $revision) {
+        $meta{'revision'} = $revision;
+    }
+
+    $self->ws_client->put_blob($blob->name, IO::File->new($blob->path, 'r'),
+        \%meta, sub {
+            my ( $ws, $revision, $error ) = @_;
+
+            if(defined $revision) {
+                my $name = $blob->name;
+                $self->log->info("Successfully updated $name; new revision is $revision");
+                $self->_put_revision_for_blob($blob, $revision, 0);
+                $on_complete->(1) if $on_complete;
+            } else {
+                if($error->is_fatal) {
+                    # if a conflict occurs, an upstream change is coming down;
+                    # we'll let them handle it
+                    unless($error =~ /Conflict/) {
+                        $self->log->warning("Updating $blob failed: $error");
+                    }
+                    $on_complete->(0) if $on_complete;
+                } else {
+                    $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob_name);
+                    $on_complete->(1) if $on_complete;
+                }
+            }
+    });
+}
+
+sub _delete_blob_on_hostd {
+    my ( $self, $blob_name, $on_complete ) = @_;
+
+    my $blob = $self->sd->blob(name => $blob_name);
+
+    $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
+        $self->upstream, $blob->name));
+
+    my $revision = $self->_get_revision_for_blob($blob);
+
+    $self->ws_client->delete_blob($blob->name, $revision, sub {
+        my ( $ws, $revision, $error ) = @_;
+
+        my $name = $blob->name;
+        if(defined $revision) {
+            $self->log->info("Successfully deleted $name; new revision is $revision");
+            $self->_put_revision_for_blob($blob, $revision, 1);
+            $on_complete->(1) if $on_complete;
+        } else {
+            if($error->is_fatal) {
+                # if a conflict occurs, an upstream change is coming down;
+                # we'll let them handle it
+
+                # ignore not found blobs (for now)
+                unless($error =~ /conflict/i || $error =~ /not found/i) {
+                    $self->log->warning("Deleting $name failed: $error");
+                }
+                $on_complete->(0) if $on_complete;
+            } else {
+                $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob_name);
+                $on_complete->(1) if $on_complete;
+            }
+       }
     });
 }
 
@@ -296,58 +422,16 @@ sub handle_fs_change {
 
     ## make sure to send blobs names in Unix style file format
 
-    my $revision = $self->_get_revision_for_blob($blob);
+    my $on_complete = sub {
+        my ( $ok ) = @_;
+
+        $continuation->() if $ok;
+    };
 
     if(-f $path) {
-        $self->log->info(sprintf("Sending PUT %s/blobs/%s",
-            $self->upstream, $blob->name));
-
-        my %meta;
-        ## attach metadata (MIME Type, File Size, Contents Hash)
-
-        if(defined $revision) {
-            $meta{'revision'} = $revision;
-        }
-
-        $self->ws_client->put_blob($blob->name, IO::File->new($path, 'r'),
-            \%meta, sub {
-                my ( $ws, $revision, $error ) = @_;
-
-                if(defined $revision) {
-                    my $name = $blob->name;
-                    $self->log->info("Successfully updated $name; new revision is $revision");
-                    $continuation->();
-                    $self->_put_revision_for_blob($blob, $revision, 0);
-                } else {
-                    # if a conflict occurs, an upstream change is coming down;
-                    # we'll let them handle it
-                    unless($error =~ /Conflict/) {
-                        $self->log->warning("Updating $blob failed: $error");
-                    }
-                }
-        });
+        $self->_upload_blob_to_hostd($blob->name, $on_complete);
     } else {
-        $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
-            $self->upstream, $blob->name));
-
-        $self->ws_client->delete_blob($blob->name, $revision, sub {
-            my ( $ws, $revision, $error ) = @_;
-
-            my $name = $blob->name;
-            if(defined $revision) {
-                $self->log->info("Successfully deleted $name; new revision is $revision");
-                $continuation->();
-                $self->_put_revision_for_blob($blob, $revision, 1);
-            } else {
-                # if a conflict occurs, an upstream change is coming down;
-                # we'll let them handle it
-
-                # ignore not found blobs (for now)
-                unless($error =~ /conflict/i || $error =~ /not found/i) {
-                    $self->log->warning("Deleting $name failed: $error");
-                }
-           }
-        });
+        $self->_delete_blob_on_hostd($blob->name, $on_complete);
     }
 }
 
@@ -379,7 +463,7 @@ sub handle_upstream_change {
             }
         });
     } else {
-        $self->_fetch_and_write_blob($blob);
+        $self->_fetch_and_write_blob($blob->name);
     }
 
     ## lock the file
@@ -423,6 +507,13 @@ sub run {
         shift; # shift off ws_client
         return $self->handle_upstream_change(@_);
     });
+
+    my $reconnect_timer = AnyEvent->timer(
+        interval => $self->poll_interval,
+        cb       => sub {
+            $self->_flush_reconnect_queue;
+        },
+    );
 
     my $cond = AnyEvent->condvar;
     my $int = AnyEvent->signal(

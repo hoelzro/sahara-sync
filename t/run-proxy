@@ -1,0 +1,127 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use AnyEvent::Handle;
+use AnyEvent::Socket;
+use Test::More;
+
+my $port   = $ENV{'_PROXY_PORT'};
+my $remote = $ENV{'_PROXY_REMOTE_PORT'};
+my %handles;
+my $proxy;
+
+sub kill_proxy {
+    my %opts = @_;
+
+    my $preserve_existing = $opts{'preserve_existing'};
+
+    undef $proxy;
+
+    unless($preserve_existing) {
+        $_->destroy foreach values %handles;
+        %handles = ();
+    }
+}
+
+sub resume_proxy {
+    $proxy = create_proxy($port, $remote);
+}
+
+sub create_proxy {
+    my ( $port, $remote ) = @_;
+
+    return tcp_server '127.0.0.1', $port, sub {
+        my ( $client_fh ) = @_;
+
+        my $client_h = AnyEvent::Handle->new(
+            fh => $client_fh,
+        );
+
+        $handles{$client_h} = $client_h;
+
+        tcp_connect 'localhost', $remote, sub {
+            unless(@_) {
+                diag("connection failed: $!");
+                $client_h->destroy;
+                return;
+            }
+            my ( $host_fh ) = @_;
+
+            my $host_h = AnyEvent::Handle->new(
+                fh => $host_fh,
+            );
+
+            $handles{$host_h} = $host_h;
+
+            $client_h->on_read(sub {
+                my $buffer      = $client_h->rbuf;
+                $client_h->rbuf = '';
+
+                $host_h->push_write($buffer);
+            });
+
+            $client_h->on_error(sub {
+                my ( undef, undef, $msg ) = @_;
+                diag("transmission error: $msg");
+                $client_h->destroy;
+                $host_h->destroy;
+
+                delete @handles{$client_h, $host_h};
+            });
+
+            $client_h->on_eof(sub {
+                $client_h->destroy;
+                $host_h->destroy;
+                delete @handles{$client_h, $host_h};
+            });
+
+            $host_h->on_read(sub {
+                my $buffer    = $host_h->rbuf;
+                $host_h->rbuf = '';
+
+                $client_h->push_write($buffer);
+            });
+
+            $host_h->on_error(sub {
+                my ( undef, undef, $msg ) = @_;
+                diag("transmission error: $msg");
+
+                $host_h->destroy;
+                $client_h->destroy;
+                delete @handles{$client_h, $host_h};
+            });
+
+            $host_h->on_eof(sub {
+                $host_h->destroy;
+                $client_h->destroy;
+                delete @handles{$client_h, $host_h};
+            });
+        };
+    };
+}
+
+my $cond = AnyEvent->condvar;
+
+$proxy = create_proxy($port, $remote);
+
+my $usr1 = AnyEvent->signal(
+    signal => 'USR1',
+    cb     => sub {
+        if($proxy) {
+            kill_proxy();
+        } else {
+            resume_proxy();
+        }
+    },
+);
+
+my $usr2 = AnyEvent->signal(
+    signal => 'USR2',
+    cb     => sub {
+        kill_proxy(preserve_existing => 1);
+    },
+);
+
+$cond->recv;

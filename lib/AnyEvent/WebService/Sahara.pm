@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use AnyEvent::HTTP;
+use AnyEvent::WebService::Sahara::Error;
 use Carp qw(croak);
 use Guard qw(guard);
 use List::MoreUtils qw(any);
@@ -134,6 +135,32 @@ sub add_auth {
     $headers->{'Authorization'} = $header;
 }
 
+sub _check_for_error {
+    my ( $self, $data, $headers ) = @_;
+
+    my $status = $headers->{'Status'};
+
+    if($status > 400) {
+        my $reason = $headers->{'Reason'};
+        $reason = $reasons{$status} if $status > 590 && exists $reasons{$status};
+
+        return AnyEvent::WebService::Sahara::Error->new(
+            code    => $status,
+            message => $reason,
+        );
+    } elsif($status == 400) {
+        # 400 errors are special, because we overload them
+        # not ideal, I know.
+
+        return AnyEvent::WebService::Sahara::Error->new(
+            code    => $status,
+            message => $data,
+        );
+    } else {
+        return;
+    }
+}
+
 # calling syntax: $self->do_request($method => @path, $opt_meta, $prepare, $cb)
 sub do_request {
     my ( $self, $method, $segments, $meta, $prepare, $cb );
@@ -172,20 +199,14 @@ sub do_request {
     $handler = sub {
         my ( $data, $headers ) = @_;
 
-        my $status = $headers->{'Status'};
+        my $error = $self->_check_for_error($data, $headers);
 
-        if($status > 400) {
-            my $reason = $headers->{'Reason'};
-            $reason = $reasons{$status} if $status > 590 && exists $reasons{$status};
-            $cb->($self, undef, $reason);
-        } elsif($status == 400) {
-            # 400 errors are special, because we overload them
-            # not ideal, I know.
-
-            $cb->($self, undef, $data);
+        if($error) {
+            $cb->($self, undef, $error);
         } else {
             $cb->($self, $prepare->($data, $headers));
         }
+
     };
 
     return http_request $method => $url, %$meta, $handler;
@@ -194,7 +215,7 @@ sub do_request {
 sub capabilities {
     my ( $self, $cb ) = @_;
 
-    $self->do_request(HEAD => '', sub {
+    return $self->do_request(HEAD => '', sub {
         my ( $data, $headers ) = @_;
 
         my $capabilities = $headers->{'x-sahara-capabilities'};
@@ -340,6 +361,47 @@ sub _handle_change {
     $cb->($self, $change);
 }
 
+sub _raw_streaming_request {
+    my ( $self, $url, $meta, $cb, $on_eof ) = @_;
+
+    my $h;
+
+    weaken($self);
+    my $guard = $self->do_request(GET => $url, $meta, sub {
+        my $headers;
+        ( $h, $headers ) = @_;
+
+        my $reader = SaharaSync::Stream::Reader->for_mimetype($headers->{'content-type'});
+
+        $reader->on_read_object(sub {
+            my ( undef, $object ) = @_;
+
+            $meta->{'headers'}{'X-Sahara-Last-Sync'} = $object->{'revision'};
+            $self->_handle_change($cb, $object);
+        });
+
+        $h->on_read(sub {
+            my $chunk = $h->rbuf;
+            $h->rbuf = '';
+
+            $reader->feed($chunk);
+        });
+
+        $h->on_eof(sub {
+            $reader->feed(undef);
+            $h->destroy;
+            undef $h;
+            $on_eof->();
+        });
+    }, sub {
+        my ( $self, $ok, $error ) = @_;
+
+        $cb->(@_) unless $ok;
+    });
+
+    return ( $guard, \$h );
+}
+
 sub _streaming_changes {
     my ( $self, $since, $metadata, $cb ) = @_;
 
@@ -355,50 +417,47 @@ sub _streaming_changes {
         $url = [ $url, { metadata => $metadata } ];
     }
 
-    my $h;
+    my ( $guard, $handle_ref, $handle_error );
+
+    my $wrapped_cb;
 
     weaken($self);
-    my $guard = $self->do_request(GET => $url, $meta, sub {
-        my $headers;
-        ( $h, $headers ) = @_;
-
-        my $reader = SaharaSync::Stream::Reader->for_mimetype($headers->{'content-type'});
-
-        $reader->on_read_object(sub {
-            my ( undef, $object ) = @_;
-
-            $self->_handle_change($cb, $object);
-        });
-
-        $h->on_read(sub {
-            my $chunk = $h->rbuf;
-            $h->rbuf = '';
-
-            $reader->feed($chunk);
-        });
-
-        $h->on_eof(sub {
-            $reader->feed(undef);
-            undef $h;
-        });
-    }, sub {
-        my ( $self, $ok, $error ) = @_;
-
-        $cb->(@_) unless $ok;
-    });
-
-    my $guards = $self->{'change_guards'};
-    weaken($guards);
-    $guards->{$guard} = guard {
-        undef $h;
-        undef $guard;
+    $handle_error = sub {
+        my $timer;
+        $timer = AnyEvent->timer(
+            after => $self->{'poll_interval'},
+            cb    => sub {
+                # XXX check that we're still interested in a relationship
+                #     with the host
+                undef $timer;
+                undef $$handle_ref;
+                ( $guard, $handle_ref ) = $self->_raw_streaming_request($url,
+                    $meta, $wrapped_cb, $handle_error);
+            },
+        );
     };
 
-    if(defined wantarray) {
-        return guard {
-            delete $guards->{$guard} if $guards && $guard;
+    do {
+        my $handle_error_copy = $handle_error;
+        weaken($handle_error_copy);
+        $wrapped_cb = sub {
+            my ( undef, $ok, $error ) = @_;
+
+            if($ok || $error->is_fatal) {
+                goto &$cb;
+            } else {
+                $handle_error_copy->();
+            }
         };
-    }
+    };
+
+    ( $guard, $handle_ref ) = $self->_raw_streaming_request($url, $meta,
+        $wrapped_cb, $handle_error);
+
+    return guard {
+        undef $$handle_ref;
+        undef $guard;
+    };
 }
 
 sub _non_streaming_changes {
@@ -448,46 +507,70 @@ sub _non_streaming_changes {
         },
     );
 
-    my $guards = $self->{'change_guards'};
-    weaken($guards);
-    $guards->{$timer_guard} = guard {
-        undef $timer_guard;
+    return guard {
         undef $req_guard;
+        undef $timer_guard;
     };
-
-    if(defined wantarray) {
-        return guard {
-            delete $guards->{$timer_guard} if $guards && $timer_guard;
-        };
-    }
 }
 
 sub changes {
     my ( $self, $since, $metadata, $cb ) = @_;
 
-    my $cond = AnyEvent->condvar;
-    my $caps;
-    my $error;
+    my $guards = $self->{'change_guards'};
+    weaken($self);
+    weaken($guards);
+    my $guard;
 
-    $self->capabilities(sub {
-        ( undef, $caps, $error ) = @_;
+    my $poll_interval = $self->{'poll_interval'};
 
-        $cond->send;
-    });
+    my $start;
+    $start = sub {
+        my $old_guard = $guard;
 
-    ## synchronous code alert!
-    $cond->recv;
+        $guard = $self->capabilities(sub {
+            my ( undef, $caps, $error ) = @_;
 
-    unless($caps) {
-        $cb->($self, undef, $error);
-        return;
+            if($caps) {
+                my $old_guard = $guard;
+
+                if(any { $_ eq 'streaming' } @$caps) {
+                    $guard = $self->_streaming_changes($since, $metadata, $cb);
+                } else {
+                    $guard = $self->_non_streaming_changes($since, $metadata, $cb);
+                }
+                $guards->{$guard} = delete $guards->{$old_guard};
+            } else {
+                if($error->is_fatal) {
+                    $cb->($self, undef, $error);
+                } else {
+                    my $timer;
+                    $timer = AnyEvent->timer(
+                        after => $poll_interval,
+                        cb    => sub {
+                            undef $timer;
+                            $start->();
+                        },
+                    );
+                }
+            }
+        });
+
+        if($old_guard) {
+            $guards->{$guard} = delete $guards->{$old_guard};
+        }
+    };
+    $start->();
+
+    $guards->{$guard} = guard {
+        undef $guard;
+    };
+
+    if(defined wantarray) {
+        return guard {
+            delete $guards->{$guard} if $guards && $guard;
+        };
     }
-
-    if(any { $_ eq 'streaming' } @$caps) {
-        return $self->_streaming_changes($since, $metadata, $cb);
-    } else {
-        return $self->_non_streaming_changes($since, $metadata, $cb);
-    }
+    return;
 }
 
 1;

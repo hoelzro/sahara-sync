@@ -7,13 +7,16 @@ use utf8;
 
 use Test::More;
 use Test::Sahara ':methods';
+use Test::Sahara::Proxy;
 use Test::TCP qw(empty_port);
 
 use AnyEvent::WebService::Sahara;
 use IO::String;
+use List::MoreUtils qw(any);
 use LWP::UserAgent;
 use Plack::Builder;
 use Plack::Loader;
+use Readonly;
 
 my $BAD_REVISION = '0' x 40;
 
@@ -37,10 +40,12 @@ sub server {
 }
 
 sub create_client {
-    my ( $self ) = @_;
+    my ( $self, $port ) = @_;
+
+    $port ||= $self->port;
 
     return AnyEvent::WebService::Sahara->new(
-        url           => 'http://localhost:' . $self->port,
+        url           => 'http://localhost:' . $port,
         user          => 'test',
         password      => 'abc123',
         poll_interval => $self->client_poll_time,
@@ -91,7 +96,7 @@ sub cleanup : Test(teardown) {
     $self->server(undef);
 }
 
-sub test_bad_connection : Test(10) {
+sub test_bad_connection : Test(8) {
     my $cond;
     my $bad_port = empty_port;
     my $client = AnyEvent::WebService::Sahara->new(
@@ -141,6 +146,8 @@ sub test_bad_connection : Test(10) {
     });
     $cond->recv;
 
+    # we need to re-evaluate what to do here
+=pod
     $cond = AnyEvent->condvar;
     $client->changes(undef, [], sub {
         my ( $c, $change, $error ) = @_;
@@ -151,6 +158,7 @@ sub test_bad_connection : Test(10) {
     });
 
     $cond->recv;
+=cut
 }
 
 sub test_bad_credentials : Test(18) {
@@ -1143,6 +1151,193 @@ sub test_guard_request_in_flight : Test(2) {
 
     $cond->recv;
     ok !$change_seen;
+}
+
+sub delay {
+    my ( $self, $timeout ) = @_;
+
+    my $cond  = AnyEvent->condvar;
+    my $timer;
+    $timer = AnyEvent->timer(
+        after => $timeout,
+        cb    => sub {
+            $timer = undef;
+            $cond->send;
+        },
+    );
+
+    $cond->recv;
+}
+
+Readonly::Scalar my $PRE_CREATE_CLIENT  => 0x01;
+Readonly::Scalar my $POST_CREATE_CLIENT => 0x02;
+Readonly::Scalar my $PRE_CONNECTION     => $POST_CREATE_CLIENT;
+Readonly::Scalar my $POST_CONNECTION    => 0x03;
+Readonly::Scalar my $PRE_PUT_BLOB       => 0x04;
+Readonly::Scalar my $POST_PUT_BLOB      => 0x05;
+
+sub _run_phase {
+    my ( $self, %params ) = @_;
+
+    my ( $phase, $proxy, $opts ) = @params{qw/phase proxy opts/};
+
+    my $is_killing   = any { $_ == $phase } @{ $opts->{'kill_connection'} };
+    my $is_resuming  = any { $_ == $phase } @{ $opts->{'resume_connection'} };
+    my $should_delay = $is_killing || $is_resuming;
+
+    if($is_killing) {
+        $proxy->kill_connections;
+    }
+
+    if($is_resuming) {
+        $proxy->resume_connections;
+    }
+
+    if($should_delay) {
+        $self->delay($self->client_poll_time + 5);
+    }
+}
+
+sub _perform_unavailable_test {
+    my ( $self, %opts ) = @_;
+
+    unless(ref($opts{'kill_connection'})) {
+        $opts{'kill_connection'} = [
+            $opts{'kill_connection'},
+        ];
+    }
+
+    unless(ref($opts{'resume_connection'})) {
+        $opts{'resume_connection'} = [
+            $opts{'resume_connection'},
+        ];
+    }
+
+    my $put_metadata     = $opts{'put_metadata'}     || {};
+    my $changes_metadata = $opts{'changes_metadata'} || [];
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
+    $self->_run_phase(
+        phase => $PRE_CREATE_CLIENT,
+        proxy => $proxy,
+        opts  => \%opts,
+    );
+    my $client1 = $self->create_client;
+    my $client2 = $self->create_client($proxy->port);
+    my $cond;
+    my $revision;
+
+    $self->_run_phase(
+        phase => $POST_CREATE_CLIENT,
+        proxy => $proxy,
+        opts  => \%opts,
+    );
+
+    my @client2_changes;
+    $client2->changes(undef, $changes_metadata, sub {
+        my ( undef, $change ) = @_;
+
+        # XXX test for when an error occurs
+        if(defined $change) {
+            push @client2_changes, $change;
+            $cond->send;
+        }
+    });
+
+    $self->_run_phase(
+        phase => $POST_CONNECTION,
+        proxy => $proxy,
+        opts  => \%opts,
+    );
+
+    # give the client time to actually establish a stream
+    # if need be
+    $self->delay(1);
+
+    $self->_run_phase(
+        phase => $PRE_PUT_BLOB,
+        proxy => $proxy,
+        opts  => \%opts,
+    );
+    $client1->put_blob('file.txt', IO::String->new('Content'), $put_metadata, sub {
+        ( undef, $revision ) = @_;
+
+        my $timer;
+        $timer = AnyEvent->timer(
+            after => $self->client_poll_time + 5,
+            cb    => sub {
+                $timer = undef;
+                $cond->send;
+            },
+        );
+    });
+
+    $cond = AnyEvent->condvar;
+    $cond->recv;
+
+    $self->_run_phase(
+        phase => $POST_PUT_BLOB,
+        proxy => $proxy,
+        opts  => \%opts,
+    );
+
+    my $expected_changes = {
+        map {
+            exists $put_metadata->{$_}
+                ? ( $_ => $put_metadata->{$_} )
+                : ()
+        } @{$changes_metadata}
+    };
+
+    is_deeply \@client2_changes, [{
+        name     => 'file.txt',
+        revision => $revision,
+        %{$expected_changes},
+    }], $opts{'name'};
+}
+
+sub test_unavailable_hostd :Test(1) {
+    my ( $self ) = @_;
+
+    $self->_perform_unavailable_test(
+        name              => 'change should show up on client2 even after connection loss',
+        kill_connection   => $POST_CONNECTION,
+        resume_connection => $POST_PUT_BLOB,
+    );
+}
+
+sub test_hostd_unavailable_at_start :Test(1) {
+    my ( $self ) = @_;
+
+    $self->_perform_unavailable_test(
+        name              => 'change should show up on client2 even after failing to establish an initial connection',
+        kill_connection   => $PRE_CREATE_CLIENT,
+        resume_connection => $POST_PUT_BLOB,
+    );
+}
+
+sub test_unavailable_hostd_metadata :Test(1) {
+    my ( $self ) = @_;
+
+    $self->_perform_unavailable_test(
+        name              => 'metadata should be correct when resuming connection',
+        changes_metadata  => ['foo', 'bar'],
+        put_metadata      => { foo => 17, baz => 18 },
+        kill_connection   => $POST_CONNECTION,
+        resume_connection => $POST_PUT_BLOB,
+    );
+}
+
+sub test_unavailable_hostd_last_sync :Test(1) {
+    my ( $self ) = @_;
+
+    $self->_perform_unavailable_test(
+        name              => 'last synced revision should work when resuming connection',
+        kill_connection   => $POST_PUT_BLOB,
+        resume_connection => $POST_PUT_BLOB,
+    );
 }
 
 ## check non-change callbacks being called after destruction?

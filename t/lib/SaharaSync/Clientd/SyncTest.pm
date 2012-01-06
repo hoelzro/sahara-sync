@@ -14,6 +14,7 @@ use POSIX qw(dup2);
 use Test::Deep qw(cmp_bag);
 use Test::More;
 use Test::Sahara ();
+use Test::Sahara::Proxy;
 use Test::TCP;
 use Try::Tiny;
 
@@ -42,7 +43,7 @@ sub port {
 }
 
 sub create_fresh_client {
-    my ( $self, $sync_dir, $client_num ) = @_;
+    my ( $self, $sync_dir, $client_num, %opts ) = @_;
 
     confess "client num required" unless $client_num;
 
@@ -56,6 +57,8 @@ sub create_fresh_client {
 
     pipe $read, $write;
 
+    my $upstream_port = exists $opts{'proxy'} ? $opts{'proxy'}->port : $self->port;
+
     # this is easier than managing the client process ourselves
     my $client = Test::TCP->new(
         code => sub {
@@ -67,7 +70,7 @@ sub create_fresh_client {
             close $write;
 
             $ENV{'_CLIENTD_PORT'}          = $port;
-            $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $self->port;
+            $ENV{'_CLIENTD_UPSTREAM'}      = 'http://localhost:' . $upstream_port;
             $ENV{'_CLIENTD_ROOT'}          = $sync_dir->dirname;
             $ENV{'_CLIENTD_POLL_INTERVAL'} = $self->client_poll_interval;
             $ENV{'_CLIENTD_NUM'}           = $client_num;
@@ -86,48 +89,19 @@ sub create_fresh_client {
     return ( $client, $pipe );
 }
 
-sub get_conflict_blob {
-    my ( $self, $blob ) = @_;
+sub create_fresh_host {
+    my ( $self, %opts ) = @_;
 
-    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
-    $year += 1900;
-    $month++;
-
-    return sprintf("%s - conflict %04d-%02d-%02d", $blob, $year, $month, $day);
-}
-
-# This is four tests in a single method
-# It also cleans up the client pipes and the client objects
-sub check_clients {
-    my ( $self ) = @_;
-
-    local $Test::Builder::Level = $Test::Builder::Level + 1;
-
-    delete @{$self}{qw/client1 client2/};
-
-    my $ok = 1;
-
-    foreach my $pipe (delete @{$self}{qw/client1_pipe client2_pipe/}) {
-        my $buffer = '';
-        my $bytes  = $pipe->sysread($buffer, 1);
-        $pipe->close;
-        $ok = is($bytes, 1, 'The client should write a status byte upon safe exit') && $ok;
-        $ok = is($buffer, 0, 'No errors should occur in the clients')               && $ok;
+    if($self->{'hostd'} || $self->{'hostd_pipe'}) {
+        confess "create_fresh_host called without checking the host first";
     }
-    unless($ok) {
-        diag("Client check in method " . $self->current_method . " failed");
-    }
-}
-
-sub setup : Test(setup) {
-    my ( $self ) = @_;
 
     my ( $read, $write );
 
-    $self->port(undef);
-
     pipe $read, $write;
-    $self->{'hostd'} = Test::TCP->new(
+    my $hostd = Test::TCP->new(
+        $opts{'port'} ? ( port => $opts{'port'} ) : (),
+
         code => sub {
             my ( $port ) = @_;
 
@@ -140,7 +114,6 @@ sub setup : Test(setup) {
             exec $^X, 't/run-test-app';
         },
     );
-    $self->port($self->{'hostd'}->port);
 
     close $write;
     my $pipe = IO::Handle->new;
@@ -149,7 +122,84 @@ sub setup : Test(setup) {
 
     $pipe->blocking(0);
 
-    $self->{'hostd_pipe'} = $pipe;
+    return ( $hostd, $pipe );
+}
+
+sub get_conflict_blob {
+    my ( $self, $blob ) = @_;
+
+    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
+    $year += 1900;
+    $month++;
+
+    return sprintf("%s - conflict %04d-%02d-%02d", $blob, $year, $month, $day);
+}
+
+# This is two tests in one method
+# It also cleans up the client pipe and object
+sub check_client {
+    my ( $self, $client_num ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    delete $self->{'client' . $client_num};
+    my $pipe   = delete $self->{'client' . $client_num . '_pipe'};
+    my $buffer = '';
+    my $bytes  = $pipe->sysread($buffer, 1);
+    $pipe->close;
+
+    my $ok = 1;
+    $ok = is($bytes, 1, 'The client should write a status byte upon safe exit') && $ok;
+    $ok = is($buffer, 0, 'No errors should occur in the client')                && $ok;
+
+    return $ok;
+}
+
+# four tests in one
+sub check_clients {
+    my ( $self ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    my $ok = $self->check_client(1);
+       $ok = $self->check_client(2) && $ok;
+
+    unless($ok) {
+        diag("Client check in method " . $self->current_method . " failed");
+    }
+}
+
+# This method runs two tests, and cleans up the host object/pipe
+sub check_host {
+    my ( $self ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    delete $self->{'hostd'};
+
+    my $pipe   = delete $self->{'hostd_pipe'};
+    my $buffer = '';
+    my $bytes  = $pipe->sysread($buffer, 1);
+    $pipe->close;
+
+    my $ok = 1;
+
+    $ok = is($bytes, 1, 'The host should write a status byte upon safe exit') && $ok;
+    $ok = is($buffer, 0, 'No errors should occur in the host') && $ok;
+
+    unless($ok) {
+        diag("Host check in method " . $self->current_method . " failed");
+    }
+}
+
+sub setup : Test(setup) {
+    my ( $self ) = @_;
+
+    $self->port(undef);
+
+    @{$self}{qw/hostd hostd_pipe/} = $self->create_fresh_host;
+
+    $self->port($self->{'hostd'}->port);
 
     my $temp1 = File::Temp->newdir;
     my $temp2 = File::Temp->newdir;
@@ -160,22 +210,13 @@ sub setup : Test(setup) {
     $self->{'temp2'}   = $temp2;
 }
 
-sub teardown : Test(teardown => 5) {
+sub teardown : Test(teardown => 6) {
     my ( $self ) = @_;
 
     $self->check_clients; # stop client daemons first (4 tests)
-    delete $self->{'hostd'};
-    delete @{$self}{qw/temp1 temp2/};
-    my $pipe   = delete $self->{'hostd_pipe'};
-    my $buffer = '';
-    my $bytes  = $pipe->sysread($buffer, 1);
-    $pipe->close;
+    $self->check_host;    # stop host daemon (1 test)
 
-    if($bytes == 1) {
-        is $buffer, 0, 'No errors should occur in the host';
-    } else {
-        fail 'The host should write a status byte upon safe exit';
-    }
+    delete @{$self}{qw/temp1 temp2/};
 }
 
 sub test_create_file :Test(5) {
@@ -578,5 +619,301 @@ sub test_update_delete_conflict :Test(4) {
     $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
     is $content, "Updated content";
 }
+
+# shuts down client 2 and re-establishes it to talk through a proxy
+sub setup_proxied_client {
+    my ( $self ) = @_;
+
+    $self->catchup; # wait for child to establish signal handlers
+
+    $self->check_client(2);
+
+    my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
+
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($self->{'temp2'}, 2,
+        proxy => $proxy,
+    );
+
+    $self->catchup; # let client 2 get situated
+
+    return $proxy;
+}
+
+# restarts the given client
+# XXX we should probably preserve whether or not the client goes through a proxy
+sub restart_client {
+    my ( $self, $client_num ) = @_;
+
+    $self->check_client(2);
+
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($self->{'temp2'}, 2);
+
+    $self->catchup; # let the new client get situated
+}
+
+sub test_hostd_unavailable_after_change :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    my $proxy   = $self->setup_proxied_client;
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+
+    $proxy->kill_connections;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
+    
+    $self->catchup; # let the changes sync up
+
+    $proxy->resume_connections;
+
+    $self->catchup; # wait for a sync period
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Content\n", 'changes should be synced even when the link goes down';
+}
+
+sub test_hostd_unavailable_at_start :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    $self->catchup; # wait for the child to establish signal handlers
+
+    $self->check_client(2);
+
+    my $proxy = Test::Sahara::Proxy->new(remote => $self->port);
+    $proxy->kill_connections;
+
+    @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2,
+        proxy => $proxy,
+    );
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+
+    $self->catchup; # let client 2 get situated
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
+    
+    $self->catchup; # let the changes sync up
+
+    $proxy->resume_connections;
+
+    $self->catchup; # wait for a sync period
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link starts down';
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Content\n", 'changes should be synced even when the link starts down';
+}
+
+sub test_hostd_unavailable_last_sync :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    my $proxy = $self->setup_proxied_client;
+
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
+    
+    $self->catchup; # let the changes sync up
+
+    $proxy->kill_connections;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Updated content\n");
+    
+    $self->catchup; # let the changes sync up
+
+    $proxy->resume_connections;
+
+    $self->catchup; # let the changes sync up
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
+}
+
+sub test_hostd_unavailable_get_blob :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+
+    my $proxy = $self->setup_proxied_client;
+
+    my $client1 = $self->{'client1'};
+    my $client2 = $self->{'client2'};
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), "Updated Content\n");
+
+    $self->catchup;
+
+    $proxy->resume_connections;
+
+    $self->catchup;
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
+}
+
+sub test_put_blob_client_error :Test {
+    my ( $self ) = @_;
+}
+
+sub test_put_blob_bad_perms :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+sub test_put_blob_host_error :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated Content\n");
+
+    $self->catchup;
+
+    $proxy->resume_connections;
+
+    $self->catchup;
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
+}
+
+sub test_put_blob_host_error_offline :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Updated Content\n");
+
+    $self->catchup;
+
+    $self->restart_client(2);
+
+    $proxy->resume_connections;
+
+    $self->catchup; # XXX retry time?
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
+    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
+    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
+}
+
+sub test_put_blob_bad_perms_offline :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+sub test_delete_blob_client_error :Test {
+    my ( $self ) = @_;
+}
+
+sub test_delete_blob_bad_perms :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+sub test_delete_blob_host_error :Test(5) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    unlink(File::Spec->catfile($temp2, 'foo.txt'));
+
+    $self->catchup;
+
+    $proxy->resume_connections;
+
+    $self->catchup;
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, [];
+}
+
+sub test_delete_blob_host_error_offline :Test(6) {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'temp1'};
+    my $temp2 = $self->{'temp2'};
+    my $proxy = $self->setup_proxied_client;
+
+    write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content\n");
+
+    $self->catchup;
+
+    $proxy->kill_connections(preserve_existing => 1);
+
+    unlink(File::Spec->catfile($temp2, 'foo.txt'));
+
+    $self->catchup;
+
+    $self->restart_client(2);
+
+    $proxy->resume_connections;
+
+    $self->catchup; # XXX retry time?
+
+    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
+    is_deeply \@files, [];
+}
+
+sub test_delete_blob_bad_perms_offline :Test {
+    my ( $self ) = @_;
+
+    return 'Test not implemented';
+}
+
+# XXX metadata + sync test (when we actually start providing metadata)
 
 1;

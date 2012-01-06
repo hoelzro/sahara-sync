@@ -20,7 +20,7 @@ use SaharaSync::Stream::Reader;
 
 use namespace::clean;
 
-my $DEFAULT_SCHEME = 'http';
+Readonly::Scalar my $DEFAULT_SCHEME          => 'http';
 Readonly::Scalar my $DEFAULT_CHANGES_TIMEOUT => 900; # 15 minutes
 
 # override has to ensure consistency among different operating systems

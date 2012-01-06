@@ -776,6 +776,8 @@ sub test_hostd_unavailable_get_blob :Test(6) {
 
 sub test_put_blob_client_error :Test {
     my ( $self ) = @_;
+
+    return 'Test not implemented';
 }
 
 sub test_put_blob_bad_perms :Test {
@@ -848,6 +850,8 @@ sub test_put_blob_bad_perms_offline :Test {
 
 sub test_delete_blob_client_error :Test {
     my ( $self ) = @_;
+
+    return 'Test not implemented';
 }
 
 sub test_delete_blob_bad_perms :Test {

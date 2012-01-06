@@ -192,7 +192,6 @@ sub _flush_reconnect_queue {
     # XXX potential problems with this implementation:
     # 
     # - if each operation submits an HTTP request, they all get fired in a shotgun blast
-    # - is there a race condition with the SELECT + loop + DELETE?
     # - there is a a potential problem if we do half of the operations and then die (our next run will pick up operations we've executed)
     # - redundant operations can exist in the DB (like put_blob('foo.txt'), put_blob('foo.txt'))
     #   - what if I do put_blob('foo.txt') + delete_blob('foo.txt')? or the reverse?

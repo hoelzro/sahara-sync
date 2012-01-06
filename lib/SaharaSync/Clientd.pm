@@ -176,6 +176,8 @@ sub _put_revision_for_blob {
 sub _wait_for_reconnect {
     my ( $self, $method, $blob_name ) = @_;
 
+    $self->log->info("enqueueing operation '$method' for blob '$blob_name'");
+
     $self->dbh->do('INSERT INTO reconnect_queue (method_name, blob_name) VALUES (?, ?)',
         undef, $method, $blob_name);
 }
@@ -198,6 +200,7 @@ sub _flush_reconnect_queue {
     # - think of what issues can occur if there are multiple entries in the queue
 
     while(my ( $id, $method, $blob_name ) = $sth->fetchrow_array) {
+        $self->log->info("running queued operation '$method' on blob '$blob_name'");
         $self->$method($blob_name, sub {
             $delete_sth->execute($id);
         });

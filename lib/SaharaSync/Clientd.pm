@@ -141,8 +141,9 @@ SQL
 
     $dbh->do(<<SQL);
 CREATE TABLE IF NOT EXISTS reconnect_queue (
-    method_name TEXT NOT NULL,
-    blob_name   TEXT NOT NULL
+    id          INTEGER NOT NULL PRIMARY KEY,
+    method_name TEXT    NOT NULL,
+    blob_name   TEXT    NOT NULL
 )
 SQL
 }
@@ -175,14 +176,15 @@ sub _put_revision_for_blob {
 sub _wait_for_reconnect {
     my ( $self, $method, $blob_name ) = @_;
 
-    $self->dbh->do('INSERT INTO reconnect_queue VALUES (?, ?)',
+    $self->dbh->do('INSERT INTO reconnect_queue (method_name, blob_name) VALUES (?, ?)',
         undef, $method, $blob_name);
 }
 
 sub _flush_reconnect_queue {
     my ( $self ) = @_;
 
-    my $sth = $self->dbh->prepare('SELECT method_name, blob_name FROM reconnect_queue');
+    my $sth        = $self->dbh->prepare('SELECT id, method_name, blob_name FROM reconnect_queue');
+    my $delete_sth = $self->dbh->prepare('DELETE FROM reconnect_queue WHERE id = ?');
     $sth->execute;
 
     # XXX potential problems with this implementation:
@@ -195,15 +197,15 @@ sub _flush_reconnect_queue {
     # - if any of the operations throw an exception, we may re-execute operations
     # - think of what issues can occur if there are multiple entries in the queue
 
-    while(my ( $method, $blob_name ) = $sth->fetchrow_array) {
-        $self->$method($blob_name);
+    while(my ( $id, $method, $blob_name ) = $sth->fetchrow_array) {
+        $self->$method($blob_name, sub {
+            $delete_sth->execute($id);
+        });
     }
-
-    $self->dbh->do('DELETE FROM reconnect_queue');
 }
 
 sub _fetch_and_write_blob {
-    my ( $self, $blob_name ) = @_;
+    my ( $self, $blob_name, $on_complete ) = @_;
 
     my $ws   = $self->ws_client;
     my $sd   = $self->sd;
@@ -221,6 +223,7 @@ sub _fetch_and_write_blob {
             } else {
                 $self->_wait_for_reconnect('_fetch_and_write_blob', $blob_name);
             }
+            $on_complete->() if $on_complete;
             return;
         }
 
@@ -259,12 +262,13 @@ sub _fetch_and_write_blob {
             undef $h;
 
             $self->_put_revision_for_blob($blob, $revision, 0);
+            $on_complete->() if $on_complete;
         });
     });
 }
 
 sub _upload_blob_to_hostd {
-    my ( $self, $blob_name, $on_success ) = @_;
+    my ( $self, $blob_name, $on_complete ) = @_;
 
     my $blob = $self->sd->blob(name => $blob_name);
 
@@ -286,8 +290,8 @@ sub _upload_blob_to_hostd {
             if(defined $revision) {
                 my $name = $blob->name;
                 $self->log->info("Successfully updated $name; new revision is $revision");
-                $on_success->() if $on_success;
                 $self->_put_revision_for_blob($blob, $revision, 0);
+                $on_complete->(1) if $on_complete;
             } else {
                 if($error->is_fatal) {
                     # if a conflict occurs, an upstream change is coming down;
@@ -295,18 +299,17 @@ sub _upload_blob_to_hostd {
                     unless($error =~ /Conflict/) {
                         $self->log->warning("Updating $blob failed: $error");
                     }
+                    $on_complete->(0) if $on_complete;
                 } else {
-                    $on_success->() if $on_success; # XXX this name sucks
-                                                    #     acknowledge would be
-                                                    #     better
                     $self->_wait_for_reconnect('_upload_blob_to_hostd', $blob_name);
+                    $on_complete->(1) if $on_complete;
                 }
             }
     });
 }
 
 sub _delete_blob_on_hostd {
-    my ( $self, $blob_name, $on_success ) = @_;
+    my ( $self, $blob_name, $on_complete ) = @_;
 
     my $blob = $self->sd->blob(name => $blob_name);
 
@@ -321,8 +324,8 @@ sub _delete_blob_on_hostd {
         my $name = $blob->name;
         if(defined $revision) {
             $self->log->info("Successfully deleted $name; new revision is $revision");
-            $on_success->() if $on_success;
             $self->_put_revision_for_blob($blob, $revision, 1);
+            $on_complete->(1) if $on_complete;
         } else {
             if($error->is_fatal) {
                 # if a conflict occurs, an upstream change is coming down;
@@ -332,10 +335,10 @@ sub _delete_blob_on_hostd {
                 unless($error =~ /conflict/i || $error =~ /not found/i) {
                     $self->log->warning("Deleting $name failed: $error");
                 }
+                $on_complete->(0) if $on_complete;
             } else {
-                $on_success->() if $on_success; # XXX see comment on the
-                                                #     on_success name above
                 $self->_wait_for_reconnect('_delete_blob_on_hostd', $blob_name);
+                $on_complete->(1) if $on_complete;
             }
        }
     });
@@ -416,10 +419,16 @@ sub handle_fs_change {
 
     ## make sure to send blobs names in Unix style file format
 
+    my $on_complete = sub {
+        my ( $ok ) = @_;
+
+        $continuation->() if $ok;
+    };
+
     if(-f $path) {
-        $self->_upload_blob_to_hostd($blob->name, $continuation);
+        $self->_upload_blob_to_hostd($blob->name, $on_complete);
     } else {
-        $self->_delete_blob_on_hostd($blob->name, $continuation);
+        $self->_delete_blob_on_hostd($blob->name, $on_complete);
     }
 }
 

@@ -918,6 +918,8 @@ sub test_delete_blob_bad_perms_offline :Test {
     return 'Test not implemented';
 }
 
+__PACKAGE__->SKIP_CLASS(1);
+
 # XXX metadata + sync test (when we actually start providing metadata)
 
 1;

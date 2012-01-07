@@ -41,13 +41,21 @@ use TAP::Harness;
 
 delete $ENV{'TEST_METHOD'};
 
+my $print_methods_perl = <<'END_PERL';
+*{"Test::Class::runtests"} = sub {
+    diag($_) foreach __PACKAGE__->_get_methods("test");
+    plan tests => 1;
+    pass;
+};
+END_PERL
+
 my $tap = TAP::Harness->new({
     lib       => [ 'lib', 't/lib' ],
     verbosity => -3,
     switches  => [
         '-MTest::Class',
         '-MTest::More',
-        '-e', '*{"Test::Class::runtests"} = sub { diag($_) foreach __PACKAGE__->_get_methods("test"); plan tests => 1; pass; };',
+        '-e', $print_methods_perl,
         '-e', "do '$test' || die \$\@;",
     ],
     parser_class => 'My::Parser',

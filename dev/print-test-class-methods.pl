@@ -43,9 +43,18 @@ delete $ENV{'TEST_METHOD'};
 
 my $print_methods_perl = <<'END_PERL';
 *{"Test::Class::runtests"} = sub {
-    diag($_) foreach __PACKAGE__->_get_methods("test");
-    plan tests => 1;
-    pass;
+    my ( undef, @test_classes ) = @_;
+    unless(@test_classes) {
+        @test_classes = Test::Class->_test_classes;
+    }
+    foreach my $class (@test_classes) {
+        next if $class->SKIP_CLASS;
+
+        my @methods = $class->_get_methods('test');
+        foreach my $method (@methods) {
+            diag($class . '::' . $method);
+        }
+    }
 };
 END_PERL
 

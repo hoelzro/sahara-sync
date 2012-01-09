@@ -252,139 +252,93 @@ sub teardown : Test(teardown => 6) {
     delete @{$self}{qw/temp1 temp2/};
 }
 
-sub test_create_file :Test(5) {
+sub test_create_file :Test(1) {
     my ( $self ) = @_;
 
-    my $temp1  = $self->{'temp1'};
-    my $temp2  = $self->{'temp2'};
-    # this bit might be a little too specific to the inotify implementation...
-    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, []);
-    is_deeply(\@files2, []);
+    my $temp1 = $self->{'temp1'};
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello!\n");
 
-    $self->catchup;
-
-    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $contents, "Hello!\n";
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => "Hello!\n",
+        },
+    );
 }
 
-sub test_delete_file :Test(7) {
+sub test_delete_file :Test(2) {
     my ( $self ) = @_;
 
-    my $temp1  = $self->{'temp1'};
-    my $temp2  = $self->{'temp2'};
-    # this bit might be a little too specific to the inotify implementation...
-    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, []);
-    is_deeply(\@files2, []);
+    my $temp1 = $self->{'temp1'};
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello!\n");
 
-    $self->catchup;
-
-    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $contents, "Hello!\n";
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => "Hello!\n",
+        },
+    );
 
     unlink File::Spec->catfile($temp1, 'foo.txt');
 
-    $self->catchup;
-
-    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, []);
-    is_deeply(\@files2, []);
+    $self->check_files(
+        client => 2,
+        files  => {},
+    );
 }
 
-sub test_update_file :Test(8) {
+sub test_update_file :Test(2) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
-    my $temp2  = $self->{'temp2'};
-    # this bit might be a little too specific to the inotify implementation...
-    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, []);
-    is_deeply(\@files2, []);
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello!\n");
 
-    $self->catchup;
-
-    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    my $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $contents, "Hello!\n";
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => "Hello!\n",
+        },
+    );
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello 2\n");
 
-    $self->catchup;
-
-    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    $contents = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is($contents, "Hello 2\n");
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => "Hello 2\n",
+        },
+    );
 }
 
-sub test_preexisting_files :Test(9) {
+sub test_preexisting_files :Test(6) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
     my $temp2  = $self->{'temp2'};
 
-    $self->{'client1'} = $self->{'client2'} = undef;
+    $self->check_clients;
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, World!");
 
-    $self->catchup;
-
-    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, []);
-
-    $self->check_clients;
+    $self->check_files(
+        client => 2,
+        files  => {},
+    );
     @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
     @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
 
-    $self->catchup;
-
-    @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Hello, World!";
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'Hello, World!',
+        },
+    );
 }
 
-sub test_offline_update :Test(8) {
+sub test_offline_update :Test(7) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
@@ -392,36 +346,38 @@ sub test_offline_update :Test(8) {
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, World!");
 
-    $self->catchup;
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'Hello, World!',
+        },
+    );
 
-    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    $self->{'client1'} = $self->{'client2'} = undef;
-
-    $self->catchup;
+    $self->check_clients;
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, again");
 
-    $self->catchup;
+    $self->check_files(
+        client     => 2,
+        force_wait => 1,
+        files  => {
+            'foo.txt' => 'Hello, World!',
+        },
+    );
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Hello, World!";
-
-    $self->check_clients;
     @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
     @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
 
-    $self->catchup;
-
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Hello, again";
+    $self->check_files(
+        client     => 2,
+        force_wait => 1,
+        files  => {
+            'foo.txt' => 'Hello, again',
+        },
+    );
 }
 
-sub test_revision_persistence :Test(8) {
+sub test_revision_persistence :Test(7) {
     my ( $self ) = @_;
 
     my $temp1  = $self->{'temp1'};
@@ -429,34 +385,32 @@ sub test_revision_persistence :Test(8) {
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, World!");
 
-    $self->catchup;
-
-    my @files1 = grep { $_ ne '.saharasync' } read_dir($temp1);
-    my @files2 = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    is_deeply(\@files1, ['foo.txt']);
-    is_deeply(\@files2, ['foo.txt']);
-
-    $self->{'client1'} = undef;
-    $self->{'client2'} = undef;
-
-    $self->catchup;
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'Hello, World!',
+        },
+    );
 
     $self->check_clients;
     @{$self}{qw/client1 client1_pipe/} = $self->create_fresh_client($temp1, 1);
     @{$self}{qw/client2 client2_pipe/} = $self->create_fresh_client($temp2, 2);
 
-    $self->catchup;
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'Hello, World!',
+        },
+    );
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Hello, again");
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Hello, World!";
-
-    $self->catchup;
-
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Hello, again";
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'Hello, again',
+        },
+    );
 }
 
 sub test_update_on_nonorigin :Test(2) {
@@ -467,22 +421,24 @@ sub test_update_on_nonorigin :Test(2) {
 
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "In foo");
 
-    $self->catchup;
-
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-
-    is $content, "In foo";
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'In foo',
+        },
+    );
 
     write_file(File::Spec->catfile($temp2, 'foo.txt'), "Second update to foo");
 
-    $self->catchup;
-
-    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-
-    is $content, "Second update to foo";
+    $self->check_files(
+        client => 1,
+        files  => {
+            'foo.txt' => 'Second update to foo',
+        },
+    );
 }
 
-sub test_create_conflict :Test(7) {
+sub test_create_conflict :Test(3) {
     my ( $self ) = @_;
 
     my $client1 = $self->{'client1'};
@@ -495,38 +451,37 @@ sub test_create_conflict :Test(7) {
     write_file(File::Spec->catfile($temp2, 'foo.txt'), "Content 2\n");
     write_file(File::Spec->catfile($temp1, 'foo.txt'), "Content 1\n");
 
-    $self->catchup;
-
-    my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
-    is_deeply \@files, ['foo.txt'];
+    $self->check_files(
+        client => 1,
+        files  => {
+            'foo.txt' => "Content 1\n",
+        },
+    );
 
     kill SIGCONT => $client1->pid;
 
-    $self->catchup(5); # wait a little longer
-
-    @files = grep { $_ ne '.saharasync' } read_dir $temp1;
-
     my $conflict_file = $self->get_conflict_blob('foo.txt');
-    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
 
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Content 2\n";
+    $self->check_files(
+        client    => 1,
+        wait_time => 5,
+        files     => {
+            $conflict_file => "Content 1\n",
+            'foo.txt'      => "Content 2\n",
+        },
+    );
 
-    $content = read_file(File::Spec->catfile($temp1, $conflict_file), err_mode => 'quiet');
-    is $content, "Content 1\n";
-
-    @files = grep { $_ ne '.saharasync' } read_dir($temp2);
-
-    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
-
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Content 2\n";
-
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file), err_mode => 'quiet');
-    is $content, "Content 1\n";
+    $self->check_files(
+        client => 2,
+        wait   => 0,
+        files  => {
+            $conflict_file => "Content 1\n",
+            'foo.txt'      => "Content 2\n",
+        },
+    );
 }
 
-sub test_update_conflict :Test(6) {
+sub test_update_conflict :Test(2) {
     my ( $self ) = @_;
 
     my $client1 = $self->{'client1'};
@@ -547,31 +502,27 @@ sub test_update_conflict :Test(6) {
 
     kill SIGCONT => $client2->pid;
 
-    $self->catchup;
-
     my $conflict_file = $self->get_conflict_blob('foo.txt');
-    my @files = grep { $_ ne '.saharasync' } read_dir $temp2;
 
-    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt'      => 'Updated content',
+            $conflict_file => 'Conflicting content!',
+        },
+    );
 
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content";
-
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file), err_mode => 'quiet');
-    is $content, "Conflicting content!";
-
-    @files = grep { $_ ne '.saharasync' } read_dir $temp1;
-
-    cmp_bag \@files, [ 'foo.txt', $conflict_file ];
-
-    $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content";
-
-    $content = read_file(File::Spec->catfile($temp1, $conflict_file), err_mode => 'quiet');
-    is $content, "Conflicting content!";
+    $self->check_files(
+        client => 1,
+        wait   => 0,
+        files  => {
+            'foo.txt'      => 'Updated content',
+            $conflict_file => 'Conflicting content!',
+        },
+    );
 }
 
-sub test_delete_update_conflict :Test(4) {
+sub test_delete_update_conflict :Test(2) {
     my ( $self ) = @_;
 
     my $client1 = $self->{'client1'};
@@ -592,25 +543,25 @@ sub test_delete_update_conflict :Test(4) {
 
     kill SIGCONT => $client1->pid;
 
-    $self->catchup(5);
-
     my $conflict_file = $self->get_conflict_blob('foo.txt');
-    my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
+    $self->check_files(
+        client    => 1,
+        wait_time => 5,
+        files     => {
+            $conflict_file => 'Updated content',
+        },
+    );
 
-    is_deeply \@files, [ $conflict_file ];
-
-    my $content = read_file(File::Spec->catfile($temp1, $conflict_file), err_mode => 'quiet');
-    is $content, "Updated content";
-
-    @files = grep { $_ ne '.saharasync' } read_dir $temp2;
-
-    is_deeply \@files, [ $conflict_file ];
-
-    $content = read_file(File::Spec->catfile($temp2, $conflict_file), err_mode => 'quiet');
-    is $content, "Updated content";
+    $self->check_files(
+        client    => 2,
+        wait      => 0,
+        files     => {
+            $conflict_file => 'Updated content',
+        },
+    );
 }
 
-sub test_update_delete_conflict :Test(4) {
+sub test_update_delete_conflict :Test(2) {
     my ( $self ) = @_;
 
     my $client1 = $self->{'client1'};
@@ -631,26 +582,21 @@ sub test_update_delete_conflict :Test(4) {
 
     kill SIGCONT => $client1->pid;
 
-    $self->catchup(5);
+    $self->check_files(
+        client    => 1,
+        wait_time => 5,
+        files     => {
+            'foo.txt' => 'Updated content',
+        },
+    );
 
-    my ( $day, $month, $year ) = (localtime)[3, 4, 5];
-    $month++;
-    $year += 1900;
-
-    my @files = grep { $_ ne '.saharasync' } read_dir $temp1;
-
-    my $conflict_file = $self->get_conflict_blob('foo.txt');
-    is_deeply \@files, [ 'foo.txt' ];
-
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content";
-
-    @files = grep { $_ ne '.saharasync' } read_dir $temp2;
-
-    is_deeply \@files, [ 'foo.txt' ];
-
-    $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content";
+    $self->check_files(
+        client    => 2,
+        wait      => 0,
+        files     => {
+            'foo.txt' => 'Updated content',
+        },
+    );
 }
 
 # shuts down client 2 and re-establishes it to talk through a proxy
@@ -684,7 +630,7 @@ sub restart_client {
     $self->catchup; # let the new client get situated
 }
 
-sub test_hostd_unavailable_after_change :Test(6) {
+sub test_hostd_unavailable_after_change :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -702,15 +648,16 @@ sub test_hostd_unavailable_after_change :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup; # wait for a sync period
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Content\n", 'changes should be synced even when the link goes down';
+    $self->check_files(
+        name   => 'changes should be synced even when the link goes down',
+        client => 2,
+        files  => {
+            'foo.txt' => "Content\n",
+        },
+    );
 }
 
-sub test_hostd_unavailable_at_start :Test(6) {
+sub test_hostd_unavailable_at_start :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -737,15 +684,16 @@ sub test_hostd_unavailable_at_start :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup; # wait for a sync period
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link starts down';
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Content\n", 'changes should be synced even when the link starts down';
+    $self->check_files(
+        name   => 'changes should be synced even when the link starts down',
+        client => 2,
+        files  => {
+            'foo.txt' => "Content\n",
+        }
+    );
 }
 
-sub test_hostd_unavailable_last_sync :Test(6) {
+sub test_hostd_unavailable_last_sync :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -768,15 +716,16 @@ sub test_hostd_unavailable_last_sync :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup; # let the changes sync up
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated content\n", 'changes should be synced even when the link goes down';
+    $self->check_files(
+        name   => 'changes should be synced even when the link goes down',
+        client => 2,
+        files  => {
+            'foo.txt' => "Updated content\n",
+        },
+    );
 }
 
-sub test_hostd_unavailable_get_blob :Test(6) {
+sub test_hostd_unavailable_get_blob :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -799,12 +748,13 @@ sub test_hostd_unavailable_get_blob :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup;
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp2);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp2, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
+    $self->check_files(
+        name   => 'changes should be synced even when the link goes down',
+        client => 2,
+        files  => {
+            'foo.txt' => "Updated Content\n",
+        },
+    );
 }
 
 sub test_put_blob_client_error :Test {
@@ -819,7 +769,7 @@ sub test_put_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_put_blob_host_error :Test(6) {
+sub test_put_blob_host_error :Test(3) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -838,15 +788,16 @@ sub test_put_blob_host_error :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup;
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
+    $self->check_files(
+        name   => 'changes should be synced even when the link goes down',
+        client => 1,
+        files  => {
+            'foo.txt' => "Updated Content\n",
+        },
+    );
 }
 
-sub test_put_blob_host_error_offline :Test(6) {
+sub test_put_blob_host_error_offline :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -867,12 +818,13 @@ sub test_put_blob_host_error_offline :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup; # XXX retry time?
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
-    is_deeply \@files, ['foo.txt'], 'changes should be synced even when the link goes down';
-    my $content = read_file(File::Spec->catfile($temp1, 'foo.txt'), err_mode => 'quiet');
-    is $content, "Updated Content\n", 'changes should be synced even when the link goes down';
+    $self->check_files(
+        name   => 'changes should be synced even when the link goes down',
+        client => 1,
+        files  => {
+            'foo.txt' => "Updated Content\n",
+        },
+    ); # XXX retry time?
 }
 
 sub test_put_blob_bad_perms_offline :Test {
@@ -893,7 +845,7 @@ sub test_delete_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_delete_blob_host_error :Test(5) {
+sub test_delete_blob_host_error :Test(3) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -912,13 +864,13 @@ sub test_delete_blob_host_error :Test(5) {
 
     $proxy->resume_connections;
 
-    $self->catchup;
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
-    is_deeply \@files, [];
+    $self->check_files(
+        client => 1,
+        files  => {},
+    );
 }
 
-sub test_delete_blob_host_error_offline :Test(6) {
+sub test_delete_blob_host_error_offline :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'temp1'};
@@ -939,10 +891,10 @@ sub test_delete_blob_host_error_offline :Test(6) {
 
     $proxy->resume_connections;
 
-    $self->catchup; # XXX retry time?
-
-    my @files = grep { $_ ne '.saharasync' } read_dir($temp1);
-    is_deeply \@files, [];
+    $self->check_files(
+        client => 1,
+        files  => {},
+    ); # XXX retry time?
 }
 
 sub test_delete_blob_bad_perms_offline :Test {

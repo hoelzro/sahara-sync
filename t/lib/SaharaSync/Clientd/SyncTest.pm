@@ -193,6 +193,38 @@ sub check_host {
     }
 }
 
+sub check_files {
+    my ( $self, %opts ) = @_;
+
+    # $opts{'force_wait'}
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    my $client_no  = $opts{'client'};
+    my $files      = $opts{'files'};
+    my $name       = $opts{'name'};
+    my $wait_time  = $opts{'wait_time'};
+    my $is_waiting = exists($opts{'wait'}) ? $opts{'wait'} : 1;
+
+    # XXX check %opts
+
+    if($is_waiting) {
+        $self->catchup($wait_time); # wait for a sync period
+    }
+
+    my $temp_dir = $self->{'temp' . $client_no};
+
+    # this bit might be a little too specific to the inotify implementation...
+    my @files         = grep { $_ ne '.saharasync' } read_dir($temp_dir);
+    my %file_contents = (
+        map {
+            $_ => read_file(File::Spec->catfile($temp_dir, $_))
+        } @files
+    );
+
+    is_deeply \%file_contents, $files, $name;
+}
+
 sub setup : Test(setup) {
     my ( $self ) = @_;
 

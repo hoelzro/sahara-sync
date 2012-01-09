@@ -156,6 +156,7 @@ sub check_client {
 }
 
 # four tests in one
+# XXX consider rename
 sub check_clients {
     my ( $self ) = @_;
 

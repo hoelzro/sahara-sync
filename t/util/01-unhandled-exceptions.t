@@ -20,6 +20,9 @@ sub test_uncaught_exception : Test {
         $exceptions_seen++;
     });
 
+    no warnings 'once';
+    local $EV::DIED = sub {};
+
     my $timer1 = AnyEvent->timer(
         after => 1,
         cb    => sub {
@@ -90,6 +93,8 @@ sub test_uncaught_exception_psgi : Test {
         },
         server => sub {
             my ( $port ) = @_;
+
+            close STDERR;
 
             SaharaSync::Util->install_exception_handler(sub {
                 kill USR1 => $pid;

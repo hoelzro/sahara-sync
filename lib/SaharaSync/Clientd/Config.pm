@@ -131,7 +131,7 @@ has log => (
             type        => 'File',
             filename    => $self->home_dir->file('sahara.log') . '',
             mode        => 'append',
-            binmode     => ':encode(utf8)',
+            binmode     => ':encoding(utf8)',
             permissions => 0600,
             newline     => 1,
         }]

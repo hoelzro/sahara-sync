@@ -80,7 +80,7 @@ sub optional_params {
                     type        => 'File',
                     filename    => File::Spec->catfile($self->home_dir, 'sahara.log'),
                     mode        => 'append',
-                    binmode     => ':encode(utf8)',
+                    binmode     => ':encoding(utf8)',
                     permissions => 0600,
                     newline     => 1,
                 }];

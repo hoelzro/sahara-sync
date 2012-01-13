@@ -9,6 +9,7 @@ use File::Spec;
 require JSON;
 require YAML;
 
+use Test::More;
 use Test::Deep::NoTest qw(cmp_details deep_diag);
 
 my $default_home_dir;
@@ -184,6 +185,21 @@ sub compare_log {
     } else {
         return 0, deep_diag($stack);
     }
+}
+
+sub test_home_dir :Test {
+    my ( $self ) = @_;
+
+    my $params = $self->required_params;
+    foreach my $value (values %$params) {
+        if(ref($value) eq 'ARRAY') {
+            $value = $value->[0];
+        }
+    }
+
+    my $config = $self->config_class->new($params);
+
+    is($config->home_dir, $default_home_dir);
 }
 
 __PACKAGE__->runtests;

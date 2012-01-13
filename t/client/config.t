@@ -83,6 +83,7 @@ sub optional_params {
                     binmode     => ':encoding(utf8)',
                     permissions => 0600,
                     newline     => 1,
+                    min_level   => 'info',
                 }];
             },
         },

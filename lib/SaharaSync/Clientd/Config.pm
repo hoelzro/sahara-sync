@@ -76,8 +76,6 @@ subtype PollInterval,
     where { $_ > 0 },
     message { "Poll interval must be greater than zero" };
 
-## why do I have a handle to this?
-## it's either ->new or ->new_from_file...
 has config_file => (
     is      => 'ro',
     isa     => ExpandFile,

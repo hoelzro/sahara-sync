@@ -85,10 +85,11 @@ has '+configfile' => (
 
         return $self->home_dir->file('config.json');
     },
-    coerce      => 1,
-    metaclass   => 'Getopt',
-    cmd_flag    => 'configfile',
-    cmd_aliases => 'c',
+    coerce        => 1,
+    metaclass     => 'Getopt',
+    cmd_flag      => 'configfile',
+    cmd_aliases   => 'c',
+    documentation => 'Location of the configuration file',
 );
 
 has upstream => (

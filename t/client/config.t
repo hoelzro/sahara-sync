@@ -187,7 +187,7 @@ sub compare_log {
     }
 }
 
-sub test_home_dir :Test {
+sub test_home_dir :Test(2) {
     my ( $self ) = @_;
 
     my $params = $self->required_params;
@@ -200,6 +200,7 @@ sub test_home_dir :Test {
     my $config = $self->config_class->new($params);
 
     is($config->home_dir, $default_home_dir);
+    is($self->config_class->home_dir, $default_home_dir);
 }
 
 __PACKAGE__->runtests;

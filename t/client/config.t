@@ -58,32 +58,6 @@ sub required_params {
 
 sub optional_params {
     return {
-        home_dir => {
-            values  => [
-                '/tmp/sahara',
-                '~',
-                '~/.saharasync',
-                "~$user/.saharasync",
-            ],
-            default => $default_home_dir,
-        },
-
-        config_file => {
-            values  => [
-                '/tmp/ss-config.json',
-                '/tmp/ss-config.yaml',
-                '~/config.json',
-                '~/config.yaml',
-                "~$user/config.json",
-                "~$user/config.yaml",
-            ],
-            default => sub {
-                my ( $self ) = @_;
-
-                return File::Spec->catfile($self->home_dir, 'config.json');
-            },
-        },
-
         sync_dir => {
             values  => [
                 '/tmp/sahara-data',
@@ -189,8 +163,6 @@ sub expand_and_compare {
 do {
     no warnings 'once';
 
-    *compare_home_dir    = \&expand_and_compare;
-    *compare_config_file = \&expand_and_compare;
     *compare_sync_dir    = \&expand_and_compare;
 };
 

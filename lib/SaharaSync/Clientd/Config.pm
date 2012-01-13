@@ -76,7 +76,7 @@ subtype PollInterval,
     where { $_ > 0 },
     message { "Poll interval must be greater than zero" };
 
-has config_file => (
+has '+configfile' => (
     is      => 'ro',
     isa     => ExpandFile,
     lazy    => 1,

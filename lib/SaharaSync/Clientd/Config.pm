@@ -76,22 +76,6 @@ subtype PollInterval,
     where { $_ > 0 },
     message { "Poll interval must be greater than zero" };
 
-has home_dir => (
-    is      => 'ro',
-    isa     => ExpandDir,
-    default => sub {
-        if(my $dir = $ENV{'XDG_CONFIG_HOME'}) {
-            return Path::Class::Dir->new($dir, 'sahara-sync');
-        } else {
-            return Path::Class::Dir->new(File::HomeDir->my_data, 'Sahara Sync');
-        }
-    },
-    coerce        => 1,
-    metaclass     => 'Getopt',
-    cmd_flag      => 'homedir',
-    documentation => 'The base directory for Sahara Sync client resources',
-);
-
 ## why do I have a handle to this?
 ## it's either ->new or ->new_from_file...
 has config_file => (
@@ -173,6 +157,14 @@ sub new_from_file {
     }
 
     return $class->new_with_config(configfile => $filename);
+}
+
+sub home_dir {
+    if(my $dir = $ENV{'XDG_CONFIG_HOME'}) {
+        return Path::Class::Dir->new($dir, 'sahara-sync');
+    } else {
+        return Path::Class::Dir->new(File::HomeDir->my_data, 'Sahara Sync');
+    }
 }
 
 __PACKAGE__->meta->make_immutable;

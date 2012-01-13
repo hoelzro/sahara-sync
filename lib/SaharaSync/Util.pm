@@ -71,7 +71,9 @@ sub load_logger {
         }
     }
 
-    croak "Unable to load any loggers" unless @loggers;
+    unless(@loggers) {
+        croak "Unable to load any loggers:\n" . join("\n", @messages);
+    }
 
     my $logger = Log::Dispatch->new;
     $logger->add($_)  foreach @loggers;

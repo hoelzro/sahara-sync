@@ -17,17 +17,19 @@ my $root          = $ENV{'_CLIENTD_ROOT'};
 my $poll_interval = $ENV{'_CLIENTD_POLL_INTERVAL'};
 my $client_num    = $ENV{'_CLIENTD_NUM'};
 
-my $log_config = {
-    type => 'Null',
-};
+my $log_config = [{
+    type      => 'Null',
+    min_level => 'debug',
+}];
 
 if($ENV{'TEST_CLIENTD_DEBUG'}) {
     my $color = $client_num == 1 ? "\e[32;1m" : "\e[31;1m";
 
-    $log_config = {
+    push @$log_config, {
         type      => 'Screen',
         newline   => 1,
         stderr    => 1,
+        min_level => 'debug',
         callbacks => [sub {
             my %params = @_;
 
@@ -35,7 +37,6 @@ if($ENV{'TEST_CLIENTD_DEBUG'}) {
         }],
     };
 }
-$log_config->{'min_level'} = 'debug';
 
 my $config = SaharaSync::Clientd::Config->new(
     upstream      => $upstream,

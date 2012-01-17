@@ -66,6 +66,11 @@ sub create_fresh_hostd {
                 stderr    => 1,
                 min_level => 'debug',
                 newline   => 1,
+                callbacks => [sub {
+                    my %params = @_;
+
+                    return "\033[33;1m(host) $params{'message'}\033[0m";
+                }],
             }],
         } else {
             $options{'log'} = [{
@@ -88,13 +93,6 @@ sub create_fresh_hostd {
         $hostd = SaharaSync::Hostd->new(%options);
     }
     
-    if($ENV{'TEST_HOSTD_DEBUG'}) {
-        $hostd->log->add_callback(sub {
-            my %params = @_;
-
-            return "\033[33;1m(host) $params{'message'}\033[0m";
-        });
-    }
     $hostd->storage->create_user('test', 'abc123');
 
     return $hostd;

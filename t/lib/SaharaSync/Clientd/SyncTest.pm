@@ -13,7 +13,7 @@ use Test::Deep qw(cmp_bag);
 use Test::More;
 use Test::Sahara ();
 use Test::Sahara::Client;
-#use Test::Sahara:Host;
+use Test::Sahara::Host;
 use Test::Sahara::Proxy;
 use Test::TCP;
 use Try::Tiny;
@@ -66,39 +66,13 @@ sub create_fresh_client {
 }
 
 sub create_fresh_host {
-    my ( $self, %opts ) = @_;
+    my ( $self ) = @_;
 
-    if($self->{'hostd'} || $self->{'hostd_pipe'}) {
+    if($self->{'hostd'}) {
         confess "create_fresh_host called without checking the host first";
     }
 
-    my ( $read, $write );
-
-    pipe $read, $write;
-    my $hostd = Test::TCP->new(
-        $opts{'port'} ? ( port => $opts{'port'} ) : (),
-
-        code => sub {
-            my ( $port ) = @_;
-
-            close $read;
-            dup2 fileno($write), 3 or die $!;
-            close $write;
-
-            $ENV{'_HOSTD_PORT'} = $port;
-
-            exec $^X, 't/run-test-app';
-        },
-    );
-
-    close $write;
-    my $pipe = IO::Handle->new;
-    $pipe->fdopen(fileno($read), 'r');
-    close $read;
-
-    $pipe->blocking(0);
-
-    return ( $hostd, $pipe );
+    return Test::Sahara::Host->new;
 }
 
 sub get_conflict_blob {
@@ -144,19 +118,9 @@ sub check_host {
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
 
-    delete $self->{'hostd'};
+    my $host = delete $self->{'hostd'};
 
-    my $pipe   = delete $self->{'hostd_pipe'};
-    my $buffer = '';
-    my $bytes  = $pipe->sysread($buffer, 1);
-    $pipe->close;
-
-    my $ok = 1;
-
-    $ok = is($bytes, 1, 'The host should write a status byte upon safe exit') && $ok;
-    $ok = is($buffer, 0, 'No errors should occur in the host') && $ok;
-
-    unless($ok) {
+    unless($host->check) {
         diag("Host check in method " . $self->current_method . " failed");
     }
 }
@@ -209,7 +173,7 @@ sub setup : Test(setup) {
 
     $self->port(undef);
 
-    @{$self}{qw/hostd hostd_pipe/} = $self->create_fresh_host;
+    $self->{'hostd'} = $self->create_fresh_host;
 
     $self->port($self->{'hostd'}->port);
 

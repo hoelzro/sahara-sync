@@ -7,7 +7,7 @@ use parent 'Test::Sahara::ChildProcess';
 use Carp qw(confess);
 use File::Temp;
 
-__PACKAGE__->mk_accessors(qw/sync_dir/);
+__PACKAGE__->mk_accessors(qw/sync_dir log_file/);
 
 sub new {
     my ( $class, %opts ) = @_;
@@ -16,6 +16,7 @@ sub new {
     my $upstream_port = $opts{'port'};
     my $poll_interval = $opts{'poll_interval'};
     my $sync_dir      = $opts{'sync_dir'};
+    my $log_file      = File::Temp->new;
 
     $sync_dir ||= File::Temp->newdir;
 
@@ -31,11 +32,13 @@ sub new {
         $ENV{'_CLIENTD_ROOT'}          = $sync_dir->dirname;
         $ENV{'_CLIENTD_POLL_INTERVAL'} = $poll_interval;
         $ENV{'_CLIENTD_NUM'}           = $client_num;
+        $ENV{'_CLIENTD_LOG_FILE'}      = $log_file;
 
         exec $^X, 't/run-test-client';
     });
 
     $self->sync_dir($sync_dir);
+    $self->log_file($log_file);
 
     return $self;
 }

@@ -16,6 +16,7 @@ my $port          = $ENV{'_CLIENTD_PORT'};
 my $root          = $ENV{'_CLIENTD_ROOT'};
 my $poll_interval = $ENV{'_CLIENTD_POLL_INTERVAL'};
 my $client_num    = $ENV{'_CLIENTD_NUM'};
+my $log_file      = $ENV{'_CLIENTD_LOG_FILE'};
 
 my $log_config = [{
     type      => 'Null',
@@ -37,6 +38,14 @@ if($ENV{'TEST_CLIENTD_DEBUG'}) {
         }],
     };
 }
+
+push @$log_config, {
+    type      => 'File',
+    newline   => 1,
+    min_level => 'error',
+    mode      => '>',
+    filename  => $log_file,
+};
 
 my $config = SaharaSync::Clientd::Config->new(
     upstream      => $upstream,

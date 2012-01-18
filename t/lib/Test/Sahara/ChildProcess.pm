@@ -9,6 +9,8 @@ use IO::Handle;
 use POSIX qw(dup2);
 use Test::More;
 
+use namespace::clean;
+
 __PACKAGE__->mk_accessors(qw/pipe has_been_checked/);
 
 sub new {

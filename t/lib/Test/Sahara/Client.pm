@@ -5,9 +5,7 @@ use warnings;
 use parent 'Test::Sahara::ChildProcess';
 
 use Carp qw(confess);
-use File::Temp;
-
-__PACKAGE__->mk_accessors(qw/sync_dir/);
+use Test::Sahara::TempDir ();
 
 sub new {
     my ( $class, %opts ) = @_;
@@ -17,7 +15,7 @@ sub new {
     my $poll_interval = $opts{'poll_interval'};
     my $sync_dir      = $opts{'sync_dir'};
 
-    $sync_dir ||= File::Temp->newdir;
+    $sync_dir ||= Test::Sahara::TempDir->new;
 
     confess "client num required"    unless $client_num;
     confess "upstream port required" unless $upstream_port;

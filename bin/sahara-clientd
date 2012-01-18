@@ -22,9 +22,15 @@ use warnings;
 
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
+use SaharaSync::Util;
 
 $0 = 'sahara sync: client';
 
 my $config  = SaharaSync::Clientd::Config->new_with_options;
+
+if($config->daemonize) {
+    SaharaSync::Util->daemonize;
+}
+
 my $clientd = SaharaSync::Clientd->new($config);
 $clientd->run;

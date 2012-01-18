@@ -149,6 +149,16 @@ has poll_interval => (
     metaclass => 'NoGetopt',
 );
 
+has daemonize => (
+    is            => 'ro',
+    isa           => 'Bool',
+    default       => 0,
+    metaclass     => 'Getopt',
+    cmd_flag      => 'daemon',
+    cmd_aliases   => 'd',
+    documentation => 'Whether to run the program as a daemon',
+);
+
 sub new_from_file {
     my ( $class, $filename ) = @_;
 

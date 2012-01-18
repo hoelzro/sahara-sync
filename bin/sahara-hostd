@@ -23,18 +23,26 @@ use warnings;
 use Getopt::Long;
 use SaharaSync::Hostd::Config;
 use SaharaSync::Hostd::Launcher;
+use SaharaSync::Util;
 
 $0 = 'sahara sync: host';
 
 my $config_file;
+my $daemonize;
 
 my $result = GetOptions(
     'config-file=s' => \$config_file,
+    'daemon'        => \$daemonize,
 );
 
 unless($result && defined($config_file)) {
-    die "usage: $0 -c [config file]\n";
+    die "usage: $0 -c [config file] --daemon\n";
 }
 
 my $config = SaharaSync::Hostd::Config->new_from_file($config_file);
+
+if($daemonize) {
+    SaharaSync::Util->daemonize;
+}
+
 SaharaSync::Hostd::Launcher->run($config);

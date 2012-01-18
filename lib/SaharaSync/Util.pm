@@ -4,7 +4,9 @@ use strict;
 use warnings;
 
 use Carp qw(croak);
+use Daemon::Daemonize;
 use DateTime::Format::Strptime;
+use File::Spec;
 use Log::Dispatch;
 use namespace::clean;
 
@@ -91,6 +93,18 @@ sub load_logger {
     });
 
     return $logger;
+}
+
+sub daemonize {
+    my ( $self ) = @_;
+
+    foreach my $path (@INC) {
+        unless(File::Spec->file_name_is_absolute($path)) {
+            $path = File::Spec->rel2abs($path);
+        }
+    }
+
+    Daemon::Daemonize->daemonize;
 }
 
 1;

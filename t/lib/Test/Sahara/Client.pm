@@ -35,9 +35,15 @@ sub new {
         exec $^X, 't/run-test-client';
     });
 
-    $self->sync_dir($sync_dir);
+    $self->{'sync_dir'} = $sync_dir;
 
     return $self;
+}
+
+sub sync_dir {
+    my ( $self ) = @_;
+
+    return $self->{'sync_dir'};
 }
 
 1;

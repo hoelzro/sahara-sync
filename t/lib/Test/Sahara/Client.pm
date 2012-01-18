@@ -5,7 +5,9 @@ use warnings;
 use parent 'Test::Sahara::ChildProcess';
 
 use Carp qw(confess);
+use File::Slurp qw(read_file);
 use File::Temp;
+use Test::More;
 
 __PACKAGE__->mk_accessors(qw/sync_dir log_file/);
 
@@ -41,6 +43,18 @@ sub new {
     $self->log_file($log_file);
 
     return $self;
+}
+
+sub check {
+    my ( $self ) = @_;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+
+    my $log_contents = read_file($self->log_file);
+
+    is $log_contents, '', 'error log for clients should be empty';
+
+    return Test::Sahara::ChildProcess::check($self);
 }
 
 1;

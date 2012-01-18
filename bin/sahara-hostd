@@ -20,6 +20,7 @@
 use strict;
 use warnings;
 
+use File::Slurp;
 use Getopt::Long;
 use SaharaSync::Hostd::Config;
 use SaharaSync::Hostd::Launcher;
@@ -29,10 +30,12 @@ $0 = 'sahara sync: host';
 
 my $config_file;
 my $daemonize;
+my $pidfile;
 
 my $result = GetOptions(
     'config-file=s' => \$config_file,
     'daemon'        => \$daemonize,
+    'pidfile=s'     => \$pidfile,
 );
 
 unless($result && defined($config_file)) {
@@ -43,6 +46,10 @@ my $config = SaharaSync::Hostd::Config->new_from_file($config_file);
 
 if($daemonize) {
     SaharaSync::Util->daemonize;
+
+    if($pidfile) {
+        write_file($pidfile, $$);
+    }
 }
 
 SaharaSync::Hostd::Launcher->run($config);

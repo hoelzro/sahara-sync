@@ -159,6 +159,15 @@ has daemonize => (
     documentation => 'Whether to run the program as a daemon',
 );
 
+has pidfile => (
+    is            => 'ro',
+    isa           => 'Str',
+    metaclass     => 'Getopt',
+    cmd_flag      => 'pidfile',
+    cmd_aliases   => 'p',
+    documentation => q{A filename to hold the process' PID}
+);
+
 sub new_from_file {
     my ( $class, $filename ) = @_;
 

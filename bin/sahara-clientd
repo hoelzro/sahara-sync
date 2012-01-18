@@ -20,6 +20,7 @@
 use strict;
 use warnings;
 
+use File::Slurp;
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
 use SaharaSync::Util;
@@ -30,6 +31,10 @@ my $config  = SaharaSync::Clientd::Config->new_with_options;
 
 if($config->daemonize) {
     SaharaSync::Util->daemonize;
+
+    if(my $pidfile = $config->pidfile) {
+        write_file($pidfile, $$);
+    }
 }
 
 my $clientd = SaharaSync::Clientd->new($config);

@@ -73,4 +73,16 @@ sub DESTROY {
     }
 }
 
+sub pause {
+    my ( $self ) = @_;
+
+    kill SIGSTOP => $self->pid;
+}
+
+sub resume {
+    my ( $self ) = @_;
+
+    kill SIGCONT => $self->pid;
+}
+
 1;

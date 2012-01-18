@@ -319,6 +319,12 @@ sub _delete_blob_on_hostd {
         $self->upstream, $blob->name));
 
     my $revision = $self->_get_revision_for_blob($blob);
+    unless(defined $revision) {
+        # this means we haven't acknowledged the file ourselves;
+        # it probably was created quickly and then deleted.  Ignore it.
+        $on_complete->(1) if $on_complete;
+        return;
+    }
 
     $self->ws_client->delete_blob($blob->name, $revision, sub {
         my ( $ws, $revision, $error ) = @_;

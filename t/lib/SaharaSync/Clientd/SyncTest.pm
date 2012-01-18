@@ -85,7 +85,7 @@ sub get_conflict_blob {
     return sprintf("%s - conflict %04d-%02d-%02d", $blob, $year, $month, $day);
 }
 
-# This is three tests in one method
+# This is two tests in one method
 # It also cleans up the client pipe and object
 sub check_client {
     my ( $self, $client_num ) = @_;
@@ -97,7 +97,7 @@ sub check_client {
     return $client->check;
 }
 
-# six tests in one
+# four tests in one
 # XXX consider rename
 sub check_clients {
     my ( $self ) = @_;
@@ -181,7 +181,7 @@ sub setup : Test(setup) {
     $self->{'client2'} = $self->create_fresh_client(2);
 }
 
-sub teardown : Test(teardown => 8) {
+sub teardown : Test(teardown => 6) {
     my ( $self ) = @_;
 
     $self->check_clients; # stop client daemons first (4 tests)
@@ -249,7 +249,7 @@ sub test_update_file :Test(2) {
     );
 }
 
-sub test_preexisting_files :Test(8) {
+sub test_preexisting_files :Test(6) {
     my ( $self ) = @_;
 
     return 'for now';
@@ -276,7 +276,7 @@ sub test_preexisting_files :Test(8) {
     );
 }
 
-sub test_offline_update :Test(9) {
+sub test_offline_update :Test(7) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -315,7 +315,7 @@ sub test_offline_update :Test(9) {
     );
 }
 
-sub test_revision_persistence :Test(9) {
+sub test_revision_persistence :Test(7) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -574,7 +574,7 @@ sub restart_client {
     $self->catchup; # let the new client get situated
 }
 
-sub test_hostd_unavailable_after_change :Test(6) {
+sub test_hostd_unavailable_after_change :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -601,7 +601,7 @@ sub test_hostd_unavailable_after_change :Test(6) {
     );
 }
 
-sub test_hostd_unavailable_at_start :Test(6) {
+sub test_hostd_unavailable_at_start :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -638,7 +638,7 @@ sub test_hostd_unavailable_at_start :Test(6) {
     );
 }
 
-sub test_hostd_unavailable_last_sync :Test(6) {
+sub test_hostd_unavailable_last_sync :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -670,7 +670,7 @@ sub test_hostd_unavailable_last_sync :Test(6) {
     );
 }
 
-sub test_hostd_unavailable_get_blob :Test(6) {
+sub test_hostd_unavailable_get_blob :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -714,7 +714,7 @@ sub test_put_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_put_blob_host_error :Test(4) {
+sub test_put_blob_host_error :Test(3) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -742,7 +742,7 @@ sub test_put_blob_host_error :Test(4) {
     );
 }
 
-sub test_put_blob_host_error_offline :Test(7) {
+sub test_put_blob_host_error_offline :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -790,7 +790,7 @@ sub test_delete_blob_bad_perms :Test {
     return 'Test not implemented';
 }
 
-sub test_delete_blob_host_error :Test(4) {
+sub test_delete_blob_host_error :Test(3) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;
@@ -815,7 +815,7 @@ sub test_delete_blob_host_error :Test(4) {
     );
 }
 
-sub test_delete_blob_host_error_offline :Test(7) {
+sub test_delete_blob_host_error_offline :Test(5) {
     my ( $self ) = @_;
 
     my $temp1 = $self->{'client1'}->sync_dir;

@@ -848,6 +848,38 @@ sub test_delete_blob_bad_perms_offline :Test {
     return 'Test not implemented';
 }
 
+sub test_ephemeral_files :Test(2) {
+    my ( $self ) = @_;
+
+    my $client1 = $self->{'client1'};
+    my $dir1    = $client1->sync_dir;
+
+    $client1->pause;
+
+    write_file($dir1->file('foo.txt'), 'Hello');
+    my $ephemeral_file = $dir1->file('bar.txt');
+
+    $ephemeral_file->touch;
+    $ephemeral_file->remove;
+
+    $client1->resume;
+
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => 'Hello',
+        },
+    );
+
+    $self->check_files(
+        client => 1,
+        wait   => 0,
+        files  => {
+            'foo.txt' => 'Hello',
+        },
+    );
+}
+
 __PACKAGE__->SKIP_CLASS(1);
 
 # XXX metadata + sync test (when we actually start providing metadata)

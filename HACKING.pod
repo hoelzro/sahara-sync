@@ -114,6 +114,20 @@ TEST_CLIENTD_DEBUG
 
 =back
 
+=head3 Test suite manipulation
+
+These variables affect how the test suite is run.
+
+=over
+
+=item *
+
+TEST_BAIL_EARLY - When set to 1, this causes a test to bail out (exit) once
+one of its tests has failed.  Only works with SaharaSync::Clientd::SyncTest
+at the moment.
+
+=back
+
 Also, since we use L<Test::Class> for a lot of things, you can use
 C<TEST_METHOD> to restrict which test is run.
 

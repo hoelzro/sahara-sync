@@ -186,6 +186,10 @@ sub teardown : Test(teardown => 6) {
 
     $self->check_clients; # stop client daemons first (4 tests)
     $self->check_host;    # stop host daemon (1 test)
+
+    if($ENV{'TEST_BAIL_EARLY'} && !$self->builder->is_passing) {
+        $self->BAILOUT('Bailing out early');
+    }
 }
 
 sub test_create_file :Test(1) {

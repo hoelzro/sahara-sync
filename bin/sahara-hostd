@@ -47,23 +47,43 @@ Options:
 -p [pid file]
 --pidfile=[pid file]        Stores the process' PID in a file.  Only used in
                             daemon mode.
+
+-v
+--version                   Prints the version of this program and exits.
 END_HELP
     exit 1;
+}
+
+sub show_version {
+    my $git_revision = qx(git rev-parse HEAD 2>/dev/null);
+    chomp $git_revision;
+
+    if($git_revision) {
+        print "Sahara Sync host daemon - build $git_revision\n";
+    } else {
+        print "Sahara Sync host daemon - version $SaharaSync::Hostd::VERSION\n";
+    }
+
+    exit 0;
 }
 
 my $config_file;
 my $daemonize;
 my $pidfile;
 my $help;
+my $version;
 
 my $result = GetOptions(
     'config-file=s' => \$config_file,
     'daemon'        => \$daemonize,
     'pidfile=s'     => \$pidfile,
     'help'          => \$help,
+    'version'       => \$version,
 );
 
-show_help if $help;
+show_help    if $help;
+show_version if $version;
+
 unless($result && defined($config_file)) {
     show_help;
 }

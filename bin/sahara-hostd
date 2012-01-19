@@ -41,10 +41,12 @@ Options:
 -d
 --daemon                    Runs Sahara Sync in the background.  Off by default.
 
+-h
+--help                      Displays this help and exits.
+
 -p [pid file]
 --pidfile=[pid file]        Stores the process' PID in a file.  Only used in
                             daemon mode.
-
 END_HELP
     exit 1;
 }
@@ -52,13 +54,16 @@ END_HELP
 my $config_file;
 my $daemonize;
 my $pidfile;
+my $help;
 
 my $result = GetOptions(
     'config-file=s' => \$config_file,
     'daemon'        => \$daemonize,
     'pidfile=s'     => \$pidfile,
+    'help'          => \$help,
 );
 
+show_help if $help;
 unless($result && defined($config_file)) {
     show_help;
 }

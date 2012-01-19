@@ -28,6 +28,27 @@ use SaharaSync::Util;
 
 $0 = 'sahara sync: host';
 
+sub show_help {
+    print <<"END_HELP";
+usage: $0 [opts]
+
+Options:
+
+-c [config file]
+--config-file=[config file] Starts Sahara Sync using the given config file.
+                            The only option that's required.
+
+-d
+--daemon                    Runs Sahara Sync in the background.  Off by default.
+
+-p [pid file]
+--pidfile=[pid file]        Stores the process' PID in a file.  Only used in
+                            daemon mode.
+
+END_HELP
+    exit 1;
+}
+
 my $config_file;
 my $daemonize;
 my $pidfile;
@@ -39,7 +60,7 @@ my $result = GetOptions(
 );
 
 unless($result && defined($config_file)) {
-    die "usage: $0 -c [config file] --daemon\n";
+    show_help;
 }
 
 my $config = SaharaSync::Hostd::Config->new_from_file($config_file);

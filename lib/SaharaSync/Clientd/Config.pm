@@ -16,7 +16,7 @@ use URI;
 
 use namespace::clean -except => 'meta';
 
-with 'MooseX::Getopt', 'MooseX::SimpleConfig';
+with 'MooseX::SimpleConfig';
 
 subtype ExpandDir,
     as  Dir;
@@ -85,41 +85,33 @@ has '+configfile' => (
 
         return $self->home_dir->file('config.json');
     },
-    coerce        => 1,
-    metaclass     => 'Getopt',
-    cmd_flag      => 'configfile',
-    cmd_aliases   => 'c',
-    documentation => 'Location of the configuration file',
+    coerce => 1,
 );
 
 has upstream => (
-    is        => 'ro',
-    isa       => SaharaUri,
-    required  => 1,
-    coerce    => 1,
-    metaclass => 'NoGetopt',
+    is       => 'ro',
+    isa      => SaharaUri,
+    required => 1,
+    coerce   => 1,
 );
 
 has sync_dir => (
-    is        => 'ro',
-    isa       => ExpandDir,
-    default   => '~/Sandbox',
-    coerce    => 1,
-    metaclass => 'NoGetopt',
+    is      => 'ro',
+    isa     => ExpandDir,
+    default => '~/Sandbox',
+    coerce  => 1,
 );
 
 has username => (
-    is        => 'ro',
-    isa       => 'Str',
-    required  => 1,
-    metaclass => 'NoGetopt',
+    is       => 'ro',
+    isa      => 'Str',
+    required => 1,
 );
 
 has password => (
-    is        => 'ro',
-    isa       => 'Str',
-    required  => 1,
-    metaclass => 'NoGetopt',
+    is       => 'ro',
+    isa      => 'Str',
+    required => 1,
 );
 
 has log => (
@@ -138,44 +130,27 @@ has log => (
             min_level   => 'info',
         }]
     },
-    coerce    => 1,
-    metaclass => 'NoGetopt',
+    coerce => 1,
 );
 
 has poll_interval => (
-    is        => 'ro',
-    isa       => PollInterval,
-    default   => 15,
-    metaclass => 'NoGetopt',
-);
-
-has daemonize => (
-    is            => 'ro',
-    isa           => 'Bool',
-    default       => 0,
-    metaclass     => 'Getopt',
-    cmd_flag      => 'daemon',
-    cmd_aliases   => 'd',
-    documentation => 'Whether to run the program as a daemon',
-);
-
-has pidfile => (
-    is            => 'ro',
-    isa           => 'Str',
-    metaclass     => 'Getopt',
-    cmd_flag      => 'pidfile',
-    cmd_aliases   => 'p',
-    documentation => q{A filename to hold the process' PID}
+    is      => 'ro',
+    isa     => PollInterval,
+    default => 15,
 );
 
 sub new_from_file {
     my ( $class, $filename ) = @_;
 
-    unless(-r $filename) {
-        croak "Unable to read '$filename'";
-    }
+    if(defined $filename) {
+        unless(-r $filename) {
+            croak "Unable to read '$filename'";
+        }
 
-    return $class->new_with_config(configfile => $filename);
+        return $class->new_with_config(configfile => $filename);
+    } else {
+        return $class->new_with_config;
+    }
 }
 
 sub home_dir {

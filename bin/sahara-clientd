@@ -20,19 +20,58 @@
 use strict;
 use warnings;
 
+use Getopt::Long;
 use File::Slurp;
 use SaharaSync::Clientd;
 use SaharaSync::Clientd::Config;
 use SaharaSync::Util;
 
+sub show_help {
+    print <<"END_HELP";
+usage: $0 [opts]
+
+Options:
+
+-c [config file]
+--config-file=[config file] Starts Sahara Sync with the given config file.
+                            Defaults to ~/.config/sahara-sync/config.json.
+
+-d
+--daemon                    Runs Sahara Sync in the background.  Off by default.
+
+-h
+--help                      Displays this help and exits.
+
+-p [pid file]
+--pidfile=[pid file]        Stores the process' PID in a file.  Only used in
+                            daemon mode.
+END_HELP
+    exit 1;
+}
+
 $0 = 'sahara sync: client';
 
-my $config  = SaharaSync::Clientd::Config->new_with_options;
+my $config_file;
+my $daemon;
+my $pidfile;
+my $help;
 
-if($config->daemonize) {
+my $result = GetOptions(
+    'config-file=s' => \$config_file,
+    'daemon'        => \$daemon,
+    'pidfile=s'     => \$pidfile,
+    'help'          => \$help,
+);
+
+show_help if     $help;
+show_help unless $result;
+
+my $config = SaharaSync::Clientd::Config->new_from_file($config_file);
+
+if($daemon) {
     SaharaSync::Util->daemonize;
 
-    if(my $pidfile = $config->pidfile) {
+    if($pidfile) {
         write_file($pidfile, $$);
     }
 }

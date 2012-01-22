@@ -9,9 +9,9 @@ use IO::String;
 use File::Slurp qw(read_file);
 use File::Spec;
 use File::Temp qw(tempfile);
-use List::MoreUtils qw(uniq);
+use List::MoreUtils qw(all uniq);
 use Symbol qw(gensym);
-use Test::Deep;
+use Test::Deep qw(cmp_bag);
 use Test::Exception;
 use Test::More;
 
@@ -543,44 +543,28 @@ sub test_utf8_metadata : Test(2) {
     is_deeply($metadata, { revision => $revision, 'über' => 'schön' }, "UTF-8 metadata should be preserved");
 }
 
-sub test_revision_function : Test(7) {
+sub test_revision_function : Test(2) {
     my ( $self ) = @_;
 
     my $store = $self->store;
+    my @revisions;
 
-    my $revision = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
-    my $revision2 = $store->store_blob('test2', 'file.txt', IO::String->new('Test text'), { foo => 1 });
-    is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+    push @revisions, $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
+    push @revisions, $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { foo => 1, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { Foo => 1, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { Foo => 2, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { Bar => 2, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { Bar => 2, revision => $revisions[-1] });
 
-    $store->remove_user('test');
-    $store->create_user('test', 'abc123');
-    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 1 });
-    is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+    push @revisions, $store->store_blob('test', 'file2.txt', IO::String->new('Test text'), { foo => 1 });
+    push @revisions, $store->store_blob('test', 'file2.txt', IO::String->new('Test text 2'), { foo => 1, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file2.txt', IO::String->new('Test text 2'), { Foo => 1, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file2.txt', IO::String->new('Test text 2'), { Foo => 2, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file2.txt', IO::String->new('Test text 2'), { Bar => 2, revision => $revisions[-1] });
+    push @revisions, $store->store_blob('test', 'file2.txt', IO::String->new('Test text 2'), { Bar => 2, revision => $revisions[-1] });
 
-    $store->remove_user('test');
-    $store->create_user('test', 'abc123');
-    $revision2 = $store->store_blob('test', 'file2.txt', IO::String->new('Test text'), { foo => 1 });
-    isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
-
-    $store->remove_user('test');
-    $store->create_user('test', 'abc123');
-    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text 2'), { foo => 1 });
-    isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
-
-    $store->remove_user('test');
-    $store->create_user('test', 'abc123');
-    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { foo => 2 });
-    isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
-
-    $store->remove_user('test');
-    $store->create_user('test', 'abc123');
-    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { Foo => 1 });
-    is $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
-
-    $store->remove_user('test');
-    $store->create_user('test', 'abc123');
-    $revision2 = $store->store_blob('test', 'file.txt', IO::String->new('Test text'), { bar => 1 });
-    isnt $revision2, $revision, "Blob revisions are a deterministic function of the name, contents, metadata, and previous revision";
+    ok all { defined() } @revisions;
+    is_deeply([ uniq(@revisions) ], \@revisions, q{each revision in a user's history should be unique});
 }
 
 sub test_fetch_changed_blobs_metadata : Test(10) {

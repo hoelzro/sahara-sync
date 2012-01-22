@@ -4,7 +4,7 @@ package SaharaSync::Hostd::Plugin::Store::DBIWithFS;
 ## use critic (RequireUseStrict)
 use Carp qw(croak);
 use Carp::Clan qw(^SaharaSync::Hostd::Plugin::Store ^Class::MOP::Method);
-use Digest::SHA;
+use Data::UUID;
 use DBI;
 use File::Path qw(make_path remove_tree);
 use File::Spec;
@@ -42,6 +42,13 @@ has _statements => (
     init_arg => undef,
     lazy     => 1,
     builder  => '_build_statements',
+);
+
+has uuid_generator => (
+    is      => 'ro',
+    default => sub {
+        return Data::UUID->new;
+    },
 );
 
 sub BUILDARGS {
@@ -167,9 +174,7 @@ sub _blob_to_disk_name {
 sub _save_blob_to_disk {
     my ( $self, $user, $blob, %options ) = @_;
 
-    my $revision = $options{'revision'} || '';
-    my $metadata = $options{'metadata'};
-    my $src      = $options{'handle'};
+    my $src = $options{'handle'};
 
     my $disk_name      = $self->_blob_to_disk_name($blob);
     my $path           = File::Spec->catfile($self->storage_path, $user, $disk_name);
@@ -178,17 +183,7 @@ sub _save_blob_to_disk {
     my $n;
 
     make_path $dir;
-    my $digest = Digest::SHA->new(1);
-    $digest->add($blob);
-    $digest->add($revision);
     if(defined $src) {
-        foreach my $k (sort keys %$metadata) {
-            my $v = $metadata->{$k};
-            $digest->add($k);
-            $digest->add($v);
-        }
-        $digest->add("\1"); ## no critic (ValuesAndExpressions::ProhibitInterpolationOfLiterals)
-
         my $f = IO::File->new($path, 'w');
         croak "Unable to open '$path': $!" unless $f;
 
@@ -196,18 +191,15 @@ sub _save_blob_to_disk {
             $n = $src->read($buf, $BLOB_IO_CHUNK_SIZE);
             croak "read failed: $!" unless defined $n;
             if($n) {
-                $digest->add($buf);
                 $f->syswrite($buf, $n) || croak "write failed: $!";
             }
         } while $n; ## no critic (ControlStructures::ProhibitPostfixControls)
         $f->close;
     } else {
-        $digest->add("\0");
-
         unlink($path) || croak "Unable to delete '$path': $!";
     }
 
-    return $digest->hexdigest;
+    return $self->uuid_generator->to_hexstring($self->uuid_generator->create);
 }
 
 sub _get_user_id {

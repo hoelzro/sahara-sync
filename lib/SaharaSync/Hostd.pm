@@ -103,11 +103,10 @@ sub BUILDARGS {
     $args{'log'} = SaharaSync::Util->load_logger($args{'log'});
 
     if(my $server_config = delete $args{'server'}) {
-        if(my $port = $server_config->{'port'}) {
-            $args{'port'} = $port;
-        }
-        if(defined(my $disable_streaming = $server_config->{'disable_streaming'})) {
-            $args{'disable_streaming'} = $disable_streaming;
+        foreach my $key (keys %$server_config) {
+            my $value = $server_config->{$key};
+            next unless defined $value;
+            $args{$key} = $value;
         }
     }
 

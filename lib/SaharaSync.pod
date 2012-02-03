@@ -173,6 +173,23 @@ to do it directly via SQL.  Log in to your database of choice and submit the fol
 
 =head3 Server
 
+The server section isn't specified in the example configuration file, but if it were, the defaults
+would look like this:
+
+  server:
+    host: 0.0.0.0
+    port: 5982
+    disable_streaming: false
+
+The 'host' option specifies the bind address.  You won't usually touch this, unless you intend to put
+the host daemon behind a proxy, or you only intend to access the host via an SSH tunnel.
+
+The 'port' option specifies which port the host daemon will listen on.  The default is probably fine.
+
+The 'disable_streaming' option specifies whether or not the host daemon should allow for the streaming
+of changes.  When disabled, clients must poll the host daemon for changes, which is less efficient.
+However, streaming changes aren't supported in every environment.
+
 =head3 Logging
 
 =head2 SETTING UP CLIENTD

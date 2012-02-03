@@ -141,6 +141,8 @@ Done!  Now, for the dsn option, it should look something like this:
 The DBIWithFS backend also supports a 'user' parameter and a 'password' parameter; these should be
 set to a MySQL user and its password.
 
+See the L<DBD::mysql> documentation for more information on the dsn when using MySQL.
+
 =head4 PostgreSQL
 
 PostgreSQL is about as complicated to set up as MySQL; like MySQL, I will assume you have a server
@@ -163,6 +165,8 @@ Done!  Now, for the dsn option, it should look something like this:
 
 The DBIWithFS backend also supports a 'user' parameter and a 'password' parameter; these should be
 set to a PostgreSQL user and its password.
+
+See the L<DBD::Pg> documentation for more information on the dsn when using PostgreSQL.
 
 =head4 Creating your user
 

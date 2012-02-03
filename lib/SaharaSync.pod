@@ -206,9 +206,15 @@ However, streaming changes aren't supported in every environment.
 
 =head2 IRC
 
+We have a channel on L<irc.freenode.net>: #saharasync.
+
 =head2 MAILING LIST
 
+We also have a mailing list! L<users@saharasync.net>
+
 =head2 WEBSITE
+
+We even have a website! L<http://saharasync.net>
 
 =head1 FAQ
 

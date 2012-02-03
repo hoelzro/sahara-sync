@@ -80,17 +80,100 @@ Setting up the daemons is pretty easy!
 
 =head2 SETTING UP HOSTD
 
-First things first: we need to decide where to store the users' files, and where to
-store information about those files.  The first is fairly simple; Sahara Sync just needs
-to store the files in a directory, so create a directory somewhere (I usually choose
-/var/lib/saharasync).  The second is a little trickier, as you have a choice: currently,
-hostd can store file metadata in either SQLite, MySQL, and PostgreSQL.
+Setting up the host requires you to create a configuration file.  The configuration file
+has three sections: storage options, server behavior options, and logging options.  The
+Sahara Sync distribution comes with an example configuration in B<host.yaml>; let's
+go over each section individually.
 
-=head3 SQLite
+=head3 Storage
 
-=head3 MySQL
+The storage section looks something like this:
 
-=head3 PostgreSQL
+  storage:
+    type: 'DBIWithFS'
+    dsn: 'dbi:Pg:dbname=sahara'
+    storage_path: '/tmp/sahara'
+
+The 'type' parameter specifies which storage backend to use.  For now, only 'DBIWithFS'
+is supported.  The remaining parameters are parameters to the storage backend.  In the
+case of DBIWithFS, 'dsn' specifies the database connection string (which we'll cover
+in a bit), and 'storage_path' specifies where the actual files will be located on disk.
+The storage_path should be pretty straightforward; just pick a directory, create it,
+and change the value in the configuration file.  The dsn is a little more complicated,
+as we need to set up a database and initialize it with the Sahara Sync schema.
+The DBIWithFS backend currently supports SQLite, MySQL, and PostgreSQL; let's cover
+them individually.
+
+=head4 SQLite
+
+SQLite is pretty easy to set up; just pick a spot for it and go!  I'll use C</tmp/sahara-sync.db>
+as an example:
+
+  saharasync@localhost $ sqlite3 -init schema.sqlite /tmp/sahara-sync.db
+
+Done!  Now, for the dsn option, it should look something like this:
+
+  dbi:SQLite:dbname=/tmp/sahara-sync.db
+
+See the L<DBD::SQLite> documentation for more information on the dsn when using SQLite.
+
+=head4 MySQL
+
+MySQL is a little more complicated to set up, but for the purposes of this document, I'll assume
+you have a server running on localhost, and that you'll be storing your data in a database called
+'sahara'.  First, we need to install the MySQL adapter for L<DBI>, the library that Perl uses
+to access databases:
+
+  saharasync@localhost $ cpanm DBD::mysql
+
+Now, let's create the database:
+
+  saharasync@localhost $ echo 'create database sahara' | mysql -u $MY_USER --password=$MY_PASSWD --batch
+
+And finally, initialize the schema:
+
+  saharasync@localhost $ mysql -u $MY_USER --password=$MY_PASSWD --batch sahara < schema.mysql
+
+Done!  Now, for the dsn option, it should look something like this:
+
+  dbi:mysql:database=sahara
+
+The DBIWithFS backend also supports a 'user' parameter and a 'password' parameter; these should be
+set to a MySQL user and its password.
+
+=head4 PostgreSQL
+
+PostgreSQL is about as complicated to set up as MySQL; like MySQL, I will assume you have a server
+running on localhost, and that you'll be storing your data in a databaes called 'sahara'.  Also like
+MySQL, we need to install the PostgreSQL adapter for L<DBI>:
+
+  saharasync@localhost $ cpanm DBD::Pg
+
+Now, let's create the database:
+
+  saharasync@localhost $ createdb -U $PGUSER --password sahara
+
+And finally, initialize the schema:
+
+  saharasync@localhost $ psql -X -f schema.psql -U $PGUSER --password sahara
+
+Done!  Now, for the dsn option, it should look something like this:
+
+  dbi:Pg:database=sahara
+
+The DBIWithFS backend also supports a 'user' parameter and a 'password' parameter; these should be
+set to a PostgreSQL user and its password.
+
+=head4 Creating your user
+
+Unfortunately, Sahara Sync doesn't currently expose an interface for creating users, so you'll need
+to do it directly via SQL.  Log in to your database of choice and submit the following statement:
+
+  INSERT INTO users (username, password) VALUES ('USERNAME', 'PASSWORD');
+
+=head3 Server
+
+=head3 Logging
 
 =head2 SETTING UP CLIENTD
 

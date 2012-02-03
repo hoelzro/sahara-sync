@@ -208,6 +208,15 @@ supported in every environment.
 
 =head3 Logging
 
+The logging section of the host daemon configuration is a series of
+configuration objects.  Each object has a 'type' key, which specifies what
+kind of logger to create.  These types are provided to L<Log::Dispatch>, so
+if you specify 'File' as your logger's type, a L<Log::Dispatch::File> object
+will be used as one of your loggers.  You may specify as many loggers as you
+like; the daemon will run as long as at least one of them is loaded
+successfully.  If you specify the 'mandatory' key in a logger's configuration,
+the daemon will fail to run if that logger cannot be loaded.
+
 =head2 SETTING UP CLIENTD
 
 =head1 RUNNING THE DAEMONS

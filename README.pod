@@ -69,6 +69,15 @@ questions:
 
   saharasync@localhost $ perlbrew install-cpanm
 
+Now you'll need to build a Perl environment in which to install Sahara Sync
+and its dependencies.  As of this writing, Perl 5.14.2 is the most current,
+so we'll install that:
+
+  saharasync@localhost $ perlbrew install --as saharasync perl-5.14.2
+
+This builds a fresh Perl interpreter and runs its test suite, so this will
+take about thirty minutes.
+
 Now you can install Sahara Sync!  Go grab a coffee or something; this will
 take a while!
 

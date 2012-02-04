@@ -215,7 +215,17 @@ if you specify 'File' as your logger's type, a L<Log::Dispatch::File> object
 will be used as one of your loggers.  You may specify as many loggers as you
 like; the daemon will run as long as at least one of them is loaded
 successfully.  If you specify the 'mandatory' key in a logger's configuration,
-the daemon will fail to run if that logger cannot be loaded.
+the daemon will fail to run if that logger cannot be loaded.  Here's an
+example log section that appends output to a file called
+C</var/log/saharasync/hostd.log>:
+
+  log:
+    -
+      type: File
+      min_level: info
+      newline: true
+      mode: '>>'
+      filename: '/var/log/saharasync/hostd.log'
 
 =head2 SETTING UP CLIENTD
 

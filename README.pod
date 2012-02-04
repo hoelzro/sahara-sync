@@ -8,8 +8,9 @@ version 0.01
 
 =head1 DESCRIPTION
 
-If you're reading this and are confused about what this is, I suggest you skip
-ahead to the L<""/FAQ> section.
+Sahara Sync is a file-synchronization program, simliar to web services such as
+Dropbox.  The main difference is that with Sahara Sync, you are in control of
+your data and the code that handles them.
 
 =head1 OVERVIEW
 

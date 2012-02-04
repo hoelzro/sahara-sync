@@ -87,7 +87,8 @@ sub load_logger {
     $logger->add_callback(sub {
         my %params = @_;
 
-        my $timestamp = $formatter->format_datetime(DateTime->now);
+        my $timestamp = $formatter->format_datetime(
+            DateTime->now->set_time_zone('local'));
 
         return "[$timestamp] $params{'message'}";
     });

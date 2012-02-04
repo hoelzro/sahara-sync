@@ -229,6 +229,9 @@ C</var/log/saharasync/hostd.log>:
 
 =head2 SETTING UP CLIENTD
 
+If you put your hostd behind an SSL reverse proxy, you'll need to
+install the L<Net::SSLeay> module.
+
 =head1 RUNNING THE DAEMONS
 
 =head2 RUNNING HOSTD

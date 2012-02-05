@@ -128,6 +128,10 @@ sub _handle_inotify_overflow {
 sub _process_inotify_event {
     my ( $self, $e ) = @_;
 
+    if($self->has_log) {
+        $self->log->debug($self->_debug_event($e));
+    }
+
     my $path = $e->fullname;
     my $mask = IN_CREATE | IN_CLOSE_WRITE | IN_MOVE | IN_DELETE;
 
@@ -356,11 +360,10 @@ sub _debug_event {
         }
     }
 
-    use Test::More;
-
-    diag("  fullpath: " . $event->fullname);
-    diag("  cookie:   " . $event->cookie);
-    diag("  mask:     " . join(', ', @masks));
+    return sprintf('fullpath = %s, cookie = %s, mask = %s',
+        $event->fullname,
+        $event->cookie,
+        join(', ', @masks));
 }
 
 sub _known_blob {

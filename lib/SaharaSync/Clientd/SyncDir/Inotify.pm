@@ -67,6 +67,11 @@ has _event_queue => (
     init_arg => undef,
 );
 
+has log => (
+    is        => 'ro',
+    predicate => 'has_log',
+);
+
 sub BUILD {
     my ( $self ) = @_;
 

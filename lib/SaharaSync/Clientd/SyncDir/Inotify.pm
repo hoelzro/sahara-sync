@@ -355,7 +355,8 @@ sub _debug_event {
         my $glob = $Linux::Inotify2::{$name};
         my $m    = *{$glob}{'CODE'}->();
 
-        if($mask & $m) {
+        # check if $m is a power of two first
+        if(($m & $m - 1) == 0 && $mask & $m) {
             push @masks, $name;
         }
     }

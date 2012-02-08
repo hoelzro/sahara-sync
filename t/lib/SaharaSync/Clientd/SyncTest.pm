@@ -717,6 +717,21 @@ sub test_ephemeral_files :Test(2) {
     );
 }
 
+sub test_empty_blob :Test {
+    my ( $self ) = @_;
+
+    my $temp1 = $self->{'client1'}->sync_dir;
+
+    write_file(File::Spec->catfile($temp1, 'foo.txt'), '');
+
+    $self->check_files(
+        client => 2,
+        files  => {
+            'foo.txt' => '',
+        },
+    );
+}
+
 __PACKAGE__->SKIP_CLASS(1);
 
 # XXX metadata + sync test (when we actually start providing metadata)

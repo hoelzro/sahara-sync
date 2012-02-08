@@ -1340,6 +1340,28 @@ sub test_unavailable_hostd_last_sync :Test(1) {
     );
 }
 
+sub test_empty_blob :Test(2) {
+    my ( $self ) = @_;
+
+    my $cond   = AnyEvent->condvar;
+    my $client = $self->client;
+
+    $client->put_blob('file.txt', IO::String->new(''), {}, sub {
+        my ( $c, $revision ) = @_;
+
+        ok $revision, 'put_blob with an empty blob should succeed';
+
+        $c->get_blob('file.txt', sub {
+            my ( $c, $h, $metadata ) = @_;
+
+            isa_ok $h, 'AnyEvent::Handle', 'get_blob with an empty blob should succeed';
+            $cond->send;
+        });
+    });
+
+    $cond->recv;
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

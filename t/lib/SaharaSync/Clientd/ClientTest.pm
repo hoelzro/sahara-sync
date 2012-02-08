@@ -143,7 +143,7 @@ sub check_files {
     my @files         = grep { $_ ne '.saharasync' } read_dir($temp_dir);
     my %file_contents = (
         map {
-            $_ => read_file(File::Spec->catfile($temp_dir, $_))
+            $_ => scalar(read_file(File::Spec->catfile($temp_dir, $_)))
         } @files
     );
 

@@ -57,14 +57,20 @@ sub create_fresh_client {
     );
 }
 
+sub hostd_options {
+    return ();
+}
+
 sub create_fresh_host {
     my ( $self ) = @_;
+
+    my %options = $self->hostd_options;
 
     if($self->{'hostd'}) {
         confess "create_fresh_host called without checking the host first";
     }
 
-    return Test::Sahara::Host->new;
+    return Test::Sahara::Host->new(%options);
 }
 
 # This is two tests in one method

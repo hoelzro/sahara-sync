@@ -61,6 +61,20 @@ sub check_error_handler :Test(teardown => 1) {
     is $self->{'error'}, 0, "No uncaught errors should occur during testing (method is " . $self->current_method . ")";
 }
 
+sub capture_anyevent_errors {
+    my ( $self, $func ) = @_;
+
+    my @errors;
+
+    local $EV::DIED = sub {
+        push @errors, $@;
+    };
+
+    $func->();
+
+    return @errors;
+}
+
 __PACKAGE__->SKIP_CLASS(1);
 
 1;

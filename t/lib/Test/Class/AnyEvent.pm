@@ -58,7 +58,7 @@ sub setup_error_handler :Test(setup) {
 sub check_error_handler :Test(teardown => 1) {
     my ( $self ) = @_;
 
-    is $self->{'error'}, 0, "No uncaught errors should occur during testing";
+    is $self->{'error'}, 0, "No uncaught errors should occur during testing (method is " . $self->current_method . ")";
 }
 
 __PACKAGE__->SKIP_CLASS(1);

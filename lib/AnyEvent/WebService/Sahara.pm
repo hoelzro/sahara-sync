@@ -550,6 +550,10 @@ sub changes {
 
     my $start;
     $start = sub {
+        unless($self) {
+            undef $guard;
+            return;
+        }
         my $old_guard = $guard;
 
         $guard = $self->capabilities(sub {

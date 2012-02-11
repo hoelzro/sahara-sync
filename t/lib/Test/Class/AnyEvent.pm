@@ -32,7 +32,8 @@ sub setup_kill_timeout :Test(setup) {
     $self->{'kill_timer'} = AnyEvent->timer(
         after => $self->TIMEOUT,
         cb    => sub {
-            diag "Your test took too long!";
+            my $method = $self->current_method;
+            diag "Your test ($method) took too long!";
             exit 1;
         },
     );

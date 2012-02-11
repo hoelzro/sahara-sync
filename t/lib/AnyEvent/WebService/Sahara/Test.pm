@@ -1377,6 +1377,8 @@ sub test_unavailable_errors :Test(1) {
         }
     });
 
+    $self->delay(1); # let the client get situated
+
     $proxy->kill_connections;
 
     $self->delay($self->client_poll_time * 2 + 1);

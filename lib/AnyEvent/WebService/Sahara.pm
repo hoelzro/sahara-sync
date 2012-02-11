@@ -456,6 +456,7 @@ sub _streaming_changes {
                 #     with the host
                 undef $timer;
                 undef $$handle_ref;
+                return unless $self;
                 ( $guard, $handle_ref ) = $self->_raw_streaming_request($url,
                     $meta, $wrapped_cb, $handle_error);
             },

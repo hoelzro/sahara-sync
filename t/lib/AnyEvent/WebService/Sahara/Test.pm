@@ -1386,6 +1386,45 @@ sub test_unavailable_errors :Test(1) {
     is $errors_seen, 0, 'no connection errors should be propagated to changes()';
 }
 
+sub test_never_connect_cleanup :Test(2) {
+    my ( $self ) = @_;
+
+    my @errors;
+    my $proxy  = Test::Sahara::Proxy->new(remote => $self->port);
+    $proxy->kill_connections;
+
+    @errors = $self->capture_anyevent_errors(sub {
+        my $client = $self->create_client($proxy->port);
+
+        $client->changes(undef, [], sub {
+        });
+
+        $self->delay($self->client_poll_time);
+
+        undef $client;
+
+        $self->delay($self->client_poll_time);
+    });
+
+    is_deeply \@errors, [], 'no errors should occur with a client that can never connect';
+
+    @errors = $self->capture_anyevent_errors(sub {
+        my $client = $self->create_client($proxy->port);
+
+        my $guard = $client->changes(undef, [], sub {
+        });
+
+        $self->delay($self->client_poll_time);
+
+        undef $guard;
+        undef $client;
+
+        $self->delay($self->client_poll_time);
+    });
+
+    is_deeply \@errors, [], 'no errors should occur with a client that can never connect';
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

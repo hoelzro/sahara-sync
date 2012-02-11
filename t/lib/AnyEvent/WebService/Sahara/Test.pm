@@ -1362,6 +1362,28 @@ sub test_empty_blob :Test(2) {
     $cond->recv;
 }
 
+sub test_unavailable_errors :Test(1) {
+    my ( $self ) = @_;
+
+    my $proxy       = Test::Sahara::Proxy->new(remote => $self->port);
+    my $client      = $self->create_client($proxy->port);
+    my $errors_seen = 0;
+
+    $client->changes(undef, [], sub {
+        my ( undef, $change ) = @_;
+
+        unless(defined $change) {
+            $errors_seen++;
+        }
+    });
+
+    $proxy->kill_connections;
+
+    $self->delay($self->client_poll_time * 2 + 1);
+
+    is $errors_seen, 0, 'no connection errors should be propagated to changes()';
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

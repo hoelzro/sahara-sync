@@ -51,7 +51,7 @@ sub setup_error_handler :Test(setup) {
 
     $EV::DIED = sub {
         $self->{'error'} = 1;
-        note($@);
+        diag($@);
     };
 }
 

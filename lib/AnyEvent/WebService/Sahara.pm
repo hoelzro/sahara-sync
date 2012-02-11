@@ -528,7 +528,7 @@ sub _non_streaming_changes {
             }, sub {
                 my ( $self, $ok, $error ) = @_;
 
-                $cb->(@_) unless $ok;
+                $cb->(@_) if !$ok && $error->is_fatal;
             });
         },
     );

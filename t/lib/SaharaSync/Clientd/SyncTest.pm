@@ -702,8 +702,9 @@ sub test_ephemeral_files :Test(2) {
     $client1->resume;
 
     $self->check_files(
-        client => 2,
-        files  => {
+        client    => 2,
+        wait_time => 2, # give it a little more time to catch up
+        files     => {
             'foo.txt' => 'Hello',
         },
     );

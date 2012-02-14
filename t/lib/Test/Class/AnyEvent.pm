@@ -32,7 +32,8 @@ sub setup_kill_timeout :Test(setup) {
     $self->{'kill_timer'} = AnyEvent->timer(
         after => $self->TIMEOUT,
         cb    => sub {
-            diag "Your test took too long!";
+            my $method = $self->current_method;
+            diag "Your test ($method) took too long!";
             exit 1;
         },
     );
@@ -51,14 +52,28 @@ sub setup_error_handler :Test(setup) {
 
     $EV::DIED = sub {
         $self->{'error'} = 1;
-        note($@);
+        diag($@);
     };
 }
 
 sub check_error_handler :Test(teardown => 1) {
     my ( $self ) = @_;
 
-    is $self->{'error'}, 0, "No uncaught errors should occur during testing";
+    is $self->{'error'}, 0, "No uncaught errors should occur during testing (method is " . $self->current_method . ")";
+}
+
+sub capture_anyevent_errors {
+    my ( $self, $func ) = @_;
+
+    my @errors;
+
+    local $EV::DIED = sub {
+        push @errors, $@;
+    };
+
+    $func->();
+
+    return @errors;
 }
 
 __PACKAGE__->SKIP_CLASS(1);

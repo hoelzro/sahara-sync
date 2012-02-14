@@ -1340,6 +1340,138 @@ sub test_unavailable_hostd_last_sync :Test(1) {
     );
 }
 
+sub test_empty_blob :Test(2) {
+    my ( $self ) = @_;
+
+    my $cond   = AnyEvent->condvar;
+    my $client = $self->client;
+
+    $client->put_blob('file.txt', IO::String->new(''), {}, sub {
+        my ( $c, $revision ) = @_;
+
+        ok $revision, 'put_blob with an empty blob should succeed';
+
+        $c->get_blob('file.txt', sub {
+            my ( $c, $h, $metadata ) = @_;
+
+            isa_ok $h, 'AnyEvent::Handle', 'get_blob with an empty blob should succeed';
+            $cond->send;
+        });
+    });
+
+    $cond->recv;
+}
+
+sub test_unavailable_errors :Test(1) {
+    my ( $self ) = @_;
+
+    my $proxy       = Test::Sahara::Proxy->new(remote => $self->port);
+    my $client      = $self->create_client($proxy->port);
+    my $errors_seen = 0;
+
+    $client->changes(undef, [], sub {
+        my ( undef, $change ) = @_;
+
+        unless(defined $change) {
+            $errors_seen++;
+        }
+    });
+
+    $self->delay(1); # let the client get situated
+
+    $proxy->kill_connections;
+
+    $self->delay($self->client_poll_time * 2 + 1);
+
+    is $errors_seen, 0, 'no connection errors should be propagated to changes()';
+}
+
+sub test_never_connect_cleanup :Test(2) {
+    my ( $self ) = @_;
+
+    my @errors;
+    my $proxy  = Test::Sahara::Proxy->new(remote => $self->port);
+    $proxy->kill_connections;
+
+    @errors = $self->capture_anyevent_errors(sub {
+        my $client = $self->create_client($proxy->port);
+
+        $client->changes(undef, [], sub {
+        });
+
+        $self->delay($self->client_poll_time);
+
+        undef $client;
+
+        $self->delay($self->client_poll_time);
+    });
+
+    is_deeply \@errors, [], 'no errors should occur with a client that can never connect';
+
+    @errors = $self->capture_anyevent_errors(sub {
+        my $client = $self->create_client($proxy->port);
+
+        my $guard = $client->changes(undef, [], sub {
+        });
+
+        $self->delay($self->client_poll_time);
+
+        undef $guard;
+        undef $client;
+
+        $self->delay($self->client_poll_time);
+    });
+
+    is_deeply \@errors, [], 'no errors should occur with a client that can never connect';
+}
+
+sub test_persistent_disconnect_cleanup :Test(2) {
+    my ( $self ) = @_;
+
+    my @errors;
+
+    @errors = $self->capture_anyevent_errors(sub {
+        my $proxy  = Test::Sahara::Proxy->new(remote => $self->port);
+        my $client = $self->create_client($proxy->port);
+
+        $client->changes(undef, [], sub {
+        });
+
+        $self->delay(1); # let client get situated
+
+        $proxy->kill_connections;
+
+        $self->delay($self->client_poll_time);
+
+        undef $client;
+
+        $self->delay($self->client_poll_time);
+    });
+
+    is_deeply \@errors, [], 'no errors should occur with a client that has connected';
+
+    @errors = $self->capture_anyevent_errors(sub {
+        my $proxy  = Test::Sahara::Proxy->new(remote => $self->port);
+        my $client = $self->create_client($proxy->port);
+
+        my $guard = $client->changes(undef, [], sub {
+        });
+
+        $self->delay(1); # let client get situated
+
+        $proxy->kill_connections;
+
+        $self->delay($self->client_poll_time);
+
+        undef $guard;
+        undef $client;
+
+        $self->delay($self->client_poll_time);
+    });
+
+    is_deeply \@errors, [], 'no errors should occur with a client that has connected';
+}
+
 ## check non-change callbacks being called after destruction?
 
 __PACKAGE__->SKIP_CLASS(1);

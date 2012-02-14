@@ -9,7 +9,8 @@ use SaharaSync::Hostd::Launcher;
 use Test::More;
 use Test::Sahara ();
 
-my $port = $ENV{'_HOSTD_PORT'};
+my $port              = $ENV{'_HOSTD_PORT'};
+my $disable_streaming = $ENV{'_HOSTD_DISABLE_STREAMING'};
 
 my $num_errors = 0;
 my $pipe;
@@ -23,8 +24,9 @@ $EV::DIED = sub {
 note("test hostd is running as PID $$");
 
 SaharaSync::Hostd::Launcher->run(Test::Sahara->create_fresh_hostd(
-    port => $port,
-    host => '127.0.0.1',
+    port              => $port,
+    host              => '127.0.0.1',
+    disable_streaming => $disable_streaming,
 ));
 
 print $pipe $num_errors;

@@ -6,11 +6,9 @@ use File::Temp;
 use Test::More;
 use SaharaSync::Clientd::SyncDir;
 
-sub create_fresh_app {
-    return Test::Sahara->create_fresh_app(
-        server => {
-            disable_streaming => 1,
-        },
+sub hostd_options {
+    return (
+        disable_streaming => 1,
     );
 }
 

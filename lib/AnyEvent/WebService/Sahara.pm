@@ -8,6 +8,7 @@ use warnings;
 use AnyEvent::HTTP;
 use AnyEvent::WebService::Sahara::Error;
 use Carp qw(croak);
+use File::Temp;
 use Guard qw(guard);
 use List::MoreUtils qw(any);
 use MIME::Base64 qw(encode_base64);
@@ -54,6 +55,9 @@ sub new {
     my $password      = $options{'password'}      || die "You must provide a password to " . __PACKAGE__ . "::new";
     my $poll_interval = $options{'poll_interval'} || 15;
 
+    my $empty_fh = File::Temp->new;
+    unlink $empty_fh->filename;
+
     return bless {
         url              => $url,
         user             => $user,
@@ -63,6 +67,7 @@ sub new {
         inflight_changes => {},
         delayed_changes  => {},
         expected_changes => {},
+        empty_fh         => $empty_fh,
     }, $class;
 }
 
@@ -226,6 +231,19 @@ sub capabilities {
     }, $cb);
 }
 
+sub _create_empty_handle {
+    my ( $self ) = @_;
+
+    my $empty_fh = $self->{'empty_fh'};
+    my $fh;
+
+    open $fh, '<&', $empty_fh or croak $!;
+
+    return AnyEvent::Handle->new(
+        fh => $fh,
+    );
+}
+
 sub get_blob {
     my ( $self, $blob, $cb ) = @_;
 
@@ -235,6 +253,10 @@ sub get_blob {
 
     $self->do_request(GET => ['blobs', $blob], $meta, sub {
         my ( $h, $headers ) = @_;
+
+        if($h eq '') {
+            $h = $self->_create_empty_handle;
+        }
 
         my %metadata;
 
@@ -434,6 +456,7 @@ sub _streaming_changes {
                 #     with the host
                 undef $timer;
                 undef $$handle_ref;
+                return unless $self;
                 ( $guard, $handle_ref ) = $self->_raw_streaming_request($url,
                     $meta, $wrapped_cb, $handle_error);
             },
@@ -505,7 +528,7 @@ sub _non_streaming_changes {
             }, sub {
                 my ( $self, $ok, $error ) = @_;
 
-                $cb->(@_) unless $ok;
+                $cb->(@_) if !$ok && $error->is_fatal;
             });
         },
     );
@@ -528,6 +551,10 @@ sub changes {
 
     my $start;
     $start = sub {
+        unless($self) {
+            undef $guard;
+            return;
+        }
         my $old_guard = $guard;
 
         $guard = $self->capabilities(sub {

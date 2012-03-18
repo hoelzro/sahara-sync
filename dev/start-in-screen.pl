@@ -42,7 +42,7 @@ $ENV{'PATH'} = join(':', '/bin', '/usr/bin');
 start_screen();
 
 # Screen 0 - hostd
-run_in_screen("exec sudo -u saharasync /bin/bash -c '. ~/.perlbrew/etc/bashrc; sahara-hostd -c /var/lib/saharasync/host.yaml'");
+run_in_screen(q{exec sudo -u saharasync /bin/bash -c '. ~/.perlbrew/etc/bashrc; sahara-hostd -c /var/lib/saharasync/host.yaml'});
 
 sleep(3);
 

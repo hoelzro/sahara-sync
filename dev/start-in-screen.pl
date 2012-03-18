@@ -37,6 +37,7 @@ sub pidof {
 $ENV{'PATH'} = join(':', '/bin', '/usr/bin');
 
 # XXX option to deploy newest source
+# XXX option to set all this shit up
 
 start_screen();
 

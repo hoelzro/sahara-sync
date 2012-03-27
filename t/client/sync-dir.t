@@ -749,27 +749,6 @@ sub test_rename_existing_file :Test(6) {
     });
 }
 
-sub test_rename_with_open_handle_same :Test(1) {
-}
-
-sub test_unlink_with_open_handle_same :Test(1) {
-}
-
-sub test_open_with_open_handle_same :Test(1) {
-}
-
-sub test_rename_with_open_handle_diff :Test(1) {
-}
-
-sub test_unlink_with_open_handle_diff :Test(1) {
-}
-
-sub test_open_with_open_handle_diff :Test(1) {
-}
-
-sub test_rename_in_conflict_handler :Test(1) {
-}
-
 my $tempdir = File::Temp->newdir;
 my $sd      = SaharaSync::Clientd::SyncDir->create_syncdir(
     root => $tempdir->dirname,

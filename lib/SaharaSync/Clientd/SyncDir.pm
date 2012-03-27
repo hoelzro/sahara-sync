@@ -14,11 +14,6 @@ sub create_syncdir {
 
             return SaharaSync::Clientd::SyncDir::Inotify->new(%args);
         }
-        when('darwin') {
-            require SaharaSync::Clientd::SyncDir::FSEvents;
-
-            return SaharaSync::Clientd::SyncDir::FSEvents->new(%args);
-        }
         default {
             return;
         }

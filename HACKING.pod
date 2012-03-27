@@ -124,7 +124,7 @@ These variables affect how the test suite is run.
 
 TEST_BAIL_EARLY - When set to 1, this causes a test to bail out (exit) once
 one of its tests has failed.  Only works with SaharaSync::Clientd::SyncTest
-at the moment.
+and t/client/sync-dir.t at the moment.
 
 =back
 

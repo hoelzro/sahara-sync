@@ -66,6 +66,10 @@ sub teardown :Test(teardown) {
     undef $self->{'watch_guard'};
     chdir $self->{'wd'};
     undef $self->{'temp'};
+
+    if($ENV{'TEST_BAIL_EARLY'} && $self->builder->is_passing) {
+        $self->BAILOUT('Bailing out early');
+    }
 }
 
 sub timeout {

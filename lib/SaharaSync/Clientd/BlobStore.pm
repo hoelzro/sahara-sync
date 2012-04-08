@@ -1,9 +1,7 @@
 package SaharaSync::Clientd::BlobStore;
 
-use Moose;
+use Moose::Role;
 use feature 'switch';
-
-__PACKAGE__->meta->make_immutable;
 
 sub create {
     my ( $class, %args ) = @_;
@@ -19,6 +17,11 @@ sub create {
         }
     }
 }
+
+requires 'on_change';
+requires 'open_write_handle';
+requires 'unlink';
+requires 'rename';
 
 1;
 

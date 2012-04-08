@@ -391,7 +391,7 @@ sub _handle_conflict {
                 if($conflict_file) {
                     rename $conflict_file, $blob->path;
                 } else {
-                    my $tempfile = File::Temp->new(DIR => $self->store->_overlay, UNLINK => 0);
+                    my $tempfile = File::Temp->new(DIR => $self->store->overlay, UNLINK => 0);
                     close $tempfile;
 
                     rename $blob->path, $tempfile->filename;

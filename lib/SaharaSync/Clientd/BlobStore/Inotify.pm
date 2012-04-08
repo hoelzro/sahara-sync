@@ -2,6 +2,8 @@ package SaharaSync::Clientd::BlobStore::Inotify;
 
 use Moose;
 
+with 'SaharaSync::Clientd::BlobStore::Local';
+
 use autodie qw(chmod opendir);
 use AnyEvent;
 use Carp qw(croak confess);
@@ -19,22 +21,10 @@ use Scalar::Util qw(weaken);
 
 use namespace::clean -except => 'meta';
 
-has root => (
-    is       => 'ro',
-    isa      => 'Str',
-    required => 1,
-);
-
 has change_callbacks => (
     is       => 'ro',
     init_arg => undef,
     default  => sub { [] },
-);
-
-has dbh => (
-    is      => 'ro',
-    lazy    => 1,
-    builder => '_build_dbh',
 );
 
 has _inotify_handle => (
@@ -75,39 +65,13 @@ has log => (
 sub BUILD {
     my ( $self ) = @_;
 
-    mkdir($self->_overlay);
     $self->_inotify_watcher; ## kick that lazy attribute!
 }
 
-sub _overlay {
+sub overlay {
     my ( $self ) = @_;
 
     return File::Spec->catdir($self->root, '.saharasync');
-}
-
-sub _init_db {
-    my ( $self, $dbh ) = @_;
-
-    $dbh->do(<<SQL);
-CREATE TABLE IF NOT EXISTS file_stats (
-    path     TEXT NOT NULL UNIQUE,
-    checksum TEXT NOT NULL
-)
-SQL
-}
-
-sub _build_dbh {
-    my ( $self ) = @_;
-
-    my $path = File::Spec->catfile($self->_overlay, 'events.db');
-    my $dbh  = DBI->connect('dbi:SQLite:dbname=' . $path, '', '', {
-        PrintError => 0,
-        RaiseError => 1,
-    });
-
-    $self->_init_db($dbh);
-
-    return $dbh;
 }
 
 sub _update_queue {
@@ -208,7 +172,7 @@ sub _process_event {
     my $continuation = sub {
         unless($called) {
             $called = 1;
-            $self->_update_file_stats($blob);
+            $self->update_file_stats($blob);
         }
     };
 
@@ -263,7 +227,7 @@ sub _build_inotify_watcher {
     my $root = $self->root;
     my $watcher = $n->watch($root, $mask, $wrapper);
 
-    my $overlay_watcher = $n->watch($self->_overlay, IN_MOVE, sub {
+    my $overlay_watcher = $n->watch($self->overlay, IN_MOVE, sub {
         $self->_process_overlay_event(@_);
     });
 
@@ -321,22 +285,6 @@ sub _file_has_changed {
     return 1;
 }
 
-sub _update_file_stats {
-    my ( $self, $blob ) = @_;
-
-    my $dbh = $self->dbh;
-
-    if(-f $blob->path) {
-        my $digest = Digest::SHA->new(1);
-        $digest->addfile($blob->path);
-
-        $dbh->do('INSERT OR REPLACE INTO file_stats (path, checksum) VALUES (?, ?)', undef,
-            $blob->name, $digest->hexdigest);
-    } else {
-        $dbh->do('DELETE FROM file_stats WHERE path = ?', undef, $blob->name);
-    }
-}
-
 sub create_fake_event {
     my ( $self, %attrs ) = @_;
 
@@ -367,48 +315,7 @@ sub _debug_event {
         join(', ', @masks));
 }
 
-sub _known_blob {
-    my ( $self, $blob ) = @_;
-
-    my ( $count ) = $self->dbh->selectrow_array(<<SQL, undef, $blob->name);
-SELECT COUNT(1) FROM file_stats WHERE path = ?
-SQL
-
-    return $count > 0;
-}
-
-sub _verify_blob {
-    my ( $self, $blob, $old_path ) = @_;
-
-    my $dbh = $self->dbh;
-
-    my $digest = Digest::SHA->new(1);
-    $digest->addfile($old_path);
-    $digest = $digest->hexdigest;
-
-    # XXX path is probably not the best name for the field
-    my ( $count ) = $dbh->selectrow_array(<<SQL, undef, $blob->name, $digest);
-SELECT COUNT(1) FROM file_stats WHERE path = ? AND checksum = ?
-SQL
-
-    return $count;
-}
-
-sub blob {
-    my ( $self, $type, $name ) = @_;
-
-    if($type eq 'path') {
-        $name = File::Spec->abs2rel($name, $self->root);
-    } elsif($type ne 'name') {
-        confess "Invalid blob type '$type'";
-    }
-
-    return SaharaSync::Clientd::Blob->new(
-        name => $name,
-        root => $self->root,
-    );
-}
-
+# XXX I'm sure much of this can be abstracted away in a base class
 sub on_change {
     my ( $self, $callback ) = @_;
 
@@ -446,7 +353,7 @@ sub open_write_handle {
     ## chmod parent dir too?
     ## do some more checks?
 
-    my $file = File::Temp->new(DIR => $self->_overlay);
+    my $file = File::Temp->new(DIR => $self->overlay);
     return SaharaSync::Clientd::BlobStore::Inotify::Handle->new($self, $file, $old_mode,
         $blob);
 }
@@ -458,11 +365,11 @@ sub unlink {
     my $ok = 1;
     
     my $path     = $blob->path;
-    my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
+    my $tempfile = File::Temp->new(DIR => $self->overlay, UNLINK => 0);
     close $tempfile;
     unless(CORE::rename $path, $tempfile->filename) {
         unless(-e $path) {
-            if($self->_known_blob($blob)) {
+            if($self->is_known_blob($blob)) {
                 $cont->(undef, 'conflict');
                 return;
             }
@@ -472,7 +379,7 @@ sub unlink {
             die $!;
         }
     }
-    if($self->_verify_blob($blob, $tempfile->filename)) {
+    if($self->verify_blob($blob, $tempfile->filename)) {
         # XXX check errors?
         unlink $tempfile->filename;
     } else {
@@ -483,7 +390,7 @@ sub unlink {
         ## return here?
     }
     # XXX do we want to do this if not $ok?
-    $self->_update_file_stats($blob);
+    $self->update_file_stats($blob);
 
     $cont->($ok) if $ok;
 }
@@ -493,12 +400,12 @@ sub rename {
 
     croak "Continuation needed" unless $cont;
 
-    my $tempfile = File::Temp->new(DIR => $self->_overlay, UNLINK => 0);
+    my $tempfile = File::Temp->new(DIR => $self->overlay, UNLINK => 0);
     close $tempfile;
 
     unless(CORE::rename $from->path, $tempfile->filename) {
         unless(-e $from->path) {
-            if($self->_known_blob($from)) {
+            if($self->is_known_blob($from)) {
                 $cont->(undef, 'conflict');
                 return;
             }
@@ -507,7 +414,7 @@ sub rename {
         return;
     }
 
-    unless($self->_verify_blob($from, $tempfile->filename)) {
+    unless($self->verify_blob($from, $tempfile->filename)) {
         link $tempfile->filename, $from->path; # XXX check error
         $cont->(undef, 'conflict');
         return;
@@ -519,8 +426,8 @@ sub rename {
     }
 
     # XXX do we want to do this if not $ok?
-    $self->_update_file_stats($from);
-    $self->_update_file_stats($to);
+    $self->update_file_stats($from);
+    $self->update_file_stats($to);
 
     $cont->(1);
 }

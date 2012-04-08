@@ -1,0 +1,35 @@
+Tests
+=====
+
+- Repeated pending changes in clientd's offline queue
+  - Same blob
+  - Different blobs
+- FS conflict with existing directory
+- FS conflict with exact same contents
+- FS conflict with different permissions
+- Preexisting foo/bar (wtf does that mean?)
+- Sync up directory with ack'd blobs (???)
+- Test multiple clientds on the same sync dir
+- Test repeated changes and make sure they jive properly
+    change X comes in for blob A
+    change Y comes in for blob A
+    the PUT for Y is sent before the PUT for X returns
+    ∴ the PUT for Y will use an outdated revision
+        Even think about how this would occur in a multi server environment!
+    Solution: use a queue for each blob name and only drain the queue in a semi-synchronous fashion
+        Is this done in clientd, or AE::WS::SS?
+    Solution: coalesce FS changes across a small time interval
+        We would still need some sort of queueing
+- Bad connection for /changes test
+
+"Real World" tests
+==================
+
+- When I saved ss-notes-continued, ss-notes-continued~ leaked through to the other client
+- How will Vim swap files behave under a sync dir?
+- I think Vim does some funky stuff when it saves to an existing file
+ - Writing contents to filename~
+ - Rename filename~ → filename
+ - It also creates some numbered file (mine is 4913)
+- Test multiple (> 3) clientds
+- Make sure you test streaming changes

@@ -1,0 +1,9 @@
+MooseX::GetOpt
+MooseX::ConfigFromFile
+File::ConfigDir
+File::HomeDir
+File::UserConfig
+MooseX::Types::Structured
+MooseX::Types::Common::Numeric
+MooseX::NonMoose
+MooseX::Role::Pluggable

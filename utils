@@ -1,0 +1,7 @@
+- generate_authorization
+- metadata_ok
+- read/write slurp string
+- read/write slurp handle (sync)
+- read/write slurp handle (async)
+- http::request -> ae::http
+- stream http helper

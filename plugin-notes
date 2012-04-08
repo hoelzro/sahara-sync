@@ -1,0 +1,95 @@
+Plugin Ideas:
+  Public files
+  Shared files
+    ACL
+    OpenPGP for auth
+  Revision Control
+    History
+    Revert to earlier version
+    View earlier version
+    Permanent deletion
+    # days/weeks/whatever to keep something around
+  Bulk store/fetch
+  Storage
+  Authentication
+  Blob deltas for storage/transmission
+  Compression
+  Rate Limiting/Throttling
+    Throttling based on time of day
+  Zeroconf/Bonjour?
+  Filter incoming files
+   filename
+   mime type
+   file size
+  Outgoing filtration (???)
+  Encryption (client or server side)
+   Filenames
+   Metadata
+   Contents
+   Selectively encrypt certain types of documents
+  Something to fight my constant :w in Vim
+  SparkleShare/SyncAny integration
+  Conflict resolvers
+  Pipe plugins (essentially, a plugin defined as an external program, with a given stdin/stdout or socket interface)
+  Plugins in multiple languages
+
+Every plugin has a logger
+A plugin should be able to leverage others (ex. only encrypting blobs that match a filter)
+X-Sahara-Plugin
+/plugin/$plugin
+
+Plugin hooks:
+    Able to add tables to stores (namespaces)
+    Able to add encoding layers (sort of) 
+    Able to add REST routes
+    Able to augment headers on existing routes
+    Able to add component API calls
+
+
+Example: SaharaSync::Hostd::Plugin::BulkUpload
+
+use Moose;
+
+with 'SaharaSync::Hostd::Plugin::Route';
+
+use Plack::Request;
+
+sub routes {
+    '/bulk_upload'
+}
+
+sub to_app {
+    my ( $hostd ) = @_; 
+
+    my $store = $hostd->store;
+
+    if($store->does('SaharaSync::Hostd::Plugin::Store::CanBulkUpload')) {
+        sub {
+            my ( $env ) = @_; 
+
+            my $req = Plack::Request->new($env);
+            my $res = $req->new_response;
+
+            $store->bulk_insert($req->body);
+            ## return something nice
+        };  
+    } else {
+        $store = ref($store);
+        $hostd->log_warn("Storage engine "$store" doesn't implement bulk uploads");
+
+        return sub {
+            return [
+                501,
+                ['Content-Type' => 'text/plain'],
+                ['Unimplemented'],
+            ];  
+        };  
+    }   
+}
+
+::CanBulkUpload is provided via the plugin dist.  To implement bulk uploading stores, we can:
+
+# use a role if it exists
+# augment an existing storage plugin (using monkey patching, or runtime role application)
+# create a new storage plugin
+# consider this same idea for revision control, and storage systems that would provide this capability

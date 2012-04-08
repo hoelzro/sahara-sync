@@ -1,0 +1,12 @@
+## we should probably only have a single instance of inotify stuff, and multiple on_change cbs attach to it
+## multiple on_change listeners?
+## create and then immediately delete
+## create a filesystem object over an existing hierarchical directory structure
+## how to behave with symlinks? hard links?
+## what if a user mounts/umounts volumnes under the sync dir?
+## test IN_IGNORED
+## handle queue overflow
+## translate / to native dir seperator
+## file encoding?
+## if only permissions change on a file, conflicts are different...
+## Should expected changes persist on disk?

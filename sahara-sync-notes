@@ -1,0 +1,50 @@
+Watch memory usage for hostd/clientd...
+Try putting in a fairly large file
+Try putting in a fairly large file, and then another file while it's uploading
+Try updating a file, but writing the exact same contents
+    rename
+    open with append, close
+    open with clobber, write contents, close
+What if you receive a series of FS changes while you're handling an event?
+    Flush the queue in SyncDir, and prune redundant changes!
+What if you receive a series of upstream changes while you're handling an event?
+    Flush the queue?
+There was a potential problem when working on this file in Vim (Update conflict)
+
+Components
+==========
+
+- Components are like plugins
+  - In fact, the component manager will probably be implemented as a plugin
+- Think of plugins like kernel space vs userspace
+- Components don't have as low-level access as plugins
+- The component API will probably be more stable once it settles down
+- Components run in separate processes
+- If a plugin fails, the whole clientd may be broken
+- If a component fails, the core logic still happens, but some extra feature may not work properly
+- Should component processes be managed by clientd?
+- Components have the advantage of acting like watchdogs for clientd (if it goes down, they'll know)
+- Components also have access to more resources than clientd
+  - Clientd and its plugins should *never* depend on a D-Bus connection, or an X connection, or whatever
+  - Just the filesystem and the network. (and the bookkeeping DB)
+- Components also can be written in any language!
+- Components should be able to push data
+  - Ex. a component that examines network manager or something and tells you when your network's up
+
+Results of 12/09/2011
+=====================
+
+hostd ended at 1.5% of memory (started at 0.8%)
+clientd ended at 1.4% of memory (started at 1.0%)
+
+Robustness Tests
+================
+
+- /changes when host goes offline
+- Try get_blob, delete_blob, put_blob when host is offline
+- One client online, one client offline?
+- 400 error (our fault) vs 500 error (their fault)
+  - error objects
+  - test for this (413?)
+
+- create $x on A, change $x later on B (update conflict test)

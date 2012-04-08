@@ -1,0 +1,61 @@
+# Will sync dir events eventually contain deleted/updated metadata?
+
+=head1 TESTS
+
+=over
+
+=item revisions persist between client daemon destruction/construction
+
+=item non-empty sync dir
+
+=item move
+
+=item Host unavailable
+
+=item Conflicts
+
+=item Test for cancelling the AE::WS::Sahara timer with the request still in flight (non-syncing)
+
+=item Multiple changes in a single sync period fucks with expected changes
+
+=item What if I receive a delete event, and while I'm processing it (right before I actually rename the file, someone makes a change?)
+
+=item Consider this for PUT as well
+
+=back
+
+=cut
+
+=head1 CAVEATS
+
+=head2 User moves ~/sandbox to another location
+
+=head2 User mounts/umounts partitions inside of the sandbox
+
+=head2 File changes multiple times in a single second
+
+=head2 Process writes to file in sandbox without closing it
+
+=head2 Inotify/FSEvents/impl buffer overflows
+
+=head2 We receive an upstream event, but there's an FS change for the same blob in the event queue
+
+=head3 Delete/move/change!
+
+=head2 We receive an upstream event, but there's an FS change while we're downloading the blob
+
+=head2 ..., but there's an FS change while we're writing the blob
+
+=head2 File renames
+
+=head3 Rename to non-existing name
+
+=head3 Rename to existing name
+
+=head2 Permissions changes
+
+=head2 Attribute changes
+
+=head2 We receive a FS event when we write an upstream blob to the sandbox!  How to differentiate?
+
+=cut

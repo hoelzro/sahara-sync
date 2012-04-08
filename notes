@@ -1,0 +1,367 @@
+Streaming Issues
+================
+
+[ ] Testing Twiggy vs P::T::AE
+
+0.02
+====
+
+[ ] Authentication/Security
+
+Optimization
+============
+
+- Avoid Moose (in case of CGI environment)
+
+Security
+========
+
+- No cookie-based sessions for HTTP
+ - Use Secure cookies
+ - Use a different system for HTTP sessions
+ - Plack MW to not accept cookies on HTTP
+ - On HTTP, use X-Sahara-Token and SHA256 sum that shit
+- Attackers may be able to find out interesting information from Content-Length...
+- Attackers can potentially watch deletions, and see which blobs are updated most
+
+Host vs Client
+==============
+
+- Client IDs?
+- History (should the client know about history)
+
+Questions
+=========
+
+- What happens when someone creates /files/foo, changes it, deletes it, and creates a new /files/foo?
+- What if a client/user wants to change his/her encryption method?
+- What if a client wants to change a client name?
+- What kind of data should be returned by /changes?
+- What if someone uploads a shit-ton of files, but doesn't want to sync them all right away?
+- User interaction with the daemon? (ex. can the daemon prompt the user for something?)
+
+Workflows
+=========
+
+- P2P
+- Internal company usage
+- Personal usage (home network)
+- Personal usage (home network with VPN or SSH tunnel)
+- Personal usage (CGI hosting provider)
+- Personal usage (VPS)
+- Providing support for people hosting their own
+- Providing hosting for many users
+- Setup (HTTP vs HTTPS)
+- Federated
+
+RESTyness
+=========
+
+- Can one GET metadata?
+- 409 "Conflict"
+- 412
+- User-Agent (for tracking client types)
+   - API keys?
+- Content-Encoding for the type of encryption used?
+- http://webmachine.basho.com/diagram.html
+- Range
+
+Workflows
+=========
+
+- Setting up sahara (host)
+- Setting up sahara (client)
+- Hacking on the reference implementation
+- Creating a plugin for either the host or the client
+- Creating your own implementation of the Sahara protocol
+
+Tests
+=====
+
+- PUT without auth should fail
+- Incompatible characters on certain filesystems
+- MS-DOS vs NTFS filenames (8.3 filenames? share filenames? UNC?)
+- foo/bar/baz.txt vs foo\bar\baz.txt
+- Case sensitivity on different filesystems
+- chmod mask on file?
+- JSON, XML, and YAML modules should be optional (but one is required)
+- Create test to test Test::Sahara::Storage
+    - Supply input handles that only impl read
+    - Supply output handles that only impl getline
+- Some of these extra tests belong in the REST test too
+    - SaharaSync::Host::Plugin::Storage::REST (impls the Storage role by calling out to the REST interface to test it)
+- Work with external server/Plack::Test
+- Illegal metadata key: blobname
+- PUT same contents?
+- undef as metadata values is not allowed
+- Try DBH handles w/o RaiseError, or UTF-8 mode on/off
+- What if I store the exact same contents using the previous current revision?
+- Make sure that key order doesn't affect revision
+- metadata key => "foo", value => "bar" vs key => "f", value => "oobar"
+- Content-Type should be specified for PUT
+- Test Accept: */* and friends
+- Stringify SaharaSync::X::*
+- Metadata with newlines
+- DELETE and non-streaming changes
+- Unsuccessful operations shouldn't appear in the changelog
+- Connection must be 'close' on /changes when not streaming
+- Storage test adapters for REST API and client
+- Test::Sahara -> SaharaSync::Test
+- /changes should automatically reconnect in AE::WS::Sahara
+- streaming /changes w/ w/o guard (see how EOS affects it)
+- periods of persistent disconnect should be advertised on AE::WS::Sahara
+- SaharaSync::Test::Suite
+
+Post 0.01
+========
+
+- CPAN
+- SaharaSync.net
+- SourceForge
+- Freshmeat
+- Ohloh
+
+Ideas
+=====
+
+- Zeroconf/Bonjour
+- P2P authentication (PGP? SSH keys?)
+- Interact with SparkleShare instance =D
+- Interact with Dropbox instance =D
+- Pluggable transport mechanisms
+  - HTTP/long polling is currently only one, but others (XMPP, etc) are feasible
+- Dual license? AGPL, unless you pay me for commercial?
+- Client: dynamic loading/unloading of plugins
+- Zero-downtime restarts for clientd
+- Clientd monitor process
+- Components check clientd health
+- XDG autostart (http://standards.freedesktop.org/autostart-spec/autostart-spec-latest.html)
+- i18n
+- Filesystem fork
+- SELinux
+- Git Annex storage plugin
+- Man pages
+- sahara-build-cgi
+- GET /blobs/$blobname/_metadata
+- Don't version control certain blobs! (ex. large ones)
+- LAN Sync
+- LAN Sync: IPv6
+- dualvar for AE::WS::Sahara error (number is status)
+- JSON::YAJL
+- AE::HTTP::LWP::UA
+- AE::WS::Sahara - test bad JSON
+- Sahara Sync - $EV::DIED for tests
+
+CPAN Work
+=========
+
+- Patch AE::HTTP to accept IO::Handle bodies or similar
+- Pod::Weaver::Section::Moose
+- Plack::Test::AnyEvent
+- Dist::Zilla::Plugin::Git::Tag
+
+Haiku Port
+==========
+
+- AnyEvent implementation
+- libevent implementation?
+- AE::Filesyste::Notify implementation
+- File::HomeDir implementation
+
+History expiry time?
+Ability for service providers to force encryption
+Let's say I have a directory with a bunch of stuff previously synced...the client shouldn't ask for EVERYTHING from the server, just changed/new files
+X-Sahara-Token: Sahara # for detecting separate encryption algorithms
+Fat packer CGI script
+Put a client server in "public" mode (for ad-hoc sharing/syncing) vs "private" mode (listen on 0.0.0.0 vs 127.0.0.1)
+File Manager integration
+libnotify/Growl integration
+GUI/CLI tools
+Systray
+Keep HTTP connection open?
+Last sync mucks with P2P (make last sync specific to a host; two different hosts could potentially have the same address/port)
+  Does it now?
+Make sure we don't overwrite data redundantly (ex. I sync, and my last sync time is X.  Changes that appear will have timestamp X + n)
+Caching (in memory caching for last minute of changes or something like that)
+Sync Queue on client
+    More data stored on client?
+Federation for shared/public
+Un-encrypted metadata + encrypted data
+Cache metadata, blobs of recently changed files (since they'll likely be fetched within 15 seconds)
+Configuration to disable streaming on server
+Configuration to hide plugin list on server
+Chroot
+Too many wrong passwords from a single IP
+Attempt DoS attacks
+Access to the DB must be exclusive for DBIWithFS =(
+Unicode
+Character encoding is part of metadata?
+Newline conversion?
+Multipart bodies for something or another (metadata in one part? specifying multiple bodies?)
+Range header
+GET /blobs/ - lists blobs
+::WithFS role for common impl for storage plugins
+
+Pre 0.01
+========
+
+SaharaSync::X::InvalidArgs ...
+Update docs
+Grep ##
+Call to return the latest N revisions?
+Sahara tables should have UTF8 charset
+Make sure DB contents look normal for UTF8 data
+Make sure DBs are in UTF 8 mode (Pg SERVER_ENCODING and friends)
+FS graveyard
+Async storage support (use DBD::Pg/DBD::mysql async support, AnyEvent::* modules)
+X-Send-File
+Content-Encoding for encrypted files?
+Content-Type for encrypted/non-encrypted files?
+412 for bad revision?
+Try::Tiny
+RFC 2046 - CRLF for text/ MIME types
+XML output: <?xml version="1.0" encoding="UTF-8" ?>
+Headers vs query params
+File locking for DBIWithFS
+Installer for dummies
+Don't die/warn, carp
+
+Separate distributions
+======================
+
+sahara-sync-host     : Host installation
+sahara-sync-client   : Client installation
+anyevent-sahara-sync : Client interface library - requires SS::Stream to be packaged up
+sahara-sync-test     : Testing modules
+sahara-sync-devel    : Distribution for building modules
+sahara-sync-*        : Distributions for different plugins
+Task::SaharaSync     : Metadistribution
+
+Competition
+===========
+
+SparkleShare
+SyncAny
+OwnCloud
+Ubuntu One
+Wuala
+Spideroak
+
+If I specify http://localhost for the url to AE::WS::Sahara, what will the port be?
+AE::WS::Sahara - server disconnect
+AE::WS::Sahara - server down for a while
+Bread::Board?
+Caching
+    _get_user_id in DBIWithFS
+    most fetch_blobs follow a store_blob...hint hint
+    metadata can be aggressively cached
+    blob contents, to some extent
+GET / for server capabilities in JSON?
+Exception hierarchy
+
+Offline Changes
+===============
+
+- Current impl sucks
+- Last sane TS
+- ntpdate/mtime
+- while we're scanning, what if a new file shows up? or a what if a file that is new to us is altered?
+- offline tests should check for deleted files as well...
+- offline create (not the first time the sync dir is run)
+
+Conflicts
+=========
+
+- foo conflicts
+- foo.txt conflicts
+- offline rename test
+- what if conflict file exists?
+
+Client Tests
+============
+
+Host shutdown
+Test last sync
+
+Conflict Tests
+Host Crashing
+    Connection drops for /changes
+    Connection drops for blob update
+    Connection drops for blob fetch
+Last Sync Tests
+
+Test:
+    client1 makes a bunch of changes
+    client2 then syncs up for the first time
+
+Test:
+    client1 makes a couple changes to foo.txt
+    client2 makes its first sync with foo.txt (conflict)
+
+Sahara Sync Network Status
+==========================
+
+- Network is down (ifconfig returns only lo)
+- Cannot reach gateway
+- Cannot rearch public internet (8.8.8.8)
+- Cannot resolve hostnames ($upstream)
+- Cannot reach $upstream (ping, ping6)
+- 5xx error from $upstream
+- Read timeout from $upstream
+
+request queue for AE::WS::SS
+
+If someone changes a file while I'm moving an updated version of it into place, we'll lose the change
+    Move actual -> .saharasync
+    Move .saharasync -> actual
+    Analyse .saharasync
+        Unless matches, signal conflict
+
+Do I ever test for remove_user + (get|put|delete)_blob
+
+add mkdir test to change guard thing
+make Perl the AE impl for all AE-based tests?
+cleanup stash
+"offline" change while sd is up but no change handler
+Hash trees
+Lamport signature
+PATCH method
+perl critic policy
+http://dropboxautomator.com/
+make sure the reconnect queue happens transactionally (don't slurp the queue into memory, then delete it, then spool through operations)
+Slurp in inotify events before delivering them
+    change(X) + change(X) + change(X) should just deliver a single change(X) event
+
+Use B::* to find no-op subroutines
+automatically re-run db-setup.sh if schema.* have changed
+
+Pre 0.01 Roadmap
+================
+
+- Make sure we provide sane continuations for the sync directory methods
+- Use link and other methods for atomic operations in inotify sync directory
+  - We may have to do bookkeeping for inotify events
+- Improve _verify_blob implementation
+  - Force a known inotify event (.saharasync/dont-touch) and wait for that event
+  - Wait for $inotify_w->pending == 0
+- Clean out the stash
+- Improve documentation
+- Handle errors in clientd/get_blob
+- Client on_error for /changes 
+- Log errors in clientd
+- Check logs of clients/hosts for errors in tests
+- Standalone test for 4e6f9e9c (stream copying stuff)
+- Process upstream events one at a time (don't start next until previous is committed)
+- Make clientd's conflict resolution more general
+- Code cleanup
+- The FS change handler should drive most logic
+    # I change foo.txt
+    # I get an upstream notification for foo.txt
+    # I update foo.txt to the upstream version
+    # The change notification for foo.txt is still in the queue
+- Change how we calculate blob revisions (SHA-1 is too expensive)
+- Inotify.pm doesn't seem to specify UNLINK for temp files...why not?
+- Isn't it kind of weird that we ship YAML configs, but the default is JSON?
+- When I queue up a get_blob, do we mark that revision in the change stream as "handled"?
+- Treat network-related 500 errors differently than 50x?
+- Offline queue retry time

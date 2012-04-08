@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 use File::Slurp qw(append_file read_file write_file);
 use File::Temp;
 use List::MoreUtils qw(all);
-use SaharaSync::Clientd::SyncDir;
+use SaharaSync::Clientd::BlobStore;
 use Test::Deep::NoTest qw(bag cmp_details deep_diag);
 use Test::More;
 
@@ -22,10 +22,10 @@ sub sd {
     return $self->{'sd'};
 }
 
-sub create_sync_dir {
+sub create_blob_store {
     my ( $self ) = @_;
 
-    my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
+    my $sd = SaharaSync::Clientd::BlobStore->create(
         root => $self->{'temp'}->dirname,
     );
     $self->sd($sd);
@@ -57,7 +57,7 @@ sub setup :Test(setup) {
 
     $self->{'temp'} = File::Temp->newdir;
     chdir $self->{'temp'}->dirname;
-    $self->create_sync_dir;
+    $self->create_blob_store;
 }
 
 sub teardown :Test(teardown) {
@@ -420,7 +420,7 @@ sub test_preexisting_files :Test {
     write_file 'bar.txt', "Hello from bar";
     write_file 'baz.txt', "Hello from baz";
 
-    $self->create_sync_dir;
+    $self->create_blob_store;
 
     $self->expect_changes(['foo.txt', 'bar.txt', 'baz.txt'], 1);
 }
@@ -436,7 +436,7 @@ sub test_offline_update :Test(2) {
 
     write_file 'foo.txt', "Hello, again";
 
-    $self->create_sync_dir;
+    $self->create_blob_store;
 
     $self->expect_changes(['foo.txt']);
 }
@@ -450,7 +450,7 @@ sub test_offline_static :Test(2) {
 
     $self->sd(undef);
 
-    $self->create_sync_dir;
+    $self->create_blob_store;
 
     $self->expect_changes([]);
 }
@@ -470,7 +470,7 @@ sub test_self_updates :Test(3) {
 
     $self->expect_changes([]);
 
-    $self->create_sync_dir;
+    $self->create_blob_store;
 
     $self->expect_changes([]);
 }
@@ -750,7 +750,7 @@ sub test_rename_existing_file :Test(6) {
 }
 
 my $tempdir = File::Temp->newdir;
-my $sd      = SaharaSync::Clientd::SyncDir->create_syncdir(
+my $sd      = SaharaSync::Clientd::BlobStore->create(
     root => $tempdir->dirname,
 );
 

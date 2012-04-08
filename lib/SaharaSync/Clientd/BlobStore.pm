@@ -1,18 +1,18 @@
-package SaharaSync::Clientd::SyncDir;
+package SaharaSync::Clientd::BlobStore;
 
 use Moose;
 use feature 'switch';
 
 __PACKAGE__->meta->make_immutable;
 
-sub create_syncdir {
+sub create {
     my ( $class, %args ) = @_;
 
     given($^O) {
         when('linux') {
-            require SaharaSync::Clientd::SyncDir::Inotify;
+            require SaharaSync::Clientd::BlobStore::Inotify;
 
-            return SaharaSync::Clientd::SyncDir::Inotify->new(%args);
+            return SaharaSync::Clientd::BlobStore::Inotify->new(%args);
         }
         default {
             return;
@@ -24,7 +24,7 @@ sub create_syncdir {
 
 __END__
 
-# ABSTRACT: Filesystem abstraction layer
+# ABSTRACT: Blob storage objects
 
 =head1 SYNOPSIS
 

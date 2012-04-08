@@ -17,7 +17,7 @@ use Log::Dispatch;
 use Path::Class;
 use URI;
 
-use SaharaSync::Clientd::SyncDir;
+use SaharaSync::Clientd::BlobStore;
 use SaharaSync::Util;
 
 use namespace::clean -except => 'meta';
@@ -39,10 +39,10 @@ has sync_dir => (
     required => 1,
 );
 
-has sd => (
+has store => (
     is      => 'ro',
     lazy    => 1,
-    builder => '_build_sd',
+    builder => '_build_store',
 );
 
 has _sync_dir_guard => (
@@ -96,10 +96,10 @@ sub BUILDARGS {
     return \%args;
 }
 
-sub _build_sd {
+sub _build_store {
     my ( $self ) = @_;
 
-    return SaharaSync::Clientd::SyncDir->create_syncdir(
+    return SaharaSync::Clientd::BlobStore->create(
         root => $self->sync_dir . '',
     );
 }
@@ -209,9 +209,9 @@ sub _flush_reconnect_queue {
 sub _fetch_and_write_blob {
     my ( $self, $blob_name, $on_complete ) = @_;
 
-    my $ws   = $self->ws_client;
-    my $sd   = $self->sd;
-    my $blob = $sd->blob(name => $blob_name);
+    my $ws    = $self->ws_client;
+    my $store = $self->store;
+    my $blob  = $store->blob(name => $blob_name);
 
     $ws->get_blob($blob->name, sub {
         my ( $ws, $h, $metadata ) = @_;
@@ -231,7 +231,7 @@ sub _fetch_and_write_blob {
 
         my $revision = $metadata->{'revision'};
 
-        my $w = $sd->open_write_handle($blob);
+        my $w = $store->open_write_handle($blob);
 
         $h->on_read(sub {
             my $buffer = $h->rbuf;
@@ -272,7 +272,7 @@ sub _fetch_and_write_blob {
 sub _upload_blob_to_hostd {
     my ( $self, $blob_name, $on_complete ) = @_;
 
-    my $blob = $self->sd->blob(name => $blob_name);
+    my $blob = $self->store->blob(name => $blob_name);
 
     $self->log->info(sprintf("Sending PUT %s/blobs/%s",
         $self->upstream, $blob->name));
@@ -313,7 +313,7 @@ sub _upload_blob_to_hostd {
 sub _delete_blob_on_hostd {
     my ( $self, $blob_name, $on_complete ) = @_;
 
-    my $blob = $self->sd->blob(name => $blob_name);
+    my $blob = $self->store->blob(name => $blob_name);
 
     $self->log->info(sprintf("Sending DELETE %s/blobs/%s",
         $self->upstream, $blob->name));
@@ -362,12 +362,12 @@ sub _get_conflict_blob {
 
     my $name          = $blob->name;
     my $conflict_name = sprintf("$name - conflict %04d-%02d-%02d", $year, $month, $day);
-    $blob             = $self->sd->blob(name => $conflict_name);
+    $blob             = $self->store->blob(name => $conflict_name);
 
     my $counter = 1;
     while(-e $blob->path) {
         $conflict_name = sprintf("$name - conflict %04d-%02d-%02d %d", $year, $month, $day, $counter++);
-        $blob          = $self->sd->blob(name => $conflict_name);
+        $blob          = $self->store->blob(name => $conflict_name);
     }
 
     return $blob;
@@ -391,13 +391,13 @@ sub _handle_conflict {
                 if($conflict_file) {
                     rename $conflict_file, $blob->path;
                 } else {
-                    my $tempfile = File::Temp->new(DIR => $self->sd->_overlay, UNLINK => 0);
+                    my $tempfile = File::Temp->new(DIR => $self->store->_overlay, UNLINK => 0);
                     close $tempfile;
 
                     rename $blob->path, $tempfile->filename;
                 }
-                $self->handle_fs_change($self->sd, {
-                    blob => $self->sd->blob(path => $target),
+                $self->handle_fs_change($self->store, {
+                    blob => $self->store->blob(path => $target),
                 }, sub {}); ## XXX leary...
             } else {
                 $self->log->error("unable to resolve conflict");
@@ -416,7 +416,7 @@ sub _handle_conflict {
 }
 
 sub handle_fs_change {
-    my ( $self, $sd, $event, $continuation ) = @_;
+    my ( $self, $store, $event, $continuation ) = @_;
 
     ## if $event is just a metadata (ex. permissions) change, do something
     ## about it
@@ -448,7 +448,7 @@ sub handle_upstream_change {
         return;
     }
 
-    my $blob       = $self->sd->blob(name => $change->{'name'});
+    my $blob       = $self->store->blob(name => $change->{'name'});
     my $is_deleted = $change->{'is_deleted'};
     my $revision   = $change->{'revision'};
 
@@ -456,7 +456,7 @@ sub handle_upstream_change {
         $blob->name, $is_deleted ? 'deleted' : 'changed', $revision));
 
     if($is_deleted) {
-        $self->sd->unlink($blob, sub {
+        $self->store->unlink($blob, sub {
             my ( $ok, $error ) = @_;
 
             unless($ok) {
@@ -502,7 +502,7 @@ sub run {
 
     my $last_revision = $self->_get_last_sync;
 
-    my $guard = $self->sd->on_change(sub {
+    my $guard = $self->store->on_change(sub {
         return $self->handle_fs_change(@_);
     });
 

@@ -1,4 +1,4 @@
-package SaharaSync::Clientd::SyncDir::Inotify;
+package SaharaSync::Clientd::BlobStore::Inotify;
 
 use Moose;
 
@@ -14,7 +14,7 @@ use File::Temp;
 use Linux::Inotify2;
 use List::MoreUtils qw(any);
 use SaharaSync::Clientd::Blob;
-use SaharaSync::Clientd::SyncDir::Inotify::Handle;
+use SaharaSync::Clientd::BlobStore::Inotify::Handle;
 use Scalar::Util qw(weaken);
 
 use namespace::clean -except => 'meta';
@@ -447,7 +447,7 @@ sub open_write_handle {
     ## do some more checks?
 
     my $file = File::Temp->new(DIR => $self->_overlay);
-    return SaharaSync::Clientd::SyncDir::Inotify::Handle->new($self, $file, $old_mode,
+    return SaharaSync::Clientd::BlobStore::Inotify::Handle->new($self, $file, $old_mode,
         $blob);
 }
 

@@ -4,15 +4,15 @@ use parent 'SaharaSync::Clientd::SyncTest';
 
 use File::Temp;
 use Test::More;
-use SaharaSync::Clientd::SyncDir;
+use SaharaSync::Clientd::BlobStore;
 
 my $tempdir = File::Temp->newdir;
-my $sd = SaharaSync::Clientd::SyncDir->create_syncdir(
+my $store = SaharaSync::Clientd::BlobStore->create(
     root => $tempdir->dirname,
 );
 
-if(defined $sd) {
+if(defined $store) {
     __PACKAGE__->runtests;
 } else {
-    plan skip_all => 'No sync dir implemention exists for this OS';
+    plan skip_all => 'No local blob storage implemention exists for this OS';
 }

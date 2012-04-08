@@ -4,26 +4,33 @@ use strict;
 use warnings;
 use feature 'state';
 
-my $SCREEN_NAME = 'saharasync';
+my $SESSION_NAME = 'saharasync';
 
-sub start_screen {
-    system 'screen', '-dmS', $SCREEN_NAME;
-}
+my @TMUX_ARGS = (
+    [ 'new-session', '-d', '-s', $SESSION_NAME ],
+    [ 'split-window', '-h', '-t', $SESSION_NAME . ':0.0' ],
+    [ 'split-window', '-v', '-t', $SESSION_NAME . ':0.0' ],
+    [ 'split-window', '-v', '-t', $SESSION_NAME . ':0.1' ],
+);
 
-sub run_in_screen {
+sub run_in_tmux {
     my ( $command ) = @_;
 
-    state $window_num = 0; 
+    state $window_num = 0;
 
-    if($window_num) {
-        system 'screen', '-S', $SCREEN_NAME, '-X', 'screen';
-    }
-    system 'screen', '-S', $SCREEN_NAME, '-p', $window_num, '-X', 'stuff', $command . "\r";
+    my $args = $TMUX_ARGS[$window_num];
     $window_num++;
+    system 'tmux', @$args, $command;
 }
 
-sub attach_screen {
-    system 'screen', '-dr', '-S', $SCREEN_NAME;
+sub attach_tmux {
+    system 'tmux', 'attach-session', '-t', $SESSION_NAME;
+}
+
+sub select_tmux_pane {
+    my ( $pane_no ) = @_;
+
+    system 'tmux', 'select-pane', '-t', $SESSION_NAME . ':0.0';
 }
 
 sub pidof {
@@ -39,24 +46,24 @@ $ENV{'PATH'} = join(':', '/bin', '/usr/bin');
 # XXX option to deploy newest source
 # XXX option to set all this shit up
 
-start_screen();
-
-# Screen 0 - hostd
-run_in_screen(q{exec sudo -u saharasync /bin/bash -c '. ~/.perlbrew/etc/bashrc; sahara-hostd -c /var/lib/saharasync/host.yaml'});
+# Pane 0 - hostd
+run_in_tmux(q{exec sudo -u saharasync /bin/bash -c '. ~/.perlbrew/etc/bashrc; sahara-hostd -c /var/lib/saharasync/host.yaml'});
 
 sleep(3);
 
-# Screen 1 - clientd
-run_in_screen('perlbrew use saharasync; exec sahara-clientd -c ~/.saharasync/client.yaml');
+# Pane 1 - clientd
+run_in_tmux('perlbrew use saharasync; exec sahara-clientd -c ~/.saharasync/client.yaml');
 
 sleep(3);
 
-# Screen 2 - top
+# Pane 2 - top
 
 my @pids = map { pidof("sahara sync: $_") } qw/client host/;
-run_in_screen('exec top -p ' . join(',', @pids));
+run_in_tmux('exec top -p ' . join(',', @pids));
 
-# Screen 3 - multitail
-run_in_screen('exec multitail ~/.saharasync/client.log /var/lib/saharasync/hostd.log');
+# Pane 3 - multitail
+run_in_tmux('exec multitail ~/.saharasync/client.log /var/lib/saharasync/hostd.log');
 
-attach_screen();
+select_tmux_pane(0);
+
+attach_tmux();

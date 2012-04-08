@@ -52,7 +52,7 @@ run_in_tmux(q{exec sudo -u saharasync /bin/bash -c '. ~/.perlbrew/etc/bashrc; sa
 sleep(3);
 
 # Pane 1 - clientd
-run_in_tmux('perlbrew use saharasync; exec sahara-clientd -c ~/.saharasync/client.yaml');
+run_in_tmux('perlbrew use saharasync; exec sahara-clientd -c ~/.config/sahara-sync/config.json');
 
 sleep(3);
 

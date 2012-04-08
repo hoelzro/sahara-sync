@@ -373,6 +373,7 @@ sub _get_conflict_blob {
     return $blob;
 }
 
+# XXX move this logic into blob store (for now)
 sub _handle_conflict {
     my ( $self, $blob, $conflict_file ) = @_;
 

@@ -64,7 +64,7 @@ my @pids = map { pidof("sahara sync: $_") } qw/client host/;
 run_in_tmux('exec top -p ' . join(',', @pids));
 
 # Pane 3 - multitail
-run_in_tmux('exec multitail ~/.saharasync/client.log /var/lib/saharasync/hostd.log');
+run_in_tmux('exec multitail ~/.config/sahara-sync/client.log /var/lib/saharasync/hostd.log');
 
 select_tmux_pane(0);
 

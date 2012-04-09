@@ -20,7 +20,9 @@ sub run_in_tmux {
 
     my $args = $TMUX_ARGS[$window_num];
     $window_num++;
-    system 'tmux', @$args, $command;
+    system 'tmux', @$args;
+
+    system 'tmux', 'send-keys', '-R', '-t', $SESSION_NAME, $command . "\r";
 }
 
 sub attach_tmux {

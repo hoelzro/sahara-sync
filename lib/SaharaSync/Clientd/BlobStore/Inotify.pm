@@ -21,12 +21,6 @@ use Scalar::Util qw(weaken);
 
 use namespace::clean -except => 'meta';
 
-has change_callbacks => (
-    is       => 'ro',
-    init_arg => undef,
-    default  => sub { [] },
-);
-
 has _inotify_handle => (
     is      => 'ro',
     default => sub { Linux::Inotify2->new || die $! },
@@ -51,12 +45,6 @@ has _pending_updates => (
     init_arg => undef,
 );
 
-has _event_queue => (
-    is       => 'ro',
-    default  => sub { [] },
-    init_arg => undef,
-);
-
 has log => (
     is        => 'ro',
     predicate => 'has_log',
@@ -72,15 +60,6 @@ sub overlay {
     my ( $self ) = @_;
 
     return File::Spec->catdir($self->root, '.saharasync');
-}
-
-sub _update_queue {
-    my ( $self, $event ) = @_;
-
-    my $path  = $event->{'blob'}->path;
-    my $queue = $self->_event_queue;
-    @$queue   = grep { $_->{'blob'}->path ne $path } @$queue;
-    push @$queue, $event;
 }
 
 sub _handle_inotify_overflow {
@@ -313,29 +292,6 @@ sub _debug_event {
         $event->fullname,
         $event->cookie,
         join(', ', @masks));
-}
-
-# XXX I'm sure much of this can be abstracted away in a base class
-sub on_change {
-    my ( $self, $callback ) = @_;
-
-    return unless defined(wantarray);
-
-    ## XXX $continuation?
-    $callback->($self, $_, sub {}) foreach @{ $self->_event_queue };
-
-    weaken $self;
-    weaken $callback;
-
-    push @{ $self->change_callbacks }, $callback;
-
-    return guard {
-        return unless $self; # $self is a weak reference, so check first
-
-        @{ $self->change_callbacks } = grep {
-            $_ != $callback
-        } @{ $self->change_callbacks };
-    };
 }
 
 sub open_write_handle {

@@ -3,6 +3,21 @@ package SaharaSync::Clientd::BlobStore;
 use Moose::Role;
 use feature 'switch';
 
+use Guard qw(guard);
+use Scalar::Util qw(weaken);
+
+has change_callbacks => (
+    is       => 'ro',
+    init_arg => undef,
+    default  => sub { [] },
+);
+
+has event_queue => (
+    is       => 'ro',
+    default  => sub { [] },
+    init_arg => undef,
+);
+
 sub create {
     my ( $class, %args ) = @_;
 
@@ -18,7 +33,39 @@ sub create {
     }
 }
 
-requires 'on_change';
+sub on_change {
+    my ( $self, $callback ) = @_;
+
+    return unless defined(wantarray);
+
+    # XXX $continuation?
+    foreach my $event (@{ $self->event_queue }) {
+        $callback->($self, $event, sub {});
+    }
+
+    weaken $self;
+    weaken $callback;
+
+    push @{ $self->change_callbacks }, $callback;
+
+    return guard {
+        return unless $self; # $self is a weak reference, so check first
+
+        @{ $self->change_callbacks } = grep {
+            $_ != $callback
+        } @{ $self->change_callbacks };
+    };
+}
+
+sub _update_queue {
+    my ( $self, $event ) = @_;
+
+    my $path  = $event->{'blob'}->path;
+    my $queue = $self->event_queue;
+    @$queue   = grep { $_->{'blob'}->path ne $path } @$queue;
+    push @$queue, $event;
+}
+
 requires 'open_write_handle';
 requires 'unlink';
 requires 'rename';

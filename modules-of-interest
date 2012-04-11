@@ -7,3 +7,4 @@ MooseX::Types::Structured
 MooseX::Types::Common::Numeric
 MooseX::NonMoose
 MooseX::Role::Pluggable
+MooseX::Object::Pluggable

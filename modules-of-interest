@@ -8,3 +8,6 @@ MooseX::Types::Common::Numeric
 MooseX::NonMoose
 MooseX::Role::Pluggable
 MooseX::Object::Pluggable
+
+HTTP::Client
+Net::HTTP

@@ -2,6 +2,7 @@ package SaharaSync::Stream::Reader;
 
 use Moose::Role;
 use feature 'switch';
+no warnings 'experimental::smartmatch';
 
 use namespace::clean -except => 'meta';
 

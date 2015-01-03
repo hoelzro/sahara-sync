@@ -2,6 +2,7 @@ package SaharaSync::Clientd::SyncDir;
 
 use Moose;
 use feature 'switch';
+no warnings 'experimental::smartmatch';
 
 __PACKAGE__->meta->make_immutable;
 

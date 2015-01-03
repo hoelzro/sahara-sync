@@ -3,6 +3,7 @@ package SaharaSync::Stream::Writer;
 use Moose::Role;
 
 use feature 'switch';
+no warnings 'experimental::smartmatch';
 
 use Carp qw(croak);
 

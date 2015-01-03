@@ -4,6 +4,7 @@ package SaharaSync::Hostd;
 ## use critic (RequireUseStrict)
 use Moose;
 use feature 'switch';
+no warnings 'experimental::smartmatch';
 
 use Carp qw(croak longmess);
 use Data::Dumper;

@@ -12,11 +12,7 @@ use Test::More tests => 10;
 use Test::Sahara::Proxy;
 use Test::TCP;
 
-use Twiggy 0.1023;
-
-if($Twiggy::VERSION gt '0.1023') {
-    die "Unsupported version of Twiggy ($Twiggy::VERSION) in use; this test will fail.  Bailing out early\n";
-}
+use Twiggy 0.1025;
 
 sub do_request {
     my ( $url ) = @_;

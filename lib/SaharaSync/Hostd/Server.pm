@@ -1,7 +1,7 @@
 package SaharaSync::Hostd::Server;
 
 use Moose;
-use Twiggy::Server;
+use Twiggy::Server 0.1025;
 
 use namespace::clean -except => 'meta';
 

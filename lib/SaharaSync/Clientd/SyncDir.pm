@@ -1,23 +1,18 @@
 package SaharaSync::Clientd::SyncDir;
 
 use Moose;
-use feature 'switch';
-no warnings 'experimental::smartmatch';
 
 __PACKAGE__->meta->make_immutable;
 
 sub create_syncdir {
     my ( $class, %args ) = @_;
 
-    given($^O) {
-        when('linux') {
-            require SaharaSync::Clientd::SyncDir::Inotify;
+    if($^O eq 'linux') {
+        require SaharaSync::Clientd::SyncDir::Inotify;
 
-            return SaharaSync::Clientd::SyncDir::Inotify->new(%args);
-        }
-        default {
-            return;
-        }
+        return SaharaSync::Clientd::SyncDir::Inotify->new(%args);
+    } else {
+        return;
     }
 }
 

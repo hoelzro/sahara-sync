@@ -2,9 +2,6 @@ package SaharaSync::Stream::Writer;
 
 use Moose::Role;
 
-use feature 'switch';
-no warnings 'experimental::smartmatch';
-
 use Carp qw(croak);
 
 use namespace::clean -except => 'meta';
@@ -79,11 +76,9 @@ sub for_mimetype {
 
     $mime_type =~ s/;.*$//;
 
-    given($mime_type) {
-        when('application/json') {
-            require SaharaSync::Stream::Writer::JSON;
-            return SaharaSync::Stream::Writer::JSON->new(%opts);
-        }
+    if($mime_type eq 'application/json') {
+        require SaharaSync::Stream::Writer::JSON;
+        return SaharaSync::Stream::Writer::JSON->new(%opts);
     }
 }
 

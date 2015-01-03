@@ -1,8 +1,6 @@
 package SaharaSync::Stream::Reader;
 
 use Moose::Role;
-use feature 'switch';
-no warnings 'experimental::smartmatch';
 
 use namespace::clean -except => 'meta';
 
@@ -29,11 +27,9 @@ sub for_mimetype {
 
     $mime_type =~ s/;.*$//;
 
-    given($mime_type) {
-        when('application/json') {
-            require SaharaSync::Stream::Reader::JSON;
-            return SaharaSync::Stream::Reader::JSON->new;
-        }
+    if($mime_type eq 'application/json') {
+        require SaharaSync::Stream::Reader::JSON;
+        return SaharaSync::Stream::Reader::JSON->new;
     }
 }
 

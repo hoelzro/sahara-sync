@@ -3,8 +3,6 @@ package SaharaSync::Hostd;
 
 ## use critic (RequireUseStrict)
 use Moose;
-use feature 'switch';
-no warnings 'experimental::smartmatch';
 
 use Carp qw(croak longmess);
 use Data::Dumper;
@@ -276,175 +274,170 @@ sub blobs {
 
     $blob =~ s!^/!!;
 
-    given($method) {
-        when('GET') {
-            my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
-            my $revision = delete $metadata->{'revision'};
+    if($method eq 'GET') {
+        my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
+        my $revision = delete $metadata->{'revision'};
 
-            if(defined $handle) {
-                no warnings 'uninitialized';
-                if($req->header('If-None-Match') eq $revision) {
-                    $res->status(304);
-                } else {
-                    $res->status(200);
-                    $res->header(ETag => $revision);
-                    foreach my $k (keys %$metadata) {
-                        my $v = $metadata->{$k};
-                        $k =~ s/^(.)/uc $1/ge;
-                        $res->header("X-Sahara-$k", $v);
-                    }
-                    my $blob_length = ( $handle->stat )[7];
-                    $res->content_length($blob_length);
-                    $res->content_type('application/octet-stream');
-                    $res->body($handle);
-                }
+        if(defined $handle) {
+            no warnings 'uninitialized';
+            if($req->header('If-None-Match') eq $revision) {
+                $res->status(304);
             } else {
-                $res->status(404);
+                $res->status(200);
+                $res->header(ETag => $revision);
+                foreach my $k (keys %$metadata) {
+                    my $v = $metadata->{$k};
+                    $k =~ s/^(.)/uc $1/ge;
+                    $res->header("X-Sahara-$k", $v);
+                }
+                my $blob_length = ( $handle->stat )[7];
+                $res->content_length($blob_length);
+                $res->content_type('application/octet-stream');
+                $res->body($handle);
+            }
+        } else {
+            $res->status(404);
+            $res->content_type('text/plain');
+            $res->body('not found');
+        }
+    } elsif($method eq 'HEAD') {
+        my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
+        my $revision = delete $metadata->{'revision'};
+
+        if(defined $revision) {
+            no warnings 'uninitialized';
+            if($req->header('If-None-Match') eq $revision) {
+                $res->status(304);
+            } else {
+                $res->status(200);
+                foreach my $k (keys %$metadata) {
+                    my $v = $metadata->{$k};
+                    $k =~ s/^(.)/uc $1/ge;
+                    $res->header("X-Sahara-$k", $v);
+                }
+                $res->header(ETag => $revision);
+
+                my $size = 0;
+                do {
+                    local $/ = \4096;
+                    while(defined(my $line = $handle->getline)) {
+                        $size += length $line;
+                    }
+                };
+                $res->header('Content-Length' => $size);
+            }
+        } else {
+            $res->status(404);
+        }
+    } elsif($method eq 'PUT') {
+        my %metadata;
+        my $headers = $req->headers;
+        foreach my $header (grep { /^x-sahara-/i } $headers->header_field_names) {
+            my $value = $headers->header($header);
+            if($header =~ /^x-sahara-(revision|name|is-deleted)$/i) {
+                $res->status(400);
                 $res->content_type('text/plain');
-                $res->body('not found');
+                $res->body($header . ' is an invalid metadata header');
+                return $res->finalize;
             }
+            $header =~ s/^x-sahara-//i;
+            $metadata{$header} = $value;
         }
-        when('HEAD') {
-            my ( $handle, $metadata ) = $self->storage->fetch_blob($user, $blob);
-            my $revision = delete $metadata->{'revision'};
+        my $current_revision = $metadata{'revision'} = $req->header('If-Match');
+        $self->log->info("Updating blob '$blob' for user '$user'");
+        my $revision         = eval {
+            $self->storage->store_blob($user, $blob, $req->body, \%metadata);
+        };
+        if($@) {
+            if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
+                $self->log->info("Invalid arguments: $@");
+                $res->status(400);
+                $res->content_type('text/plain');
 
-            if(defined $revision) {
-                no warnings 'uninitialized';
-                if($req->header('If-None-Match') eq $revision) {
-                    $res->status(304);
+                if(defined $current_revision) {
+                    $res->body('cannot accept revision when creating a blob');
                 } else {
-                    $res->status(200);
-                    foreach my $k (keys %$metadata) {
-                        my $v = $metadata->{$k};
-                        $k =~ s/^(.)/uc $1/ge;
-                        $res->header("X-Sahara-$k", $v);
-                    }
-                    $res->header(ETag => $revision);
-
-                    my $size = 0;
-                    do {
-                        local $/ = \4096;
-                        while(defined(my $line = $handle->getline)) {
-                            $size += length $line;
-                        }
-                    };
-                    $res->header('Content-Length' => $size);
+                    $res->body('revision required for updating a blob');
                 }
             } else {
-                $res->status(404);
+                $self->log->error("Update error: $@");
+                die;
+            }
+        } else {
+            if(defined $revision) {
+                $self->log->info("Update successful (revision = $revision)");
+                if(defined $current_revision) {
+                    $res->status(200);
+                } else {
+                    $res->status(201);
+                    $res->header(Location => $req->uri);
+                }
+                $res->header(ETag => $revision);
+                $res->content_type('text/plain');
+                $res->body('ok');
+
+                if($env->{'sahara.streaming'}) {
+                    my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
+                    $metadata->{'revision'} = $revision;
+                    $self->send_change_to_streams($user, $blob, $metadata);
+                }
+            } else {
+                $self->log->info("Update conflict");
+                $res->status(409);
+                $res->content_type('text/plain');
+                $res->body('conflict');
             }
         }
-        when('PUT') {
-            my %metadata;
-            my $headers = $req->headers;
-            foreach my $header (grep { /^x-sahara-/i } $headers->header_field_names) {
-                my $value = $headers->header($header);
-                if($header =~ /^x-sahara-(revision|name|is-deleted)$/i) {
-                    $res->status(400);
-                    $res->content_type('text/plain');
-                    $res->body($header . ' is an invalid metadata header');
-                    return $res->finalize;
-                }
-                $header =~ s/^x-sahara-//i;
-                $metadata{$header} = $value;
+    } elsif($method eq 'DELETE') {
+        my $revision = $req->header('If-Match');
+
+        my $metadata;
+
+        $self->log->info("Deleting blob '$blob' for user '$user'");
+
+        unless(defined $revision) {
+            $self->log->info("No revision provided");
+            $res->status(400);
+            $res->content_type('text/plain');
+            $res->body('revision required');
+        } else {
+            if($env->{'sahara.streaming'}) {
+                ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
             }
-            my $current_revision = $metadata{'revision'} = $req->header('If-Match');
-            $self->log->info("Updating blob '$blob' for user '$user'");
-            my $revision         = eval {
-                $self->storage->store_blob($user, $blob, $req->body, \%metadata);
+            $revision = eval {
+                $self->storage->delete_blob($user, $blob, $revision);
             };
             if($@) {
-                if(UNIVERSAL::isa($@, 'SaharaSync::X::InvalidArgs') ) {
-                    $self->log->info("Invalid arguments: $@");
-                    $res->status(400);
+                if(UNIVERSAL::isa($@, 'SaharaSync::X::NoSuchBlob')) {
+                    $self->log->info("Blob not found");
+                    $res->status(404);
                     $res->content_type('text/plain');
-
-                    if(defined $current_revision) {
-                        $res->body('cannot accept revision when creating a blob');
-                    } else {
-                        $res->body('revision required for updating a blob');
-                    }
+                    $res->body('not found');
                 } else {
-                    $self->log->error("Update error: $@");
+                    $self->log->error("Deletion error: $@");
                     die;
                 }
             } else {
                 if(defined $revision) {
-                    $self->log->info("Update successful (revision = $revision)");
-                    if(defined $current_revision) {
-                        $res->status(200);
-                    } else {
-                        $res->status(201);
-                        $res->header(Location => $req->uri);
-                    }
-                    $res->header(ETag => $revision);
+                    $self->log->info("Deletion successful (revision = $revision)");
+                    $res->status(200);
                     $res->content_type('text/plain');
                     $res->body('ok');
+                    $res->header(ETag => $revision);
 
                     if($env->{'sahara.streaming'}) {
-                        my ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
-                        $metadata->{'revision'} = $revision;
+                        $metadata->{'is_deleted'} = 1;
+                        $metadata->{'revision'}   = $revision;
                         $self->send_change_to_streams($user, $blob, $metadata);
                     }
                 } else {
-                    $self->log->info("Update conflict");
+                    $self->log->info("Deletion conflict");
                     $res->status(409);
                     $res->content_type('text/plain');
                     $res->body('conflict');
                 }
             }
         }
-        when('DELETE') {
-            my $revision = $req->header('If-Match');
-
-            my $metadata;
-
-            $self->log->info("Deleting blob '$blob' for user '$user'");
-
-            unless(defined $revision) {
-                $self->log->info("No revision provided");
-                $res->status(400);
-                $res->content_type('text/plain');
-                $res->body('revision required');
-            } else {
-                if($env->{'sahara.streaming'}) {
-                    ( undef, $metadata ) = $self->storage->fetch_blob($user, $blob);
-                }
-                $revision = eval {
-                    $self->storage->delete_blob($user, $blob, $revision);
-                };
-                if($@) {
-                    if(UNIVERSAL::isa($@, 'SaharaSync::X::NoSuchBlob')) {
-                        $self->log->info("Blob not found");
-                        $res->status(404);
-                        $res->content_type('text/plain');
-                        $res->body('not found');
-                    } else {
-                        $self->log->error("Deletion error: $@");
-                        die;
-                    }
-                } else {
-                    if(defined $revision) {
-                        $self->log->info("Deletion successful (revision = $revision)");
-                        $res->status(200);
-                        $res->content_type('text/plain');
-                        $res->body('ok');
-                        $res->header(ETag => $revision);
-
-                        if($env->{'sahara.streaming'}) {
-                            $metadata->{'is_deleted'} = 1;
-                            $metadata->{'revision'}   = $revision;
-                            $self->send_change_to_streams($user, $blob, $metadata);
-                        }
-                    } else {
-                        $self->log->info("Deletion conflict");
-                        $res->status(409);
-                        $res->content_type('text/plain');
-                        $res->body('conflict');
-                    }
-                }
-            }
-       }
     }
     $res->finalize;
 }

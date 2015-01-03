@@ -4,6 +4,12 @@ package SaharaSync; # keep PodWeaver happy
 
 =head1 DESCRIPTION
 
+B<NOTE> I have not been working on this software actively for quite some time;
+in early 2012, my need for it disappeared, and since then, a lot of great programs
+that fulfill the same need have sprung up.  I look at the code every so often to make
+sure it basically works, but active development has ceased.  If you have interest in
+working on it, however, please let me know!
+
 Sahara Sync is a file-synchronization program, simliar to web services such as
 Dropbox.  The main difference is that with Sahara Sync, you are in control of
 your data and the code that handles them.
